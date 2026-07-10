@@ -110,7 +110,7 @@ def verificar_origem() -> None | tuple[dict[str, str], Literal[HttpStatus.UNAUTH
     # 5. Validação de domínio (Host)
     # ==========================
     # Reconstrói a origem para comparação com os domínios permitidos (Whitelist).
-    host: Optional[str] = f'https://{request.headers.get("Host")}'
+    host: Optional[str] = f'{request.headers.get("Host")}'
 
     if host and host not in DOMINIOS_PERMITIDOS:
         if not api_key:
