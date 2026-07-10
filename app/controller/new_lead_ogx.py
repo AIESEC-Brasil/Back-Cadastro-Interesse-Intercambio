@@ -57,7 +57,7 @@ def criar_incricao():
     Endpoint para recepção de novos leads de intercâmbio.
     (Em desenvolvimento: integrará com o controller de cadastro OGX).
     """
-    return "oi"
+    return "<H1>ROTA PARA CADASTRO DE LEADS<H1>"
 
 
 # ==============================

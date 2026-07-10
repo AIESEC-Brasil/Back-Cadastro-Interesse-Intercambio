@@ -12,6 +12,7 @@ from flask_cors import CORS  # Gerenciamento de permissões de acesso entre dom�
 from .middlewares import verificar_origem, verificar_rota, register_url  # Funções de interceptação
 from .utils import handle_validation_error
 from .controller import new_lead_ogx
+from .api import api
 
 def create_app() -> OpenAPI:
     """
@@ -50,11 +51,6 @@ def create_app() -> OpenAPI:
             validation_error_status = 422,
             validation_error_callback = handle_validation_error # <-- O OpenAPI3 chama ela direto!
         )
-        # ==========================
-        # Documentação da API
-        # ==========================
-        logger.info("Carregando URLs de Documentação...")
-        logger.info("Carregamento URLs de Documentação Completo!")
 
         # ==========================
         # Configuração de CORS
@@ -76,6 +72,7 @@ def create_app() -> OpenAPI:
 
         # Registro oficial da estrutura de endpoints
         app.register_api(new_lead_ogx)
+        app.register_api(api)
 
         logger.info("Servidor Inicializado com Sucesso!")
 

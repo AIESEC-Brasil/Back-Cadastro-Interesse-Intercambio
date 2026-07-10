@@ -15,8 +15,7 @@ from pydantic import (
     Field,           # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
     ConfigDict,      # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
     field_serializer, # Decorador que permite customizar como um campo específico é convertido para JSON (ex: formatar datas).
-    field_validator,
-    RootModel
+    field_validator
 )
 from pydantic_core import (
     core_schema      # Fornece acesso às estruturas de baixo nível do Pydantic para criar validadores customizados complexos.
@@ -35,6 +34,8 @@ from datetime import (
     datetime,        # Objeto padrão para manipulação de carimbos de data e hora (timestamp).
     date             # Objeto padrão para manipulação de datas calendárias (dia, mês, ano).
 )
+
+from deep_translator import GoogleTranslator
 
 # =================================================================
 # 2. ENUMS E TIPOS CONSTANTES
@@ -301,22 +302,6 @@ class Metadados(BaseModel):
         extra="forbid",       # Rejeita campos desconhecidos no payload para maior segurança
         # 'anyOf' informa à documentação que o valor pode ser validado contra diferentes esquemas,
         # refletindo a versatilidade do Pydantic em converter tipos numéricos para datetime.
-        json_schema_extra={
-            "anyOf": [
-                {
-                    "title": "Datatime",
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Formato textual padrão ISO 8601",
-                    "example":[]
-                },
-                {
-                    "title": "TimeStamp",
-                    "type": "number",
-                    "description": "Formato numérico Unix Timestamp (segundos desde a época de 1970)"
-                }
-            ]
-        }
     )
 
     @field_serializer('DataHora')
@@ -354,7 +339,7 @@ class Metadados(BaseModel):
             # Reagrupa o restante (ano e horário)
             resto_data_hora = ' de '.join(partes[2:])
 
-            return f"{dia_semana_e_numero} de {mes_nome} de {resto_data_hora}"
+            return GoogleTranslator(source='auto', target='pt').translate(f"{dia_semana_e_numero} de {mes_nome} de {resto_data_hora}")
 
         # Fallback genérico de capitalização
         return data_formatada.capitalize()
