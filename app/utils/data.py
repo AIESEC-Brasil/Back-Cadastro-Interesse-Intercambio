@@ -16,6 +16,13 @@ from datetime import timedelta  # Utilizado para cálculos de aritmética de dat
 from zoneinfo import ZoneInfo
 from datetime import datetime  # Instância global de datetime para consistência no projeto
 
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.utf-8')
+except Exception:
+    try:
+        locale.setlocale(locale.LC_TIME, 'pt_BR')
+    except Exception:
+        pass
 
 
 # ==============================

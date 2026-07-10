@@ -16,6 +16,9 @@ from .config import *
 # Importa a função de configuração de logs (App, Audit, Werkzeug)
 from .logger import *
 
+# Importa o objeto de compressão para otimizar respostas HTTP
+from .compress import compress  # Instancia o objeto de compressão para otimizar respostas HTTP
+
 # =================================================================
 # Exportação Consolidada
 # =================================================================
@@ -25,6 +28,7 @@ from .logger import *
 # O __all__ define o que será exportado ao fazer 'from app.core import *'
 # Nota: Concatenamos a lista de strings do config.__all__ para manter a interface plana.
 __all__ = [
+    "compress",        # Instância de compressão para otimizar respostas HTTP
     "db",              # Instância SQLAlchemy
     "migrate",         # Instância Flask-Migrate
     "ma",              # Instância Marshmallow

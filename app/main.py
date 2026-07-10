@@ -10,9 +10,10 @@ import logging  # Registro de eventos para monitoramento do ciclo de vida da app
 from flask_openapi3 import OpenAPI, Info  # Extensão Flask para documentação automática OpenAPI/Swagger
 from flask_cors import CORS  # Gerenciamento de permissões de acesso entre domínios (CORS)
 from .middlewares import verificar_origem, verificar_rota, register_url  # Funções de interceptação
-from .utils import handle_validation_error
-from .controller import new_lead_ogx
-from .api import api
+from .utils import handle_validation_error # Função de tratamento de erros de validação do OpenAPI3
+from .controller import new_lead_ogx # Importa o roteador especializado para novos leads OGX
+from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
+from .core import compress  # Instância de compressão para otimizar respostas HTTP
 
 def create_app() -> OpenAPI:
     """
@@ -51,6 +52,26 @@ def create_app() -> OpenAPI:
             validation_error_status = 422,
             validation_error_callback = handle_validation_error # <-- O OpenAPI3 chama ela direto!
         )
+        # ==============================
+        # Configuração de Compressão
+        # ==============================
+        logger.info("Ativando Compressão de Respostas...")
+        # Força o nível de compressão e mimetypes aceitos
+        app.config["COMPRESS_MIMETYPES"] = [
+            "application/json", # JSON é o principal, mas vamos comprimir também HTML, CSS, XML e JS
+            "text/html", 
+            "text/css", 
+            "text/xml", 
+            "application/javascript"
+        ]
+        app.config["COMPRESS_MIN_SIZE"] = 10  # Comprime qualquer coisa maior que 10 bytes (seu JSON tem 180kb!)
+        app.config["COMPRESS_LEVEL"] = 10      # Balanço perfeito entre uso de CPU e compressão
+        # Instancia o compressor sem registrar os hooks automáticos padrão
+        app.config["COMPRESS_REGISTER"] = False # Desativa o registro automático de hooks, permitindo controle manual
+        compress.init_app(app) # Inicializa o compressor, mas não registra hooks automáticos
+        # Força o compressor a rodar no after_request, pegando o JSON do OpenAPI3 já pronto!
+        app.after_request(compress.after_request)
+        logger.info("Compressão de Respostas Ativada com Sucesso!")
 
         # ==========================
         # Configuração de CORS

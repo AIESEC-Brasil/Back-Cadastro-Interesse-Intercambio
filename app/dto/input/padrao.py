@@ -339,7 +339,23 @@ class Metadados(BaseModel):
             # Reagrupa o restante (ano e horário)
             resto_data_hora = ' de '.join(partes[2:])
 
-            return GoogleTranslator(source='auto', target='pt').translate(f"{dia_semana_e_numero} de {mes_nome} de {resto_data_hora}")
+            # Dicionário de tradução local na memória
+            traducoes = {
+                "Monday": "Segunda-feira", "Tuesday": "Terça-feira", "Wednesday": "Quarta-feira",
+                "Thursday": "Quinta-feira", "Friday": "Sexta-feira", "Saturday": "Sábado", "Sunday": "Domingo",
+                "January": "Janeiro", "February": "Fevereiro", "March": "Março", "April": "Abril",
+                "May": "Maio", "June": "Junho", "July": "Julho", "August": "Agosto",
+                "September": "Setembro", "October": "Outubro", "November": "Novembro", "December": "Dezembro"
+            }
+            
+            texto_original = f"{dia_semana_e_numero} de {mes_nome} de {resto_data_hora}"
+            
+            # Substitui as palavras em inglês pelas em português localmente
+            texto_traduzido = texto_original
+            for eng, pt in traducoes.items():
+                texto_traduzido = texto_traduzido.replace(eng, pt)
+                
+            return texto_traduzido
 
         # Fallback genérico de capitalização
         return data_formatada.capitalize()

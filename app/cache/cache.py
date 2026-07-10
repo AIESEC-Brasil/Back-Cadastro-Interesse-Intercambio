@@ -44,24 +44,24 @@ class CacheManager:
     """
 
     def __init__(self):
-        """
-        Inicializa o repositório central de cache.
-        """
-        # store: Dicionário que mapeia uma 'chave' para um objeto contendo os dados e o tempo de criação.
-        # Exemplo: { "podio_token": { "data": {...}, "timestamp": 1700000000 } }
+        """Inicializa o repositório central de cache e os controladores de concorrência."""
+        # Armazena os dados brutos e seus respectivos timestamps de criação.
         self.store: Dict[str, Dict[str, Any]] = {}
-
-        # locks: Dicionário responsável por manter um Lock exclusivo para cada chave de cache.
-        # Isso impede que múltiplas requisições recalcularem o mesmo recurso simultaneamente.
+        
+        # Mantém um Lock exclusivo para cada chave de cache ativa.
         self.locks: Dict[str, Lock] = {}
+        
+        # Lock Mestre (Garante consistência atômica ao criar novos sub-locks)
+        self.master_lock = Lock()
 
     def get_lock(self, key: str) -> Lock:
         """
-        Retorna (ou cria) um Lock exclusivo associado a uma chave específica.
+        Retorna ou cria de forma síncrona/atômica um Lock exclusivo para uma chave.
         """
-        if key not in self.locks:
-            self.locks[key] = Lock()
-        return self.locks[key]
+        with self.master_lock:
+            if key not in self.locks:
+                self.locks[key] = Lock()
+            return self.locks[key]
 
     def get_or_set(self, key: str, fetch: Callable[[], Tuple[Any, int]], baixando: str):
         """
