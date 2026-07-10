@@ -101,7 +101,7 @@ def verificar_rota() -> None:
 
         # 8. Tratamento de Exceções de Documentação e Estáticos
         # Permite o acesso livre a rotas de documentação técnica
-        elif parts[1] in ["docs","register"] or parts[0] in ["apidoc","openapi","static"]:
+        elif parts[1] in ["docs","register"] or parts[0] in ["openapi","static"]:
             return None
         else:
             logger.warning(f"AIESEC Middleware | Endpoint genérico acessado: {path}")
