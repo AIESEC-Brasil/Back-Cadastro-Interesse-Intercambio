@@ -22,16 +22,18 @@ from .formatar import *
 from .validates import *
 from .resolve import *
 from .exception import *
+from .gerador_sql import *
 # ==============================
 # Exportação Consolidada
 # ==============================
 
 # O __all__ define o que será exportado ao usar "from app.utils import *"
 # Concatenamos as listas __all__ de cada submódulo para manter a consistência
-__all__ = (
+__all__ =(
     data.__all__ +
     formatar.__all__ +
     validates.__all__ +
     resolve.__all__+
-    exception.__all__
+    exception.__all__+
+    gerador_sql.__all__
 )

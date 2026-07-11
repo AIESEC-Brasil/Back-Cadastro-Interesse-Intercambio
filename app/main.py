@@ -9,11 +9,15 @@ Migrações, documentação, middlewares e registro de rotas.
 import logging  # Registro de eventos para monitoramento do ciclo de vida da app
 from flask_openapi3 import OpenAPI, Info  # Extensão Flask para documentação automática OpenAPI/Swagger
 from flask_cors import CORS  # Gerenciamento de permissões de acesso entre domínios (CORS)
+from .manager import migration # Função orquestradora de migração do banco de dados
 from .middlewares import verificar_origem, verificar_rota, register_url  # Funções de interceptação
 from .utils import handle_validation_error # Função de tratamento de erros de validação do OpenAPI3
 from .controller import new_lead_ogx # Importa o roteador especializado para novos leads OGX
 from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
 from .core import compress  # Instância de compressão para otimizar respostas HTTP
+from .core import DB_CONNECT # Variável de ambiente que contém a string de conexão com o banco de dados
+from .core import db,ma,migrate # Instâncias de persistência e serialização (SQLAlchemy, Marshmallow, Flask-Migrate)
+from .model import db as model_db  # Garante que os modelos ORM sejam registrados para as migrações
 
 def create_app() -> OpenAPI:
     """
@@ -47,7 +51,7 @@ def create_app() -> OpenAPI:
         # Instanciação da aplicação com suporte nativo a OpenAPI 3
         app = OpenAPI(
             __name__,
-            info=Info(title="API", version="1.10.0"),
+            info=Info(title="API", version="2.0.0"),
             validate_response=True,  # Valida se a resposta da rota condiz com a documentação
             validation_error_status = 422,
             validation_error_callback = handle_validation_error # <-- O OpenAPI3 chama ela direto!
@@ -65,9 +69,9 @@ def create_app() -> OpenAPI:
             "application/javascript"
         ]
         app.config["COMPRESS_MIN_SIZE"] = 10  # Comprime qualquer coisa maior que 10 bytes (seu JSON tem 180kb!)
-        app.config["COMPRESS_LEVEL"] = 10      # Balanço perfeito entre uso de CPU e compressão
+        app.config["COMPRESS_LEVEL"] = 6      # Balanço perfeito entre uso de CPU e compressão
         # Instancia o compressor sem registrar os hooks automáticos padrão
-        app.config["COMPRESS_REGISTER"] = False # Desativa o registro automático de hooks, permitindo controle manual
+        app.config["COMPRESS_REGISTER"] = True # Desativa o registro automático de hooks, permitindo controle manual
         compress.init_app(app) # Inicializa o compressor, mas não registra hooks automáticos
         # Força o compressor a rodar no after_request, pegando o JSON do OpenAPI3 já pronto!
         app.after_request(compress.after_request)
@@ -83,6 +87,37 @@ def create_app() -> OpenAPI:
              allow_headers=["X-API-KEY", "Content-Type", "ngrok-skip-browser-warning"],
              methods=["GET", "POST", "OPTIONS"])
         logger.info("Domínios Autorizados Cadastrados com Sucesso!")
+
+        # ==========================
+        # Conexão com Banco de Dados
+        # ==========================
+        # Oculta credenciais sensíveis no log
+        logger.info(f"Tentando conectar ao banco: {DB_CONNECT.split('@')[-1]}")
+        app.config['SQLALCHEMY_DATABASE_URI'] = DB_CONNECT
+        # No create_app, antes do db.init_app(app)
+        # app.config['SQLALCHEMY_ECHO'] = True
+        # Inicialização técnica das extensões:
+
+        # db (SQLAlchemy): O ORM que mapeia classes Python para tabelas relacionais.
+        db.init_app(app)
+
+        # ma (Marshmallow): O esquema que transforma dados do banco em JSON estruturado.
+        ma.init_app(app)
+
+        # migrate (Flask-Migrate): O controlador que aplica mudanças de colunas/tabelas no banco.
+        migrate.init_app(app, db)
+
+        logger.info("Banco Conectado com Sucesso!")
+
+        # ==========================
+        # Rotinas de Migração
+        # ==========================
+        # Executa as migrações dentro do contexto da aplicação (App Context)
+        with app.app_context():
+
+            logger.info("Entrou no contexto da aplicação. Iniciando migrações...")
+            migration()
+            logger.info("Migração finalizada com Sucesso!")
 
         # ==========================
         # Middlewares (Antes da Rota)

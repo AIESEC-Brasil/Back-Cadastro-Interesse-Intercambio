@@ -36,6 +36,7 @@ dependencies:
   - xz=5.8.2
   - zlib=1.3.2
   - pip:
+      - alembic==1.18.5
       - annotated-types==0.7.0
       - anyio==4.14.1
       - backports-zstd==1.6.0
@@ -52,6 +53,8 @@ dependencies:
       - flask==3.1.3
       - flask-compress==1.24
       - flask-cors==6.0.5
+      - flask-marshmallow==1.5.0
+      - flask-migrate==4.1.0
       - flask-openapi3==4.3.2
       - flask-openapi3-elements==9.0.15
       - flask-openapi3-rapidoc==9.3.8
@@ -59,19 +62,26 @@ dependencies:
       - flask-openapi3-redoc==2.5.2
       - flask-openapi3-scalar==1.44.15
       - flask-openapi3-swagger==5.31.0
+      - flask-sqlalchemy==3.1.1
+      - greenlet==3.5.3
       - h11==0.16.0
       - httpcore==1.0.9
       - httpx==0.28.1
       - idna==3.18
       - itsdangerous==2.2.0
       - jinja2==3.1.6
+      - mako==1.3.12
       - markupsafe==3.0.3
+      - marshmallow==4.3.0
+      - marshmallow-sqlalchemy==1.5.0
+      - mysql-connector-python==9.7.0
       - pydantic==2.13.4
       - pydantic-core==2.46.4
       - python-dotenv==1.2.2
       - pytz==2026.2
       - requests==2.34.2
       - soupsieve==2.8.4
+      - sqlalchemy==2.0.51
       - typing-extensions==4.16.0
       - typing-inspection==0.4.2
       - urllib3==2.7.0

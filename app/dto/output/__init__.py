@@ -12,8 +12,8 @@ envelopes de integração para APIs externas.
 
 # Importa todos os modelos de resposta definidos no módulo psel
 # (HttpStatus, ModelPodio, ReponsePselPreCadastro, etc.)
-from .psel_output import *
 from .httpstatus import HttpStatus
+from .metadados import Metadados
 
 # =================================================================
 # Exportação Consolidada
@@ -24,6 +24,6 @@ from .httpstatus import HttpStatus
 # O __all__ define explicitamente quais classes estarão disponíveis ao importar este pacote.
 # Isso facilita o uso em Services e Blueprints: from app.dtos.output import HttpStatus
 __all__ = [
-    "ReponseOutPutPreCadastro", # Envelope principal de resposta da API
-    "HttpStatus"                # Enumerador de códigos de status HTTP
+    "HttpStatus",                # Enumerador de códigos de status HTTP
+    "Metadados"
 ]

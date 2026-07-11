@@ -12,6 +12,7 @@ com base em constantes importadas de app.config.settings.
 from ..config import (
     AMBIENTE,           # String identificadora do ambiente (ex: 'PROD', 'DEV')
     DOMINIOS_PERMITIDOS,  # Lista de domínios oficiais da organização
+    DB_CONNECT
 )
 import locale
 
@@ -56,5 +57,6 @@ __all__ = [
     "DOMINIOS_PERMITIDOS", # Lista final de domínios para políticas de CORS
     "IS_PRODUCTION",       # Booleano para verificações de segurança/logs
     "IS_NON_PROD",          # Booleano para habilitar ferramentas de debug
+    "DB_CONNECT",
     "configurar_idioma"
 ]

@@ -57,6 +57,11 @@ API_KEYS_PERMITIDAS: List[str] = [
 # Domínios oficiais da AIESEC para produção
 DOMINIOS_PERMITIDOS: List[str] = get_env_or_fail("DOMINIOS_PERMITIDOS").split(",")
 
+# ===============================
+# INFRAESTRUTURA (DB E URL)
+# ===============================
+# Strings de conexão SQLAlchemy (ex: postgresql://user:pass@host:port/db)
+DB_CONNECT = get_env_or_fail("DB_CONNECT")
 
 # ================================
 # INTEGRAÇÕES GOOGLE APPS SCRIPT
@@ -96,6 +101,7 @@ TOKEN_EXPA = get_env_or_fail("TOKEN_EXPA")
 __all__ = [
     "AMBIENTE",
     "DOMINIOS_PERMITIDOS",
+    "DB_CONNECT",
     "API_KEYS_PERMITIDAS",
     "CACHE_TTL",
     "CLIENT_ID",

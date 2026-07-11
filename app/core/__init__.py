@@ -19,6 +19,12 @@ from .logger import *
 # Importa o objeto de compressão para otimizar respostas HTTP
 from .compress import compress  # Instancia o objeto de compressão para otimizar respostas HTTP
 
+from .db import db
+
+from .migrate import migrate
+
+from .schema import ma
+
 # =================================================================
 # Exportação Consolidada
 # =================================================================
