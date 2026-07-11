@@ -79,7 +79,7 @@ class CacheManager:
                 self.locks[key] = Lock()
             return self.locks[key]
 
-    def get_or_set(self, key: str, fetch: Callable[[], Tuple[Any, int]], baixando: str):
+    def get_or_set(self, key: str, fetch: Callable[[], Tuple[Any, int]], baixando: str,metadados:bool=False) -> Tuple[Any, int]:
         """
         Executa a estratégia Cache-Aside. Se os dados estiverem válidos, retorna o cache (HIT).
         Caso contrário, busca os dados na fonte e atualiza a memória (MISS).
@@ -145,13 +145,16 @@ class CacheManager:
             self.store[key] = {
                 "data": data,  # Armazena apenas os campos relevantes do payload
                 "timestamp": now, # Marca o momento da atualização para controle de expiração
-                "cl": [cl.to_dict() for cl in buscar_todos_cl()], # Armazena a lista de Comitês Locais (CL) para roteamento
-                "universidades": [u.to_dict() for u in buscar_todas_universidades()] # Armazena a lista de Universidades para  roteamento
             }
+            if metadados:
+                logger.info(f"AIESEC Security | Sincronizando metadados de roteamento para '{baixando}'...")
+                self.store[key]["cl"] = [cl.to_dict() for cl in buscar_todos_cl()] # Armazena a lista de Comitês Locais (CL) para roteamento
+                self.store[key]["universidades"] = [u.to_dict() for u in buscar_todas_universidades()] # Armazena a lista de Universidades para  roteamento
+                logger.info(f"AIESEC Security | Metadados de roteamento para '{baixando}' sincronizados com sucesso!")
 
-            logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
+        logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
 
-            return jsonify(data), status
+        return jsonify(data), status
 
 
 # ==============================

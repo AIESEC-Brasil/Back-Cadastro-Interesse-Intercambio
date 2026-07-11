@@ -40,11 +40,20 @@ class Metadados(BaseModel):
         description="Informações de roteamento e configuração do Comitê Local (CL).",
         json_schema_extra={
             "type": "object",
-            "example": {
-                "nome": "Comitê Local Exemplo",
-                "gv": "Roteamento GV Exemplo",
-                "gt": "Roteamento GT Exemplo"
-            }
+            "example": [
+                    {
+                        "nome": "Comitê Local Exemplo",
+                        "gv": "Roteamento GV Exemplo",
+                        "gt": "Roteamento GT Exemplo",
+                        "id": "ID do Comitê Local Exemplo"
+                    },
+                    {
+                        "nome": "Comitê Local Exemplo",
+                        "gv": "Roteamento GV Exemplo",
+                        "gt": "Roteamento GT Exemplo",
+                        "id": "ID do Comitê Local Exemplo"
+                    }
+                ]
         }
     )
 
@@ -53,11 +62,20 @@ class Metadados(BaseModel):
         description="Mapeamento de universidades e seus respectivos roteamentos.",
         json_schema_extra={
             "type": "object",
-            "example": {
-                "nome": "Universidade Exemplo",
-                "gv": "Roteamento GV Exemplo",
-                "gt": "Roteamento GT Exemplo"
-            }
+            "example":  [
+                    {
+                        "nome": "Universidade Exemplo",
+                        "gv": "Roteamento GV Exemplo",
+                        "gt": "Roteamento GT Exemplo",
+                        "id": "ID da Universidade Exemplo"
+                    },
+                    {
+                        "nome": "Universidade Exemplo",
+                        "gv": "Roteamento GV Exemplo",
+                        "gt": "Roteamento GT Exemplo",
+                        "id": "ID da Universidade Exemplo"
+                    }
+                ]
         }
     )
 
@@ -68,24 +86,22 @@ class Metadados(BaseModel):
         description="Payload bruto original da requisição para auditoria",
         json_schema_extra={
             "type": "object",
-            "example": {
-                "app_id": 123456789,
-                "fields": [
+            "example": [
                     {
-                        "label": "Gênero",
-                        "type": "category",
-                        "external_id": "genero",
-                        "config": {
-                            "settings": {
-                                "options": [
-                                    {"id": 1, "text": "Opção A"},
-                                    {"id": 2, "text": "Opção B"}
-                                ]
-                            }
-                        }
-                    }
-                ]
-            }
+                        "external_id": "titulo",
+                        "options": [
+                            {"id": 123456, "text": "Opção 1", "status": "active"},
+                            {"id": 789012, "text": "Opção 2", "status": "active"}
+                    ]
+                        },
+                    {
+                        "external_id": "titulo2",
+                        "options": [
+                            {"id": 123456, "text": "Opção 1", "status": "active"},
+                            {"id": 789012, "text": "Opção 2", "status": "active"}
+                    ] 
+                }
+            ]
         }
     )
 

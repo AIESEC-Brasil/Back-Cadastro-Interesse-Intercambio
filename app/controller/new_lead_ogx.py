@@ -51,7 +51,8 @@ def buscar_metadados() -> Metadados:
             chave="ogx-token-podio",  # Busca o token de intercâmbio no cache/auth
             APP_ID=APP_ID  # Aponta para o App de B2C
         ),
-        baixando="Metadados de Novos lead B2C"
+        baixando="Metadados de Novos lead B2C",
+        metadados=True
     )
     # Ajusta o cabeçalho de Content-Type para JSON, garantindo compatibilidade com clientes REST.
     response.headers["Content-Type"] = "application/json"
