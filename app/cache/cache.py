@@ -35,6 +35,21 @@ from app.repository import buscar_todas_universidades, buscar_todos_cl  # Funç�
 logger = logging.getLogger(__name__)
 
 # =================================================================
+# CONSTANTES DE CACHE
+# =================================================================
+
+FIELDS_PERMITIDOS = {
+                "qual-semestre-do-curso",
+                "qual-sua-area-de-atuacao",
+                "qual-seu-nivel-de-atuacao",
+                "possui-outro-idioma",
+                "produto",
+                "aiesec-mais-proxima",
+                "tag-origem-2",
+                "tag-meio-2-2"
+            }
+
+# =================================================================
 # GERENCIADOR DE CACHE
 # =================================================================
 
@@ -107,36 +122,31 @@ class CacheManager:
             # --- 2. CENÁRIO: CACHE MISS (Inexistente ou Expirado) ---
             logger.info(f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. Sincronizando com a fonte...")
 
-            result = fetch()
+            result = fetch() # Executa a função de fallback para buscar os dados na fonte externa (ex: Podio, DB, etc.)
 
-            status, data = resolve_response(result)
-            data = [
-                    {
-                        "external_id": field["external_id"],
-                        "options": [
-                            option
-                            for option in field["config"]["settings"]["options"]
-                            if option["status"] == "active"
-                        ]
-                    }
-                    for field in data["fields"]
-                    if field["external_id"] in [
-                        "qual-semestre-do-curso",
-                        "qual-sua-area-de-atuacao",
-                        "qual-seu-nivel-de-atuacao",
-                        "possui-outro-idioma",
-                        "produto",
-                        "aiesec-mais-proxima",
-                        "tag-origem-2",
-                        "tag-meio-2-2"
-                    ]
-                ] if data.get("fields") else data
+            status, data = resolve_response(result) # Resolve a resposta, tratando casos síncronos e assíncronos.
+            
+            # Filtra apenas os campos permitidos para otimizar o payload e reduzir consumo de memória.
+            if data.get("fields"):
+                new_fields = []
+                for field in data["fields"]:
+                    # Apenas adiciona campos que estão na lista de permitidos e filtra opções ativas.
+                    if field["external_id"] in FIELDS_PERMITIDOS:
+                        # Acessamos a lista de opções uma única vez
+                        opts = field.get("config", {}).get("settings", {}).get("options", [])
+                        # Usamos uma lista de compreensão simples para filtrar
+                        new_fields.append({
+                            "external_id": field["external_id"],
+                            "options": [o for o in opts if o["status"] == "active"]
+                        }) # Filtra apenas opções ativas para reduzir o payload e evitar dados obsoletos.
+                data = new_fields # Atualiza o payload com apenas os campos relevantes para o cache e roteamento.
             # --- 3. PERSISTÊNCIA E ATUALIZAÇÃO ---
+            # Armazena os dados no cache com timestamp e metadados adicionais para roteamento.
             self.store[key] = {
                 "data": data,  # Armazena apenas os campos relevantes do payload
-                "timestamp": now,
-                "cl": [cl.to_dict() for cl in buscar_todos_cl()],
-                "universidades": [u.to_dict() for u in buscar_todas_universidades()]
+                "timestamp": now, # Marca o momento da atualização para controle de expiração
+                "cl": [cl.to_dict() for cl in buscar_todos_cl()], # Armazena a lista de Comitês Locais (CL) para roteamento
+                "universidades": [u.to_dict() for u in buscar_todas_universidades()] # Armazena a lista de Universidades para  roteamento
             }
 
             logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
