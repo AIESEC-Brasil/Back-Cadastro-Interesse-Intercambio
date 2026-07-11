@@ -28,10 +28,23 @@ class Universidades(db.Model):
     """
     __tablename__ = "instituicoes_mercado"  # Tabela de mapeamento de instituições e seus respectivos escritórios responsáveis
 
+    __table_args__ = {
+        "mysql_charset": "utf8mb4",
+        "mysql_collate": "utf8mb4_0900_as_ci"
+    } # Define a codificação e collation para compatibilidade com caracteres especiais e emojis.
+
     id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(255), nullable=False)
+    nome = db.Column(db.String(255), unique=True, nullable=False)
     gv = db.Column(db.String(255), nullable=False)
     gt = db.Column(db.String(255), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "gv": self.gv,
+            "gt": self.gt
+        }
 
 
 # ==============================
@@ -47,10 +60,23 @@ class DivisaoCL(db.Model):
     """
     __tablename__ = "cl_mercado"  # Tabela de configurações globais por Comitê Local
 
+    __table_args__ = {
+        "mysql_charset": "utf8mb4",
+        "mysql_collate": "utf8mb4_0900_as_ci"
+    } # Configurações de charset e collation para compatibilidade com caracteres especiais e emojis
+
     id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(255), nullable=False)
+    nome = db.Column(db.String(255), unique=True, nullable=False)
     gv = db.Column(db.String(255), nullable=False)
     gt = db.Column(db.String(255), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "gv": self.gv,
+            "gt": self.gt
+        }
 
 
 # ==============================

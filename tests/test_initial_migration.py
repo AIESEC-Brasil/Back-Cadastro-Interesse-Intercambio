@@ -51,3 +51,9 @@ class InitialMigrationTest(unittest.TestCase):
         versions_dir = self.repo_root / "migrations" / "versions"
         revision_files = [p for p in versions_dir.glob("*.py") if p.is_file()]
         self.assertTrue(revision_files, "A migração inicial não foi gerada.")
+
+    def test_models_use_utf8mb4_0900_as_ci_collation(self):
+        self.assertEqual(Universidades.__table__.kwargs.get("mysql_charset"), "utf8mb4")
+        self.assertEqual(Universidades.__table__.kwargs.get("mysql_collate"), "utf8mb4_0900_as_ci")
+        self.assertEqual(DivisaoCL.__table__.kwargs.get("mysql_charset"), "utf8mb4")
+        self.assertEqual(DivisaoCL.__table__.kwargs.get("mysql_collate"), "utf8mb4_0900_as_ci")

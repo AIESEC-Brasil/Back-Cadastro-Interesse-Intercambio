@@ -79,7 +79,7 @@ def verificar_rota() -> None:
 
         # 5. Identificação do Serviço (Estratégia de Segmento):
         # O serviço é identificado no índice 0 da rota (/new-lead-ogx/...)
-        if len(parts) >= 2:
+        if parts[0] == "new-lead-ogx":
             service_name: str = parts[0]
 
             # 6. Recuperação de Configuração

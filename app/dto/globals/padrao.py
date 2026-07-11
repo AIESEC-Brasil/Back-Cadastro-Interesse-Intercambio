@@ -238,6 +238,41 @@ class DataNascimento:
     def strftime(self, param:str):
         pass
 
+class DivisaoMercado(BaseModel):
+    """
+    Estrutura para representar a divisão de mercado por Comitê Local (CL) ou Instituição.
+
+    Attributes:
+        id (int): Identificador único da divisão.
+        nome (str): Nome amigável da divisão (ex: nome do CL ou Instituição).
+        gv (str): Destino de roteamento para Voluntariado Global.
+        gt (str): Destino de roteamento para Talentos Globais.
+    """
+    id: int = Field(
+        description="ID interno numérico da divisão",
+        json_schema_extra={
+            "example": 1
+        }
+    )
+    nome: str = Field(
+        description="Nome amigável da divisão (CL ou Instituição)",
+        json_schema_extra={
+            "example": "Recife(PE)"
+        }
+    )
+    gv: str = Field(
+        description="Destino de roteamento para Voluntariado Global",
+        json_schema_extra={
+            "example": "AIESEC em Recife"
+        }
+    )
+    gt: str = Field(
+        description="Destino de roteamento para Talentos Globais",
+        json_schema_extra={
+            "example": "AIESEC em Recife"
+        }
+    )
+
 # =================================================================
 # 4. EXPORTAÇÕES DO MÓDULO
 # =================================================================
@@ -248,5 +283,6 @@ __all__ = [
     "TelefoneItem",
     "EmailItem",
     "Autorizacao",
-    "DataNascimento"
+    "DataNascimento",
+    "DivisaoMercado"
 ]

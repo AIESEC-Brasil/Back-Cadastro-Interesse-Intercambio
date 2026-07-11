@@ -27,6 +27,7 @@ from ..utils import (
     resolve_response                # Garante o tratamento de retornos síncronos ou assíncronos
 )
 
+from app.repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados persistidos
 # =================================================================
 # CONFIGURAÇÕES DE LOGGING
 # =================================================================
@@ -109,11 +110,33 @@ class CacheManager:
             result = fetch()
 
             status, data = resolve_response(result)
-
+            data = [
+                    {
+                        "external_id": field["external_id"],
+                        "options": [
+                            option
+                            for option in field["config"]["settings"]["options"]
+                            if option["status"] == "active"
+                        ]
+                    }
+                    for field in data["fields"]
+                    if field["external_id"] in [
+                        "qual-semestre-do-curso",
+                        "qual-sua-area-de-atuacao",
+                        "qual-seu-nivel-de-atuacao",
+                        "possui-outro-idioma",
+                        "produto",
+                        "aiesec-mais-proxima",
+                        "tag-origem-2",
+                        "tag-meio-2-2"
+                    ]
+                ] if data.get("fields") else data
             # --- 3. PERSISTÊNCIA E ATUALIZAÇÃO ---
             self.store[key] = {
-                "data": data,
-                "timestamp": now
+                "data": data,  # Armazena apenas os campos relevantes do payload
+                "timestamp": now,
+                "cl": [cl.to_dict() for cl in buscar_todos_cl()],
+                "universidades": [u.to_dict() for u in buscar_todas_universidades()]
             }
 
             logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")

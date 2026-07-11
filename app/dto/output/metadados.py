@@ -12,12 +12,15 @@ from pydantic import (
 from typing import (
     Dict,            # Hint de tipo para representar dicionários (mapeamentos chave-valor) nas assinaturas de métodos.
     Any,             # Hint de tipo especial que indica que um valor pode ser de qualquer natureza (dinâmico).
-    Union,           # Hint de tipo que permite que um campo aceite mais de um tipo de dado (ex: datetime OU string).
+    Union,           # Hint de tipo que permite que um campo aceite mais de um tipo de dado (ex: datetime OU string)
+    List             # Hint de tipo para representar listas/arrays de elementos de um tipo específico (ex: List[str] para lista de strings).
 )
 
 from datetime import (
     datetime       # Objeto padrão para manipulação de carimbos de data e hora (timestamp).
 )
+
+from ..globals import DivisaoMercado  # Importa o DTO de Divisão de Mercado para validação e serialização
 
 # =================================================================
 # 2. METADADOS E LOGÍSTICA DE SISTEMA
@@ -32,9 +35,35 @@ class Metadados(BaseModel):
         DataHora (datetime | str): Registro temporal do processamento da requisição.
     """
 
+    cl: List[DivisaoMercado] = Field(
+        title="Comitê Local (CL)",
+        description="Informações de roteamento e configuração do Comitê Local (CL).",
+        json_schema_extra={
+            "type": "object",
+            "example": {
+                "nome": "Comitê Local Exemplo",
+                "gv": "Roteamento GV Exemplo",
+                "gt": "Roteamento GT Exemplo"
+            }
+        }
+    )
+
+    universidades: List[DivisaoMercado] = Field(
+        title="Universidades",
+        description="Mapeamento de universidades e seus respectivos roteamentos.",
+        json_schema_extra={
+            "type": "object",
+            "example": {
+                "nome": "Universidade Exemplo",
+                "gv": "Roteamento GV Exemplo",
+                "gt": "Roteamento GT Exemplo"
+            }
+        }
+    )
+
     # 'title' personaliza o rótulo no Swagger/OpenAPI.
     # 'json_schema_extra' garante a representação correta como objeto dinâmico.
-    data: Dict[str, Any] = Field(
+    data: List[Dict[str, Any]] = Field(
         title="Payload",
         description="Payload bruto original da requisição para auditoria",
         json_schema_extra={

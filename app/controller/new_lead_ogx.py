@@ -14,7 +14,7 @@ from .router import Router  # Classe base de roteamento integrada ao OpenAPI3
 from app.cache import cache  # Gerenciador de cache para otimizar chamadas de API
 from app.config import APP_ID  # ID do App de Leads B2C no Podio (configurado no .env)
 from app.clients import metadados  # Função cliente para buscar campos e configurações do Podio
-from app.dto.output import Metadados # DTO para validação e serialização de metadados do Podio
+from app.dto import Metadados # DTO para validação e serialização de metadados do Podio
 # =================================================================
 # CONFIGURAÇÃO DO ROTEADOR OGX
 # =================================================================
