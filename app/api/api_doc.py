@@ -10,7 +10,7 @@ Responsável por versionar a API e organizar os prefixos de URL.
 # ==============================
 import os  # Manipulação de variáveis de ambiente e sistema operacional
 
-from flask import render_template_string, request
+from flask import render_template_string, request,redirect
 from app.controller.router import Router
 from ..dto import HttpStatus
 from ..storage import storage
@@ -25,7 +25,19 @@ api = Router(name="api", url_prefix="/api")
 @api.get("/docs",description="Página HTML da Documentação",responses={200:None})
 def documentacao() -> str:
     """
-    Página de documentação estilizada com a identidade AIESEC.
+    Renderiza o portal central de documentação da API.
+
+    Esta página apresenta uma interface estilizada com a identidade visual da AIESEC,
+    servindo como hub central para desenvolvedores acessarem as especificações
+    técnicas (OpenAPI) através de diversas ferramentas de visualização.
+
+    Interfaces disponíveis:
+        - Swagger UI: Interação clássica e testes de request.
+        - Scalar/Redoc/Elements: Visualização moderna e intuitiva.
+        - RapiDoc/RapiPDF: Geração de documentos e análise de specs.
+
+    Exemplo de acesso:
+        GET /api/docs -> Retorna a página HTML interativa com o diretório de rotas.
     """
 
     # Rotas organizadas por tipo - Completo com extensões YAML e Assets
@@ -225,13 +237,22 @@ def documentacao() -> str:
 
     return render_template_string(template, rotas=rotas)
 
-@api.get("/register",responses={204:None})
+@api.get("/register",responses={308:None})
 def registro():
     """
-    Responsável por fazer o registro do IPV6 de quem tem autorização para acessar a documentação.
+    Registra o endereço IPv6 do solicitante e redireciona para a interface da documentação.
+
+    Este endpoint captura o IP (proveniente de proxy através do cabeçalho 'X-Forwarded-For'),
+    registra a permissão de acesso no storage e redireciona o usuário para a
+    documentação da API em '/api/docs'.
+
+    Exemplo de uso:
+        1. Usuário acessa: 'https://seusite.com/api/register'
+        2. Sistema captura: '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
+        3. Ação: Adiciona ao storage e redireciona para '/api/docs'
     """
     storage.add_ip(request.headers.get("X-Forwarded-For"))
-    return "",HttpStatus.NO_CONTENT
+    return redirect("/api/docs"),HttpStatus.PERMANENT_REDIRECT
 
 # ==============================
 # Exportações do Módulo

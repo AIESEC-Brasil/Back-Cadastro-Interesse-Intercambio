@@ -15,7 +15,7 @@ from .utils import handle_validation_error # Função de tratamento de erros de 
 from .controller import new_lead_ogx # Importa o roteador especializado para novos leads OGX
 from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
 from .core import compress  # Instância de compressão para otimizar respostas HTTP
-from .core import DB_CONNECT # Variável de ambiente que contém a string de conexão com o banco de dados
+from .core import DB_CONNECT,AMBIENTE # Variável de ambiente que contém a string de conexão com o banco de dados
 from .core import db,ma,migrate # Instâncias de persistência e serialização (SQLAlchemy, Marshmallow, Flask-Migrate)
 from .model import db as model_db  # Garante que os modelos ORM sejam registrados para as migrações
 
@@ -47,6 +47,7 @@ def create_app() -> OpenAPI:
 
     try:
         logger.info("Servidor iniciando...")
+        logger.info(f"AMBIENTE:{AMBIENTE}")
 
         # Instanciação da aplicação com suporte nativo a OpenAPI 3
         app = OpenAPI(
@@ -137,8 +138,12 @@ def create_app() -> OpenAPI:
         # ==========================
         # Registra métricas, logs de saída ou manipula a resposta final
         app.after_request(register_url)
-        for url in app.url_map.iter_rules():
-            print(url.rule)
+
+        # ==========================
+        # ROTAS DISPONIVEIS
+        # ==========================
+        """for url in app.url_map.iter_rules():
+            print(url.rule)"""
 
         return app
 

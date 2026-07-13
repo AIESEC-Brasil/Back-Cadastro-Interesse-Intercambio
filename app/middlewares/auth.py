@@ -33,7 +33,8 @@ from ..config import (
 )
 from ..core import (
     DOMINIOS_PERMITIDOS,            # Whitelist de URLs oficiais permitidas a consumir a API
-    IS_PRODUCTION                   # Flag de ambiente para ativação de travas de segurança em produção
+    IS_PRODUCTION,                   # Flag de ambiente para ativação de travas de segurança em produção
+    IS_TEST
 )
 
 # Utilitários Globais e Tipagem Estática
@@ -71,6 +72,18 @@ def verificar_origem() -> None | tuple[dict[str, str], Literal[HttpStatus.UNAUTH
     5. Proteção contra acesso direto via Navegador
     """
 
+    ROTAS_PUBLICAS = {
+        "/favicon.ico"
+    }
+
+    ROTAS_GRAFICAS = {
+        "/api/docs",
+        "/api/register"
+    }
+
+    if request.path in ROTAS_PUBLICAS:
+        return None
+
     # 1. Bypass para 'Preflight' (CORS):
     # Permite que o navegador verifique as políticas do servidor sem bloqueio.
     if request.method == 'OPTIONS':
@@ -82,9 +95,9 @@ def verificar_origem() -> None | tuple[dict[str, str], Literal[HttpStatus.UNAUTH
     # 2. Validação de IP (Acesso à Documentação)
     # ==========================
     # Verifica se o ambiente é de produção
-    if IS_PRODUCTION:
+    if IS_PRODUCTION or IS_TEST:
         # Restrição de segurança: Apenas IPs na lista branca podem ver a estrutura da API.
-        # 1. Extração do caminho da URL (ex: /api/v1/new-lead-ogx/...)
+        # 1. Extração do caminho da URL (ex: /api/docs/...)
         path: str = request.path
 
         # 2. Segmentação do path para identificação do serviço
@@ -122,9 +135,9 @@ def verificar_origem() -> None | tuple[dict[str, str], Literal[HttpStatus.UNAUTH
     # 6. Bloqueio de Acesso Direto (Navegador)
     # ==========================
     # Em produção, impede que a API seja consumida via navegação direta (URL no browser).
-    if IS_PRODUCTION and request.headers.get("Sec-Fetch-Mode") == "navigate" and request.path != "/api/docs":
-        logger.error("AIESEC Security | Bloqueio de requisição direta em Produção.")
-        return jsonify({"error": "Bloqueado: requisições diretas não são permitidas"}), HttpStatus.UNAUTHORIZED
+    if IS_PRODUCTION and request.headers.get("Sec-Fetch-Mode") == "navigate" and request.path not in ROTAS_GRAFICAS:
+         logger.error("AIESEC Security | Bloqueio de requisição direta em Produção.")
+         return jsonify({"error": "Bloqueado: requisições diretas não são permitidas"}), HttpStatus.UNAUTHORIZED
 
     logger.info("AIESEC Security | Origem autenticada com sucesso!")
 

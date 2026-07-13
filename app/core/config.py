@@ -24,10 +24,11 @@ import locale
 IS_PRODUCTION: bool = AMBIENTE in {"PRODUCTION", "PROD"}
 
 # Flag booleana para identificar ambientes de não-produção (Desenvolvimento/Testes)
-IS_NON_PROD: bool = AMBIENTE in {"DEVELOPMENT", "DEV", "TEST", "TESTING"}
+IS_DEV: bool = AMBIENTE in {"DEVELOPMENT", "DEV"}
+IS_TEST: bool = AMBIENTE in {"TEST", "TESTING"}
 
 # Validação de Segurança: Impede que a aplicação suba sem um ambiente definido
-if not (IS_PRODUCTION or IS_NON_PROD):
+if not (IS_PRODUCTION or IS_DEV or IS_TEST):
     raise ValueError(f"Ambiente inválido detectado: {AMBIENTE}")
 
 # ==============================
@@ -54,9 +55,12 @@ def configurar_idioma():
 # ==============================
 
 __all__ = [
+
+    "AMBIENTE",
     "DOMINIOS_PERMITIDOS", # Lista final de domínios para políticas de CORS
     "IS_PRODUCTION",       # Booleano para verificações de segurança/logs
-    "IS_NON_PROD",          # Booleano para habilitar ferramentas de debug
+    "IS_DEV",          # Booleano para habilitar ferramentas de debug
+    "IS_TEST",
     "DB_CONNECT",
     "configurar_idioma"
 ]
