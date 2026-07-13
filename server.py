@@ -51,7 +51,7 @@ if __name__ == "__main__":
         # Roda o servidor interno do Flask, ideal para debug (reinicia ao alterar código)
         app.run(debug=True,host="127.0.0.1",port=5000)
     elif IS_TEST:
-        serve(app, host="0.0.0.0", port=5000)
+        serve(app, host="0.0.0.0", port=5000, threads=5)
     else:
         # Roda o servidor Waitress, um servidor WSGI robusto para ambientes produtivos
         # host="0.0.0.0" permite conexões externas ao servidor

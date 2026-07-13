@@ -18,14 +18,12 @@ Regras de Governança:
 # Ferramentas de Sistema e Monitoramento
 import logging                      # Sistema de registro para auditoria e monitoramento de eventos de segurança
 import os                           # Interface com o Sistema Operacional (uso de variáveis de ambiente para IPs)
-from typing import Literal
 
 # Componentes do Framework Flask
 from flask import Response          # Objeto de resposta HTTP do Flask para tipagem de retorno
 
-from app.dto import HttpStatus
-from ..dto import HttpStatus
-from ..storage import storage
+from ..dto import HttpStatus        # Enum com os Status Http
+from ..storage import storage       # Armazenmaneto em Memorio de IP
 
 # Configurações de Segurança e Identidade (Core)
 from ..config import (
@@ -33,15 +31,16 @@ from ..config import (
 )
 from ..core import (
     DOMINIOS_PERMITIDOS,            # Whitelist de URLs oficiais permitidas a consumir a API
-    IS_PRODUCTION,                   # Flag de ambiente para ativação de travas de segurança em produção
-    IS_TEST
+    IS_PRODUCTION,                  # Flag de ambiente para ativação de travas de segurança em produção
+    IS_TEST                         # Flag de ambiente para ativação de travas de segurança em Teste
 )
 
 # Utilitários Globais e Tipagem Estática
 from typing import (
     List,                           # Tipagem para listas de strings
     Optional,                       # Tipagem para valores que podem ser nulos (como API Keys)
-    Dict                            # Tipagem para estruturas de dicionário
+    Dict,                           # Tipagem para estruturas de dicionário
+    Literal                         # Tipagem para Literal
 )
 
 from flask import (
@@ -57,91 +56,112 @@ from flask import (
 logger = logging.getLogger(__name__)
 
 # ==============================
+# Rotas
+# ==============================
+# Definição de listas de controle (usando sets para garantir performance de busca O(1))
+
+# ROTAS_PUBLICAS: Recursos estáticos que não exigem validação de segurança.
+# Evita processamento desnecessário para elementos de UI do navegador.
+ROTAS_PUBLICAS = {"/favicon.ico"}
+
+# ROTAS_GRAFICAS: Endpoints que renderizam interfaces HTML para o usuário.
+# Exceções na trava de segurança de "Navegação Direta" para permitir acesso via browser.
+ROTAS_GRAFICAS = {"/api/docs", "/api/register"}
+
+# ROTAS_RESTRITAS_IP: Estruturas que expõem especificações técnicas da API.
+# O acesso a estes diretórios é sensível e exige validação de IP em produção.
+ROTAS_RESTRITAS_IP = {"apidoc", "openapi", "static"}
+
+# ==============================
 # Middleware de Validação
 # ==============================
 
-def verificar_origem() -> None | tuple[dict[str, str], Literal[HttpStatus.UNAUTHORIZED]] | tuple[Response, int]:
+def verificar_origem() -> None | tuple[Dict[str, str], Literal[HttpStatus.UNAUTHORIZED]] | tuple[Response, int]:
     """
-    Middleware global de segurança.
+    Middleware global de governança e segurança (Gatekeeper).
 
-    Analisa a autenticidade da origem através de camadas:
-    1. Protocolo CORS (OPTIONS)
-    2. Whitelist de rotas públicas
-    3. Controle de acesso por IP (para /docs)
-    4. Validação de API Key e Domínio de Host
-    5. Proteção contra acesso direto via Navegador
+    Intercepção de requisições HTTP para validar a integridade da origem antes
+    do processamento pelos controllers. Implementa camadas de defesa em profundidade:
+
+    Camadas de Validação:
+        1. Bypass de Rotas Públicas: Ignora verificações para recursos essenciais (ex: /favicon.ico).
+        2. Preflight Check: Bypass automático para requisições OPTIONS (CORS).
+        3. Governança de Documentação: Verificação estrita de IP em ambiente de
+            produção/teste para rotas sob '/docs', '/openapi' e '/static'.
+        4. Autenticação de Integração: Validação de chave no header 'X-API-KEY'.
+        5. Whitelist de Host: Bloqueio de tráfego vindo de domínios não homologados.
+        6. Proteção contra Navegação: Bloqueio de acesso direto (browser navigation)
+            em rotas de API para evitar exposição de dados em produção.
+
+    Exemplos de Bloqueio:
+        - GET /api/data (Navegador) -> Bloqueado (Security Error: Navigate Mode)
+        - GET /openapi/swagger (IP não registrado) -> Bloqueado (401 Unauthorized)
+        - POST /api/v1/update (Sem API Key ou Domínio inválido) -> Bloqueado (401 Unauthorized)
+
+    Returns:
+        None: Se a requisição for validada e autorizada.
+        tuple: Objeto de erro (JSON) e status 401 se a validação falhar.
     """
 
-    ROTAS_PUBLICAS = {
-        "/favicon.ico"
-    }
-
-    ROTAS_GRAFICAS = {
-        "/api/docs",
-        "/api/register"
-    }
-
-    if request.path in ROTAS_PUBLICAS:
+    # 1. Bypass para rotas públicas e Preflight (CORS)
+    # Se a requisição for um recurso básico (favicon) ou uma verificação de permissão CORS,
+    # liberamos imediatamente para evitar latência no carregamento de recursos do navegador.
+    if request.path in ROTAS_PUBLICAS or request.method == 'OPTIONS':
         return None
-
-    # 1. Bypass para 'Preflight' (CORS):
-    # Permite que o navegador verifique as políticas do servidor sem bloqueio.
-    if request.method == 'OPTIONS':
-        return None
-
-    logger.info("AIESEC Security | Iniciando autenticação de origem...")
 
     # ==========================
     # 2. Validação de IP (Acesso à Documentação)
     # ==========================
-    # Verifica se o ambiente é de produção
+    # Aplica bloqueio rigoroso apenas em ambientes de homologação ou produção.
     if IS_PRODUCTION or IS_TEST:
-        # Restrição de segurança: Apenas IPs na lista branca podem ver a estrutura da API.
-        # 1. Extração do caminho da URL (ex: /api/docs/...)
+        # Captura o caminho e divide para analisar o nível da hierarquia da URL.
         path: str = request.path
+        parts: List[str] = path.strip("/").split("/")
 
-        # 2. Segmentação do path para identificação do serviço
-        parts: list[str] = path.strip("/").split("/")
-        if parts[1] in ["docs"] or parts[0] in ["apidoc","openapi","static"]:
-            allow_ip_list = storage.get_ip()
+        # Verifica se o endpoint solicitado é sensível (ex: /openapi/..., /api/docs).
+        # A flag 'precisa_validar_ip' isola a lógica de decisão, facilitando futuras alterações.
+        precisa_validar_ip = (len(parts) > 1 and parts[1] == "docs") or (parts[0] in ROTAS_RESTRITAS_IP)
+
+        if precisa_validar_ip:
+            # Acesso direto ao storage para garantir paralelismo total e leitura atualizada.
+            # Cada thread/worker processa sua própria leitura de forma independente.
+            allow_ip_list = set(storage.get_ip())
             if request.headers.get("X-Forwarded-For") not in allow_ip_list:
-                logger.error("AIESEC Security | Bloqueio de IP: Tentativa não autorizada em /docs.")
-                return {"erro": "Sua maquina não está autorizada a entrar nessa rota"},HttpStatus.UNAUTHORIZED
-            return None
+                logger.error("AIESEC Security | Bloqueio de IP: Tentativa não autorizada.")
+                return {"erro": "Sua máquina não está autorizada a entrar nessa rota"}, HttpStatus.UNAUTHORIZED
+            return None # IP validado, prossegue para o endpoint.
 
     # ==========================
-    # 4. Validação de API Key
+    # 3. Validação de API Key
     # ==========================
-    # Extrai a credencial enviada no Header 'X-API-KEY'.
+    # Valida credenciais enviadas via cabeçalho para comunicações server-to-server.
     api_key: Optional[str] = request.headers.get("X-API-KEY")
-
     if api_key and api_key not in API_KEYS_PERMITIDAS:
-        logger.error(f"AIESEC Security | Chave de Api {api_key} não autorizada.")
+        logger.error("AIESEC Security | Chave de API não autorizada.")
         return jsonify({"error": "API Key inválida"}), HttpStatus.UNAUTHORIZED
 
     # ==========================
-    # 5. Validação de domínio (Host)
+    # 4. Validação de domínio (Host)
     # ==========================
-    # Reconstrói a origem para comparação com os domínios permitidos (Whitelist).
+    # Protege contra requisições maliciosas enviadas com cabeçalhos Host forjados.
+    # Garante que a API só responda para os domínios homologados da AIESEC.
     host: Optional[str] = f'{request.headers.get("Host")}'
-
     if host and host not in DOMINIOS_PERMITIDOS:
-        if not api_key:
-            # Caso o domínio seja externo e não haja chave de API, o acesso é negado.
+        if not api_key: # Se não houver API Key, o domínio precisa estar na whitelist.
             logger.error(f"AIESEC Security | Host não autorizado: {host}")
             return jsonify({"error": "Domínio não autorizado"}), HttpStatus.UNAUTHORIZED
 
     # ==========================
-    # 6. Bloqueio de Acesso Direto (Navegador)
+    # 5. Bloqueio de Acesso Direto (Navegador)
     # ==========================
-    # Em produção, impede que a API seja consumida via navegação direta (URL no browser).
+    # Em produção, navegadores enviam o cabeçalho 'Sec-Fetch-Mode: navigate'.
+    # Isso bloqueia usuários comuns de digitarem URLs de APIs diretamente no browser,
+    # reduzindo o risco de exposição de dados ou ataques de enumeração.
     if IS_PRODUCTION and request.headers.get("Sec-Fetch-Mode") == "navigate" and request.path not in ROTAS_GRAFICAS:
-         logger.error("AIESEC Security | Bloqueio de requisição direta em Produção.")
-         return jsonify({"error": "Bloqueado: requisições diretas não são permitidas"}), HttpStatus.UNAUTHORIZED
+        logger.error("AIESEC Security | Bloqueio de requisição direta em Produção.")
+        return jsonify({"error": "Bloqueado: requisições diretas não são permitidas"}), HttpStatus.UNAUTHORIZED
 
-    logger.info("AIESEC Security | Origem autenticada com sucesso!")
-
-    # Retorno None: Autoriza a continuidade do fluxo para o controller da rota.
+    # Se todas as verificações passarem, o fluxo retorna None e a requisição segue para o controller.
     return None
 
 # ==============================

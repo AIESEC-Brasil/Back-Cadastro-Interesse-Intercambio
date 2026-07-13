@@ -26,8 +26,8 @@ from ..utils import (
     agora_timestamp,                # Função para obter tempo atual (Horário de São Paulo)
     resolve_response                # Garante o tratamento de retornos síncronos ou assíncronos
 )
-
-from app.repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados persistidos
+from ..dto import HttpStatus        # Enum com os Status Http
+from ..repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados persistidos
 # =================================================================
 # CONFIGURAÇÕES DE LOGGING
 # =================================================================
@@ -63,10 +63,10 @@ class CacheManager:
         """Inicializa o repositório central de cache e os controladores de concorrência."""
         # Armazena os dados brutos e seus respectivos timestamps de criação.
         self.store: Dict[str, Dict[str, Any]] = {}
-        
+
         # Mantém um Lock exclusivo para cada chave de cache ativa.
         self.locks: Dict[str, Lock] = {}
-        
+
         # Lock Mestre (Garante consistência atômica ao criar novos sub-locks)
         self.master_lock = Lock()
 
@@ -125,7 +125,7 @@ class CacheManager:
             result = fetch() # Executa a função de fallback para buscar os dados na fonte externa (ex: Podio, DB, etc.)
 
             status, data = resolve_response(result) # Resolve a resposta, tratando casos síncronos e assíncronos.
-            
+
             # Filtra apenas os campos permitidos para otimizar o payload e reduzir consumo de memória.
             if data.get("fields"):
                 new_fields = []
