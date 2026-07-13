@@ -102,7 +102,7 @@ class CacheManager:
 
             if now - item["timestamp"] < CACHE_TTL:
                 logger.info(f"AIESEC Cache | HIT: '{baixando}' recuperado da memória.")
-                return jsonify(item["data"]), 200
+                return jsonify(item["data"]), HttpStatus.OK
 
         # lock: Obtém o mecanismo de sincronização exclusivo da chave solicitada.
         lock = self.get_lock(key)
@@ -117,7 +117,7 @@ class CacheManager:
                 item = self.store[key]
                 if now - item["timestamp"] < CACHE_TTL:
                     logger.info(f"AIESEC Cache | HIT (Post-Lock): '{baixando}' recuperado após sincronização.")
-                    return jsonify(item["data"]), 200
+                    return jsonify(item["data"]), HttpStatus.OK
 
             # --- 2. CENÁRIO: CACHE MISS (Inexistente ou Expirado) ---
             logger.info(f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. Sincronizando com a fonte...")
