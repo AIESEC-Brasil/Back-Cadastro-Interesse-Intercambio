@@ -19,6 +19,8 @@ from .token_routes import verificar_rota
 # 3. Observabilidade: Registra os logs de acesso e define políticas de cache pós-processamento
 from .register_endpoint import register_url
 
+from .whitelist import require_ip_whitelist
+
 # ==============================
 # Exportação Consolidada
 # ==============================
@@ -30,5 +32,6 @@ from .register_endpoint import register_url
 __all__ = [
     "verificar_origem",
     "verificar_rota",
-    "register_url"
+    "register_url",
+    "require_ip_whitelist"
 ]

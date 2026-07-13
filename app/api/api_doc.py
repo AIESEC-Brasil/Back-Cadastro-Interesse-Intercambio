@@ -11,9 +11,11 @@ Responsável por versionar a API e organizar os prefixos de URL.
 import os  # Manipulação de variáveis de ambiente e sistema operacional
 
 from flask import render_template_string, request,redirect
-from app.controller.router import Router
+from ..controller import Router
 from ..dto import HttpStatus
 from ..storage import storage
+from ..middlewares import require_ip_whitelist
+
 # =================================================================
 # CONFIGURAÇÃO DE ROTEAMENTO GLOBAL
 # =================================================================
@@ -23,6 +25,7 @@ api = Router(name="api", url_prefix="/api")
 
 
 @api.get("/docs",description="Página HTML da Documentação",responses={200:None})
+@require_ip_whitelist
 def documentacao() -> str:
     """
     Renderiza o portal central de documentação da API.
@@ -251,7 +254,7 @@ def registro():
         2. Sistema captura: '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
         3. Ação: Adiciona ao storage e redireciona para '/api/docs'
     """
-    storage.add_ip(request.headers.get("X-Forwarded-For"))
+    storage.add_ip(request.remote_addr)
     return redirect("/api/docs"),HttpStatus.PERMANENT_REDIRECT
 
 # ==============================

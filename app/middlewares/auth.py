@@ -70,7 +70,7 @@ ROTAS_GRAFICAS = {"/api/docs", "/api/register"}
 
 # ROTAS_RESTRITAS_IP: Estruturas que expõem especificações técnicas da API.
 # O acesso a estes diretórios é sensível e exige validação de IP em produção.
-ROTAS_RESTRITAS_IP = {"apidoc", "openapi", "static"}
+ROTAS_RESTRITAS_IP = ("/apidoc", "/openapi", "/static")
 
 # ==============================
 # Middleware de Validação
@@ -114,15 +114,7 @@ def verificar_origem() -> None | tuple[Dict[str, str], Literal[HttpStatus.UNAUTH
     # ==========================
     # Aplica bloqueio rigoroso apenas em ambientes de homologação ou produção.
     if IS_PRODUCTION or IS_TEST:
-        # Captura o caminho e divide para analisar o nível da hierarquia da URL.
-        path: str = request.path
-        parts: List[str] = path.strip("/").split("/")
-
-        # Verifica se o endpoint solicitado é sensível (ex: /openapi/..., /api/docs).
-        # A flag 'precisa_validar_ip' isola a lógica de decisão, facilitando futuras alterações.
-        precisa_validar_ip = (len(parts) > 1 and parts[1] == "docs") or (parts[0] in ROTAS_RESTRITAS_IP)
-
-        if precisa_validar_ip:
+        if request.path.startswith(ROTAS_RESTRITAS_IP):
             # Acesso direto ao storage para garantir paralelismo total e leitura atualizada.
             # Cada thread/worker processa sua própria leitura de forma independente.
             allow_ip_list = set(storage.get_ip())
