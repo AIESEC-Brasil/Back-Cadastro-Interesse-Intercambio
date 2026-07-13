@@ -114,11 +114,12 @@ def verificar_origem() -> None | tuple[Dict[str, str], Literal[HttpStatus.UNAUTH
     # ==========================
     # Aplica bloqueio rigoroso apenas em ambientes de homologação ou produção.
     if IS_PRODUCTION or IS_TEST:
+        # Apenas rotas que expõem documentação ou especificações técnicas exigem validação de IP.
         if request.path.startswith(ROTAS_RESTRITAS_IP):
             # Acesso direto ao storage para garantir paralelismo total e leitura atualizada.
             # Cada thread/worker processa sua própria leitura de forma independente.
             allow_ip_list = set(storage.get_ip())
-            if request.headers.get("X-Forwarded-For") not in allow_ip_list:
+            if request.headers.get("X-Forwarded-For", request.remote_addr) not in allow_ip_list:
                 logger.error("AIESEC Security | Bloqueio de IP: Tentativa não autorizada.")
                 return {"erro": "Sua máquina não está autorizada a entrar nessa rota"}, HttpStatus.UNAUTHORIZED
             return None # IP validado, prossegue para o endpoint.
