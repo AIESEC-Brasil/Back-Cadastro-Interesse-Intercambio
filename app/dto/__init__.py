@@ -19,6 +19,8 @@ from .output import *
 
 from .exception import *
 
+from .globals import *
+
 # =================================================================
 # Exportação Consolidada
 # =================================================================
@@ -30,5 +32,6 @@ from .exception import *
 __all__ = (
     input,  # Referência ao pacote de modelos de entrada
     output,  # Referência ao pacote de modelos de saída
-    exception
+    exception,
+    globals
 )

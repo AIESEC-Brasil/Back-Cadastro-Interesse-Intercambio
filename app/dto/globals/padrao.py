@@ -15,7 +15,8 @@ from pydantic import (
     Field,           # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
     ConfigDict,      # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
     field_serializer, # Decorador que permite customizar como um campo específico é convertido para JSON (ex: formatar datas).
-    field_validator
+    field_validator, # Decorador que permite definir funções de validação customizadas para campos específicos, garantindo integridade dos dados.
+    TypeAdapter # Classe que permite criar adaptadores de tipo para conversão e validação de dados complexos, útil para integração com APIs externas.
 )
 from pydantic_core import (
     core_schema      # Fornece acesso às estruturas de baixo nível do Pydantic para criar validadores customizados complexos.
@@ -28,6 +29,7 @@ from typing import (
     Dict,            # Hint de tipo para representar dicionários (mapeamentos chave-valor) nas assinaturas de métodos.
     Any,             # Hint de tipo especial que indica que um valor pode ser de qualquer natureza (dinâmico).
     Union,           # Hint de tipo que permite que um campo aceite mais de um tipo de dado (ex: datetime OU string).
+    List             # Hint de tipo para representar listas/arrays de elementos de um tipo específico (ex: List[str] para lista de strings).
 )
 
 from datetime import (
@@ -272,6 +274,13 @@ class DivisaoMercado(BaseModel):
             "example": "AIESEC em Recife"
         }
     )
+    
+    @classmethod
+    def processar_lista(cls, dados) -> list:
+        # Aqui está exatamente a linha que você definiu!
+        # Usamos 'cls' no lugar do nome da classe para ficar dinâmico
+        adapter = TypeAdapter(List[cls])
+        return adapter.dump_python(adapter.validate_python(dados))
 
 # =================================================================
 # 4. EXPORTAÇÕES DO MÓDULO

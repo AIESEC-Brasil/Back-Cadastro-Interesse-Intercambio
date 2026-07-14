@@ -1,5 +1,6 @@
-from app.core import db
-from app.model import Universidades, DivisaoCL
+from ..core import db
+from ..model import Universidades, DivisaoCL
+from ..schema import divisoes_Universidades_schema, divisoes_CL_schema
 
 def buscar_todas_universidades():
     """
@@ -8,7 +9,7 @@ def buscar_todas_universidades():
     Returns:
         list: Lista de objetos Universidades.
     """
-    return Universidades.query.all()
+    return divisoes_Universidades_schema.dump(Universidades.query.all())
 
 def buscar_todos_cl():
     """
@@ -17,7 +18,7 @@ def buscar_todos_cl():
     Returns:
         list: Lista de objetos DivisaoCL.
     """
-    return DivisaoCL.query.all()
+    return divisoes_CL_schema.dump(DivisaoCL.query.all())
 
 __all__ = [
     "buscar_todas_universidades",

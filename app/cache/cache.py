@@ -28,6 +28,7 @@ from ..utils import (
 )
 from ..dto import HttpStatus        # Enum com os Status Http
 from ..repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados persistidos
+from ..dto import DivisaoMercado
 # =================================================================
 # CONFIGURAÇÕES DE LOGGING
 # =================================================================
@@ -148,8 +149,8 @@ class CacheManager:
             }
             if metadados:
                 logger.info(f"AIESEC Security | Sincronizando metadados de roteamento para '{baixando}'...")
-                self.store[key]["cl"] = [cl.to_dict() for cl in buscar_todos_cl()] # Armazena a lista de Comitês Locais (CL) para roteamento
-                self.store[key]["universidades"] = [u.to_dict() for u in buscar_todas_universidades()] # Armazena a lista de Universidades para  roteamento
+                self.store[key]["cl"] = DivisaoMercado.processar_lista(buscar_todos_cl()) # Armazena a lista de Comitês Locais (CL) para roteamento
+                self.store[key]["universidades"] = DivisaoMercado.processar_lista(buscar_todas_universidades()) # Armazena a lista de Universidades para  roteamento
                 logger.info(f"AIESEC Security | Metadados de roteamento para '{baixando}' sincronizados com sucesso!")
 
         logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")

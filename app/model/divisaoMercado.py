@@ -38,14 +38,6 @@ class Universidades(db.Model):
     gv = db.Column(db.String(255), nullable=False)
     gt = db.Column(db.String(255), nullable=False)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "nome": self.nome,
-            "gv": self.gv,
-            "gt": self.gt
-        }
-
 
 # ==============================
 # Entidades de Contato
@@ -69,14 +61,6 @@ class DivisaoCL(db.Model):
     nome = db.Column(db.String(255), unique=True, nullable=False)
     gv = db.Column(db.String(255), nullable=False)
     gt = db.Column(db.String(255), nullable=False)
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "nome": self.nome,
-            "gv": self.gv,
-            "gt": self.gt
-        }
 
 
 # ==============================
