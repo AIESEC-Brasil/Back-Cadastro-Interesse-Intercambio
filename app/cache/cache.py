@@ -4,167 +4,153 @@ Módulo de Infraestrutura: AIESEC Security - Cache Layer.
 Gerenciamento de cache em memória (RAM) utilizando o padrão Cache-Aside.
 Este módulo evita chamadas repetitivas a serviços externos, respeitando um
 tempo de vida (TTL) configurado globalmente.
+
+Pode ser usado tanto como classe singleton clássica (`await cache.get_or_set(...)`)
+quanto como decorador de rota assíncrona do Flask (`@cache(key="...", baixando="...")`).
 """
 
 # ==============================
 # Importações (Dependencies)
 # ==============================
 import logging                      # Sistema de registros para monitoramento
-from dataclasses import dataclass    # Facilita a criação de classes de estrutura de dados
-from flask import (
-    jsonify,                        # Serializador JSON para respostas HTTP
-)
+import inspect                     # Suporte ao event loop e detecção de corotinas
+import threading                    # Sincronização segura para threads e loops de eventos distintos
+from dataclasses import dataclass, field # Facilita a criação de classes de estrutura de dados
+from functools import wraps         # Preserva metadados de funções decoradas
+from flask import jsonify, request  # Serializador JSON e objeto de requisição do Flask
 from typing import (
     Any,                            # Tipo flexível para aceitar diversos formatos de dados
     Callable,                       # Tipo para funções passadas como argumento (callbacks)
     Dict,                           # Definição de dicionários tipados
     Tuple                           # Definição de tuplas para retorno (status, data)
 )
-from threading import Lock          # Mecanismo de sincronização para evitar concorrência por chave
+
 from ..config import CACHE_TTL      # Tempo limite (em segundos) definido no ambiente global
 from ..utils import (
     agora_timestamp,                # Função para obter tempo atual (Horário de São Paulo)
-    resolve_response                # Garante o tratamento de retornos síncronos ou assíncronos
+    resolve_response                # Garante o tratamento de retornos de forma assíncrona
 )
 from ..dto import HttpStatus        # Enum com os Status Http
-from ..repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados persistidos
+from ..repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados
 from ..dto import DivisaoMercado
+
 # =================================================================
 # CONFIGURAÇÕES DE LOGGING
 # =================================================================
-
 logger = logging.getLogger(__name__)
 
 # =================================================================
 # CONSTANTES DE CACHE
 # =================================================================
-
 FIELDS_PERMITIDOS = {
-                "qual-semestre-do-curso",
-                "qual-sua-area-de-atuacao",
-                "qual-seu-nivel-de-atuacao",
-                "possui-outro-idioma",
-                "produto",
-                "aiesec-mais-proxima",
-                "tag-origem-2",
-                "tag-meio-2-2"
-            }
+    "qual-semestre-do-curso",
+    "qual-sua-area-de-atuacao",
+    "qual-seu-nivel-de-atuacao",
+    "possui-outro-idioma",
+    "produto",
+    "aiesec-mais-proxima",
+    "tag-origem-2",
+    "tag-meio-2-2"
+}
 
 # =================================================================
-# GERENCIADOR DE CACHE
+# GERENCIADOR DE CACHE (CLASS E DECORADOR HÍBRIDO ASSÍNCRONO)
 # =================================================================
-
 @dataclass
 class CacheManager:
     """
-    Controla o ciclo de vida de dados voláteis armazenados em memória.
+    Controla o ciclo de vida de dados voláteis armazenados em memória de forma não-bloqueante.
+    Suporta uso clássico imperativo assíncrono ou uso declarativo através de decoradores de rotas.
     """
 
-    def __init__(self):
-        """Inicializa o repositório central de cache e os controladores de concorrência."""
-        # Armazena os dados brutos e seus respectivos timestamps de criação.
-        self.store: Dict[str, Dict[str, Any]] = {}
+    store: Dict[str, Dict[str, Any]] = field(default_factory=dict, init=False)
 
-        # Mantém um Lock exclusivo para cada chave de cache ativa.
-        self.locks: Dict[str, Lock] = {}
+    # Substituído por threading.Lock para garantir isolamento seguro entre loops distintos
+    # gerenciados pela thread principal e pelas threads de apoio criadas pelo asgiref
+    _global_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
-        # Lock Mestre (Garante consistência atômica ao criar novos sub-locks)
-        self.master_lock = Lock()
-
-    def get_lock(self, key: str) -> Lock:
+    async def get_or_set(
+            self,
+            key: str,
+            fetch: Callable[[], Any],
+            baixando: str,
+            metadados: bool = False,
+            resync: bool = False,
+            CACHE_TTL:int=CACHE_TTL
+    ) -> Tuple[Any, int]:
         """
-        Retorna ou cria de forma síncrona/atômica um Lock exclusivo para uma chave.
+        Executa a estratégia clássica Cache-Aside de maneira assíncrona.
+        Se os dados estiverem válidos E resync=False, retorna o cache (HIT).
+        Caso contrário, ignora o cache, executa a busca de forma não-bloqueante e atualiza a store (MISS/FORCED).
         """
-        with self.master_lock:
-            if key not in self.locks:
-                self.locks[key] = Lock()
-            return self.locks[key]
-
-    def get_or_set(self, key: str, fetch: Callable[[], Tuple[Any, int]], baixando: str,metadados:bool=False) -> Tuple[Any, int]:
-        """
-        Executa a estratégia Cache-Aside. Se os dados estiverem válidos, retorna o cache (HIT).
-        Caso contrário, busca os dados na fonte e atualiza a memória (MISS).
-
-        Args:
-            key (str): Identificador único do recurso no cache.
-            fetch (Callable): Função de fallback para buscar os dados se o cache falhar.
-            baixando (str): Nome descritivo do recurso para logs de auditoria.
-
-        Returns:
-            Response: Objeto JSON formatado e o status HTTP correspondente.
-        """
-
-        # now: Captura o timestamp atual em segundos para validar a expiração.
         now = agora_timestamp()
 
-        # --- 1. CENÁRIO: CACHE HIT (Sucesso na Memória) ---
-        if key in self.store:
+        # --- 1. CENÁRIO: CACHE HIT (Bypass completo se resync for True) ---
+        if key in self.store and not resync:
             item = self.store[key]
-
             if now - item["timestamp"] < CACHE_TTL:
                 logger.info(f"AIESEC Cache | HIT: '{baixando}' recuperado da memória.")
                 return jsonify(item["data"]), HttpStatus.OK
 
-        # lock: Obtém o mecanismo de sincronização exclusivo da chave solicitada.
-        lock = self.get_lock(key)
-
-        # --- BLOCO CRÍTICO PROTEGIDO ---
-        # Apenas uma thread por vez pode executar este trecho para a mesma chave.
-        with lock:
-
-            # Double check: Revalida o cache após adquirir o Lock,
-            # pois outra requisição pode já ter atualizado os dados.
-            if key in self.store:
+        # --- BLOCO CRÍTICO PROTEGIDO POR THREADING LOCK ---
+        # Bloqueamos de forma thread-safe apenas para verificar/atualizar estados na store local
+        with self._global_lock:
+            # Double check: Evita condições de corrida (Race Conditions)
+            if key in self.store and not resync:
                 item = self.store[key]
                 if now - item["timestamp"] < CACHE_TTL:
                     logger.info(f"AIESEC Cache | HIT (Post-Lock): '{baixando}' recuperado após sincronização.")
                     return jsonify(item["data"]), HttpStatus.OK
 
-            # --- 2. CENÁRIO: CACHE MISS (Inexistente ou Expirado) ---
-            logger.info(f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. Sincronizando com a fonte...")
+            # --- 2. CENÁRIO: CACHE MISS OU RESYNC FORÇADO ---
+            if resync:
+                logger.info(f"AIESEC Cache | FORCED RESYNC: Forçando atualização de '{baixando}'...")
+            else:
+                logger.info(f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. Sincronizando com a fonte...")
 
-            result = fetch() # Executa a função de fallback para buscar os dados na fonte externa (ex: Podio, DB, etc.)
+        # Executa a busca real na fonte externa fora do lock para não bloquear outras threads do servidor
+        result = fetch()
 
-            status, data = resolve_response(result) # Resolve a resposta, tratando casos síncronos e assíncronos.
+        # AGUARDA a resolução da resposta de forma assíncrona (I/O livre)
+        status, data = await resolve_response(result)
 
-            # Filtra apenas os campos permitidos para otimizar o payload e reduzir consumo de memória.
-            if data.get("fields"):
-                new_fields = []
-                for field in data["fields"]:
-                    # Apenas adiciona campos que estão na lista de permitidos e filtra opções ativas.
-                    if field["external_id"] in FIELDS_PERMITIDOS:
-                        # Acessamos a lista de opções uma única vez
-                        opts = field.get("config", {}).get("settings", {}).get("options", [])
-                        # Usamos uma lista de compreensão simples para filtrar
-                        new_fields.append({
-                            "external_id": field["external_id"],
-                            "options": [o for o in opts if o["status"] == "active"]
-                        }) # Filtra apenas opções ativas para reduzir o payload e evitar dados obsoletos.
-                data = new_fields # Atualiza o payload com apenas os campos relevantes para o cache e roteamento.
-            # --- 3. PERSISTÊNCIA E ATUALIZAÇÃO ---
-            # Armazena os dados no cache com timestamp e metadados adicionais para roteamento.
+        # Filtra apenas os campos permitidos para otimizar o payload
+        if isinstance(data, dict) and data.get("fields"):
+            new_fields = []
+            for field_data in data["fields"]:
+                if field_data.get("external_id") in FIELDS_PERMITIDOS:
+                    opts = field_data.get("config", {}).get("settings", {}).get("options", [])
+                    new_fields.append({
+                        "external_id": field_data["external_id"],
+                        "options": [o for o in opts if o.get("status") == "active"]
+                    })
+            data = new_fields
+
+        # --- 3. PERSISTÊNCIA E ATUALIZAÇÃO ---
+        with self._global_lock:
             self.store[key] = {
-                "data": data,  # Armazena apenas os campos relevantes do payload
-                "timestamp": now, # Marca o momento da atualização para controle de expiração
+                "data": data,
+                "timestamp": now,
             }
+
             if metadados:
                 logger.info(f"AIESEC Security | Sincronizando metadados de roteamento para '{baixando}'...")
-                self.store[key]["cl"] = DivisaoMercado.processar_lista(buscar_todos_cl()) # Armazena a lista de Comitês Locais (CL) para roteamento
-                self.store[key]["universidades"] = DivisaoMercado.processar_lista(buscar_todas_universidades()) # Armazena a lista de Universidades para  roteamento
+                self.store[key]["cl"] = DivisaoMercado.processar_lista(await buscar_todos_cl())
+                self.store[key]["universidades"] = DivisaoMercado.processar_lista(await buscar_todas_universidades())
                 logger.info(f"AIESEC Security | Metadados de roteamento para '{baixando}' sincronizados com sucesso!")
 
         logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
-
         return jsonify(data), status
+
+
 
 
 # ==============================
 # Singleton (Instância Única)
 # ==============================
-
 cache = CacheManager()
 
 # ==============================
-# Exportações
+# Exportações do Módulo
 # ==============================
 __all__ = ['cache']

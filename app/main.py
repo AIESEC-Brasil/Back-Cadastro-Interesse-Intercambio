@@ -10,7 +10,7 @@ import logging  # Registro de eventos para monitoramento do ciclo de vida da app
 from flask_openapi3 import OpenAPI, Info  # Extensão Flask para documentação automática OpenAPI/Swagger
 from flask_cors import CORS  # Gerenciamento de permissões de acesso entre domínios (CORS)
 from .manager import migration # Função orquestradora de migração do banco de dados
-from .middlewares import verificar_origem, verificar_rota, register_url  # Funções de interceptação
+from .middlewares import verificar_origem, register_url  # Funções de interceptação
 from .utils import handle_validation_error # Função de tratamento de erros de validação do OpenAPI3
 from .controller import new_lead_ogx # Importa o roteador especializado para novos leads OGX
 from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
@@ -72,7 +72,7 @@ def create_app() -> OpenAPI:
         app.config["COMPRESS_MIN_SIZE"] = 10  # Comprime qualquer coisa maior que 10 bytes (seu JSON tem 180kb!)
         app.config["COMPRESS_LEVEL"] = 6      # Balanço perfeito entre uso de CPU e compressão
         # Instancia o compressor sem registrar os hooks automáticos padrão
-        app.config["COMPRESS_REGISTER"] = True # Desativa o registro automático de hooks, permitindo controle manual
+        app.config["COMPRESS_REGISTER"] = True # Ativa o registro automático de hooks, permitindo controle Automatico
         compress.init_app(app) # Inicializa o compressor, mas não registra hooks automáticos
         # Força o compressor a rodar no after_request, pegando o JSON do OpenAPI3 já pronto!
         app.after_request(compress.after_request)
@@ -125,7 +125,6 @@ def create_app() -> OpenAPI:
         # ==========================
         # Validam segurança, origem e chaves de API antes de chegar no processamento principal
         app.before_request(verificar_origem)
-        app.before_request(verificar_rota)
 
         # Registro oficial da estrutura de endpoints
         app.register_api(new_lead_ogx)

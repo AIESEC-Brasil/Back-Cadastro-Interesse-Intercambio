@@ -9,7 +9,7 @@ básicas de CRUD de itens (cards) relacionados ao app do Podio.
 # Importações (Dependencies)
 # ==============================
 from typing import Any, Dict, Tuple        # Tipagem estática
-from app.clients.http_request import HttpClient # Cliente base assíncrono
+from ..http_request import HttpClient # Cliente base assíncrono
 from app.utils import agora                     # Captura timestamp atual (Brasil)
 from app.utils import resolve_response          # Utilitário para tratar Coroutines/Respostas HTTP
 from app.cache import cache                     # Sistema de armazenamento temporário de tokens
@@ -21,7 +21,7 @@ from app.cache import cache                     # Sistema de armazenamento tempo
 #
 
 # Cliente base para autenticação e chamadas gerais
-http = HttpClient(base_url="https://api.podio.com")
+http = HttpClient(base_url="https://api.podio.com",timeout=10)
 
 # Cliente especializado para manipulação de itens dentro de um APP (/item/app)
 http2 = http.clone(prefix="/item/app")
@@ -34,7 +34,7 @@ http3 = http2.clone(prefix="/item")
 # =================================================================
 
 @validar
-def getAcessToken(item: Dict[str, Any], PATH: str = "/oauth/token") -> tuple[int, dict[str, Any]]:
+async def getAcessToken(item: str | Dict[str, Any], PATH: str = "/oauth/token") -> tuple[int, dict[str, Any]]:
     """
     Obtém tokens de acesso/refresh do Podio usando o fluxo 'App Authentication'.
 
@@ -58,7 +58,7 @@ def getAcessToken(item: Dict[str, Any], PATH: str = "/oauth/token") -> tuple[int
         respose = http.post(path=PATH, payload=payload, as_form=True)
 
         # Resolve a resposta (trata await e extrai dados)
-        status, data = resolve_response(respose)
+        status, data = await resolve_response(respose)
 
         # 🛑 Tratamento de Erro Crítico: Se as credenciais estiverem erradas, para o processo.
         if status != 200:
@@ -91,14 +91,14 @@ def buscarToken(chave: str) -> str:
 # =================================================================
 
 @validar
-def metadados(chave: str, APP_ID: int) -> Tuple[int, dict]:
+async def metadados(chave: str, APP_ID: int) -> Tuple[int, dict]:
     """Busca informações estruturais de um App (campos, slugs, tipos)."""
     headers = {
         "Authorization": f"Bearer {buscarToken(chave)}", # Autenticação via Token no Header
         "Content-Type": "application/json"
     }
     response = http.get(path=f"/app/{APP_ID}", headers=headers)
-    status, data = resolve_response(response)
+    status, data = await resolve_response(response)
     return status, data
 
 @validar

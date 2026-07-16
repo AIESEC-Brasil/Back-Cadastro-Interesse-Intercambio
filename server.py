@@ -55,4 +55,4 @@ if __name__ == "__main__":
     else:
         # Roda o servidor Waitress, um servidor WSGI robusto para ambientes produtivos
         # host="0.0.0.0" permite conexões externas ao servidor
-        serve(app, host="0.0.0.0", port=5000)
+        serve(app, host="0.0.0.0", port=5000, threads=5)

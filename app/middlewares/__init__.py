@@ -14,7 +14,7 @@ Organiza a segurança, autenticação de serviços externos e auditoria de rotas
 from .auth import verificar_origem
 
 # 2. Integração com Terceiros: Garante que o token do Podio esteja pronto para o serviço
-from .token_routes import verificar_rota
+from .token_routes import gerar_token_podio_rota
 
 # 3. Observabilidade: Registra os logs de acesso e define políticas de cache pós-processamento
 from .register_endpoint import register_url
@@ -31,7 +31,7 @@ from .whitelist import require_ip_whitelist
 # permitindo o uso de: app.before_request(verificar_origem)
 __all__ = [
     "verificar_origem",
-    "verificar_rota",
+    "gerar_token_podio_rota",
     "register_url",
     "require_ip_whitelist"
 ]
