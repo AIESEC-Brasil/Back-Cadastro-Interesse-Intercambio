@@ -9,10 +9,27 @@ JSON decodificado quando disponível, ou None/texto conforme o caso.
 # ==============================
 # Importações (Dependencies)
 # ==============================
-import asyncio                                # Necessário para interagir com o Event Loop ativo do Python/Flask
+import asyncio                              # Necessário para interagir com o Event Loop ativo do Python/Flask
+import logging
 from typing import Dict, Any, Tuple, Optional  # Tipagem para melhor suporte a IDEs (Autocompletar e validação)
 import httpx                                  # Cliente HTTP assíncrono de alta performance
 from urllib.parse import urlencode            # Para codificação segura de query parameters na URL
+
+from httpx import AsyncClient
+
+# Configuração de log para ajudar no rastreio de conexões em produção/testes
+logger = logging.getLogger(__name__)
+
+
+async def _safe_close_client(client: httpx.AsyncClient) -> None:
+    """
+    Helper assíncrono para garantir que as conexões TCP pendentes do cliente
+    antigo sejam fechadas corretamente, evitando sockets órfãos.
+    """
+    try:
+        await client.aclose()
+    except Exception as e:
+        logger.warning(f"Falha ao fechar AsyncClient antigo de forma assíncrona: {e}")
 
 
 class HttpClient:
@@ -34,6 +51,7 @@ class HttpClient:
             timeout: Optional[float] = None  # Tempo limite padrão em segundos
     ):
         # 🔒 Infraestrutura Base
+        self._lock = None
         self._base_url = base_url.rstrip("/")  # Garante que não termine com barra para evitar double slashes (//)
         self._prefix = prefix
 
@@ -42,11 +60,17 @@ class HttpClient:
         self._timeout_override: Optional[float] = None
 
         # ⚡ Pool de Conexões Adaptativo
-        # Não instanciamos o httpx.AsyncClient aqui no __init__. Como o __init__ pode ser chamado
-        # fora de um contexto assíncrono, deixamos para inicializar o cliente "on-demand" (sob demanda)
-        # assim que a primeira requisição for feita.
         self._active_client: Optional[httpx.AsyncClient] = None
         self._loop_associado: Optional[asyncio.AbstractEventLoop] = None
+
+        # 🛡️ Configuração de Limites do Pool (Essencial para Testes de Estresse)
+        # Sem isso, o HTTPX abre conexões ilimitadas, deixando milhares de sockets órfãos
+        # no estado TIME_WAIT do sistema operacional.
+        self._limits = httpx.Limits(
+            max_connections=100,          # Máximo de sockets abertos simultaneamente (segurança para o SO)
+            max_keepalive_connections=20, # Quantidade de conexões mantidas quentes no pool para reuso imediato
+            keepalive_expiry=5.0          # Descarta conexões ociosas após 5s (libera recursos rapidamente no estresse)
+        )
 
     # ==========================================
     # GERENCIAMENTO DINÂMICO DE EVENT LOOP (A Mágica)
@@ -55,44 +79,42 @@ class HttpClient:
     @property
     def _client(self) -> httpx.AsyncClient:
         """
-        Propriedade dinâmica que substitui o antigo atributo síncrono 'self._client'.
-
-        Por que isso é necessário?
-        No Flask, cada requisição assíncrona pode rodar em um Event Loop diferente que abre e
-        fecha rapidamente. Se guardássemos o AsyncClient no __init__, na segunda requisição o
-        loop estaria fechado e o HTTPX lançaria o erro: "RuntimeError: Event loop is closed".
-
-        Como funciona:
-        1. Toda vez que uma requisição (GET, POST, etc.) chama 'self._client', este método é executado.
-        2. Ele captura o loop de eventos que está rodando no exato momento.
-        3. Se o loop mudou (ou se é a primeira chamada), ele fecha o cliente antigo de forma segura,
-           abre um novo AsyncClient atrelado ao loop atual e salva essa referência.
-        4. Se o loop continuar o mesmo, ele apenas retorna o cliente já existente, mantendo o pooling
-           de conexões ativo e rápido.
+        Retorna o AsyncClient ativo. Se o loop de eventos mudou ou o cliente
+        ainda não foi criado, reconstrói o cliente de forma transparente.
         """
         try:
-            # Captura o loop que está executando a thread/request atual
             loop_atual = asyncio.get_running_loop()
-        except RuntimeError:
-            # Se não houver nenhum loop rodando (chamada fora de contexto async)
-            loop_atual = None
+        except RuntimeError as e:
+            # Se não há loop rodando, disparar requisições assíncronas é impossível.
+            raise RuntimeError(
+                "Nenhum Event Loop ativo foi encontrado nesta thread. "
+                "Certifique-se de que está chamando os métodos dentro de um contexto assíncrono."
+            ) from e
 
-        # Se o cliente não existe, ou se o loop de eventos atual mudou/foi reiniciado pelo Flask
+        # Verifica se precisamos criar ou reconstruir o cliente
         if self._active_client is None or self._loop_associado != loop_atual:
+            with self._lock:
+                # Reavaliação de segurança (Double-checked locking)
+                if self._active_client is None or self._loop_associado != loop_atual:
+                    if self._active_client is not None:
+                        # O loop mudou! Precisamos descartar o cliente antigo para evitar erros.
+                        old_client = self._active_client
+                        if loop_atual.is_running():
+                            # Despara o fechamento do cliente antigo em background, sem bloquear o fluxo atual
+                            loop_atual.create_task(_safe_close_client(old_client))
+                        else:
+                            # Fallback síncrono emergencial se o loop estiver parando
+                            try:
+                                old_client.close()
+                            except Exception as err:
+                                logger.debug(f"Erro ao fechar cliente de forma síncrona: {err}")
 
-            # Se já tínhamos um cliente aberto no loop antigo, fazemos o descarte
-            if self._active_client is not None:
-                try:
-                    # Usamos .close() síncrono para descarte rápido, pois o loop antigo já morreu
-                    # e um 'await aclose()' falharia por não ter um loop ativo associado a ele.
-                    self._active_client.close()
-                except Exception:
-                    pass  # Ignora falhas se o cliente antigo já estiver completamente inacessível
+                    # Cria o novo AsyncClient associado ao loop atual
+                    self._active_client = httpx.AsyncClient(limits=self._limits)
+                    self._loop_associado = loop_atual
 
-            # Cria o novo pool de conexões associado estritamente ao novo loop ativo
-            self._active_client = httpx.AsyncClient()
-            self._loop_associado = loop_atual
-
+        # 💡 O truque está aqui: garantimos ao linter que o retorno não é None
+        assert self._active_client is not None
         return self._active_client
 
     # ================================
@@ -101,8 +123,8 @@ class HttpClient:
 
     async def close(self) -> None:
         """
-        Fecha o pool de conexões persistentes do cliente httpx de forma assíncrona.
-        Recomendado chamar ao encerrar o ciclo de vida da aplicação para liberar recursos do sistema.
+        Fecha o pool de conexões de forma assíncrona e explícita.
+        Chame isso ao desligar a aplicação Flask para liberar recursos de rede imediatamente.
         """
         if self._active_client is not None:
             await self._active_client.aclose()
@@ -110,11 +132,11 @@ class HttpClient:
             self._loop_associado = None
 
     async def __aenter__(self) -> "HttpClient":
-        """Suporte para uso do cliente como gerenciador de contexto assíncrono (async with HttpClient() as client)."""
+        """Permite o uso do cliente com gerenciadores de contexto (async with HttpClient() as client)"""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Fecha o pool de conexões automaticamente ao sair do bloco de contexto 'async with'."""
+        """Garante o fechamento automático do pool ao sair do bloco 'async with'"""
         await self.close()
 
     # ================================
@@ -124,8 +146,7 @@ class HttpClient:
     @property
     def timeout(self) -> Optional[float]:
         """
-        Retorna o timeout que será usado na próxima chamada.
-        Prioriza o override temporário se ele tiver sido definido especificamente para a chamada.
+        Retorna o timeout aplicável, dando prioridade ao override temporário de requisição única.
         """
         return (
             self._timeout_override
@@ -136,20 +157,32 @@ class HttpClient:
     @timeout.setter
     def timeout(self, value: Optional[float]):
         """
-        Define um timeout temporário que durará apenas para a PRÓXIMA requisição realizada.
+        Define o timeout apenas para a requisição que será executada IMEDIATAMENTE a seguir.
         """
         self._timeout_override = value
 
     def _consume_timeout(self) -> httpx.Timeout:
         """
-        Recupera o valor de timeout aplicável e limpa o override imediatamente.
-        Retorna um objeto httpx.Timeout configurado.
-
-        Auto-reset: garante que o override não "vaze" para chamadas subsequentes por acidente.
+        Recupera o timeout, limpa o override temporário (evitando vazamento para outras chamadas)
+        e retorna um objeto httpx.Timeout balanceado de forma inteligente.
         """
         t = self.timeout
-        self._timeout_override = None  # Reseta o override de curto prazo
-        return httpx.Timeout(t)
+        self._timeout_override = None  # Reseta o override (Auto-reset garantido)
+
+        if t is not None:
+            # Em testes de estresse, não podemos dar muito tempo para a etapa de CONEXÃO (connect),
+            # pois se o servidor cair, acumulamos conexões abertas esperando o handshake.
+            # Limitamos a conexão em no máximo 5 segundos, mas permitimos o tempo total (t) para a leitura (read).
+            connect_timeout = min(5.0, t)
+            return httpx.Timeout(timeout=t, connect=connect_timeout, read=t)
+
+        # Padrão de segurança adaptado para evitar lentidão extrema sob alta carga
+        return httpx.Timeout(
+            connect=5.0,   # Limite para estabelecer a conexão de rede TCP/TLS
+            read=20.0,     # Limite de espera pelo processamento interno da API externa (ex: Podio)
+            write=10.0,    # Limite para envio do corpo da requisição (payloads grandes)
+            pool=5.0       # Limite de espera para obter uma conexão livre do pool interno
+        )
 
     # ================================
     # CONSTRUTOR DE URL (URL BUILDER)
@@ -161,37 +194,51 @@ class HttpClient:
             params: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Monta a URL final combinando base_url, prefix e path, tratando barras extras e query params.
-
-        Lógica de higienização:
-        - Limpa barras repetidas (ex: base//prefix/path -> base/prefix/path).
-        - Sanitiza cada parte da URL antes de concatenar.
+        Monta e higieniza a URL final do endpoint.
+        Previne a duplicação indesejada de barras (ex: http://api.com//v1//endpoint).
         """
         if self._base_url:
-            # 1. Base: Raiz da API (remove barra no final para evitar duplicidade)
             parts = [self._base_url.rstrip("/")]
 
-            # 2. Prefixo: Módulos específicos (ex: /app ou /org)
             if self._prefix:
                 clean_prefix = self._prefix.strip("/")
                 if clean_prefix:
                     parts.append(clean_prefix)
 
-            # 3. Path: O endpoint final da requisição
             if path:
                 clean_path = path.strip("/")
                 if clean_path:
                     parts.append(clean_path)
 
-            # Junta todas as partes usando uma barra única como separador
             url = "/".join(parts)
 
-            # Adiciona Query Params formatados de forma segura, se existirem (ex: ?id=123&status=active)
+            # Transforma parâmetros de dicionário em query string segura (ex: {'id': 1} vira ?id=1)
             if params:
                 url += f"?{urlencode(params, doseq=True)}"
 
             return url
         return path
+
+    # ===================================
+    # MÉTODOS DE PARSE INTERNOS (HELPER)
+    # ===================================
+
+    def _handle_response(self, response: httpx.Response) -> Tuple[int, Any]:
+        """
+        Centraliza e trata a conversão da resposta do servidor de forma segura.
+        Evita quebras (erros do interpretador) caso a API retorne corpo vazio,
+        texto plano (HTML de erro 502/504) ou status 204 (No Content).
+        """
+        # Se for um status 204 ou não houver bytes no corpo, retorna None sem tentar fazer parse de JSON
+        if response.status_code == 204 or not response.content:
+            return response.status_code, None
+
+        try:
+            # Tenta decodificar o JSON retornado pela API
+            return response.status_code, response.json()
+        except Exception:
+            # Fallback seguro: se não for um JSON estruturado válido, retorna como texto puro
+            return response.status_code, response.text
 
     # ================================
     # MÉTODOS HTTP (Métodos de Entrada)
@@ -204,7 +251,7 @@ class HttpClient:
             headers=None
     ) -> Tuple[int, Any]:
         """
-        Executa requisição GET usando o pool persistente e retorna (status_code, json_body).
+        Executa requisição GET e retorna (status_code, body).
         """
         if headers is None:
             headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -212,25 +259,25 @@ class HttpClient:
         timeout = self._consume_timeout()
         url = self._build_url(path, params)
 
-        # 'self._client' acessa a nossa property que garante que o loop de eventos está aberto!
+        # Dispara a requisição usando o cliente ativo atrelado ao loop atual
         response = await self._client.get(
             url,
             headers=headers,
             timeout=timeout,
-            follow_redirects=True  # Segue redirecionamentos automaticamente (ex: HTTP 301, 302)
+            follow_redirects=True  # Redireciona de forma transparente se necessário (301/302)
         )
-        return response.status_code, response.json()
+        return self._handle_response(response)
 
     async def post(
             self,
             path: str = "",
             payload: Optional[Dict[str, Any]] = None,
             params: Optional[Dict[str, Any]] = None,
-            as_form: bool = False,  # Define se envia como JSON ou Formulário x-www-form-urlencoded
+            as_form: bool = False,  # Define se envia como formulário clássico ou JSON puro
             headers=None
     ) -> Tuple[int, Any]:
         """
-        Executa requisição POST usando o pool persistente com suporte a JSON ou Form Data.
+        Executa requisição POST e retorna (status_code, body).
         """
         if headers is None:
             headers = {
@@ -242,16 +289,16 @@ class HttpClient:
         url = self._build_url(path, params)
 
         if as_form:
-            # 'data' envia como formulário clássico (form-urlencoded)
+            # Envia codificado como par chave/valor padrão web
             response = await self._client.post(
                 url, data=payload, headers=headers, timeout=timeout, follow_redirects=True
             )
         else:
-            # 'json' serializa automaticamente o dicionário Python para string JSON
+            # Envia serializado automaticamente como JSON string no payload
             response = await self._client.post(
                 url, json=payload, headers=headers, timeout=timeout, follow_redirects=True
             )
-        return response.status_code, response.json()
+        return self._handle_response(response)
 
     async def put(
             self,
@@ -261,7 +308,7 @@ class HttpClient:
             headers=None
     ) -> Tuple[int, Any]:
         """
-        Executa requisição PUT (substituição total) usando o pool persistente com corpo JSON.
+        Executa requisição PUT (Substituição de recurso) e retorna (status_code, body).
         """
         if headers is None:
             headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -271,7 +318,7 @@ class HttpClient:
         response = await self._client.put(
             url, json=payload, headers=headers, timeout=timeout, follow_redirects=True
         )
-        return response.status_code, response.json()
+        return self._handle_response(response)
 
     async def patch(
             self,
@@ -281,7 +328,7 @@ class HttpClient:
             headers=None
     ) -> Tuple[int, Any]:
         """
-        Executa requisição PATCH (atualização parcial) usando o pool persistente com corpo JSON.
+        Executa requisição PATCH (Modificação parcial de recurso) e retorna (status_code, body).
         """
         if headers is None:
             headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -291,7 +338,7 @@ class HttpClient:
         response = await self._client.patch(
             url, json=payload, headers=headers, timeout=timeout, follow_redirects=True
         )
-        return response.status_code, response.json()
+        return self._handle_response(response)
 
     async def delete(
             self,
@@ -300,7 +347,7 @@ class HttpClient:
             headers=None
     ) -> Tuple[int, Any]:
         """
-        Executa requisição DELETE usando o pool persistente e trata casos de corpo vazio ou texto plano.
+        Executa requisição DELETE e retorna (status_code, body).
         """
         if headers is None:
             headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -310,22 +357,13 @@ class HttpClient:
         response = await self._client.delete(
             url, headers=headers, timeout=timeout, follow_redirects=True
         )
-
-        # 🛡️ Tratamento de status 204 (No Content) ou corpo realmente vazio para evitar quebras no .json()
-        if response.status_code == 204 or not response.content:
-            return response.status_code, None
-
-        try:
-            return response.status_code, response.json()
-        except Exception:
-            # Fallback para texto puro se a resposta não for um JSON estruturado válido
-            return response.status_code, response.text
+        return self._handle_response(response)
 
     def clone(self, **kwargs) -> "HttpClient":
         """
-        Cria uma cópia das configurações da instância atual (Deep Copy parcial).
-        Útil para criar clientes especializados a partir de uma configuração base,
-        iniciando um pool de conexões independente para o clone caso necessário.
+        Cria uma cópia idêntica das configurações do cliente atual.
+        Útil para herdar cabeçalhos/URLs bases sem herdar o mesmo ciclo de vida
+        ou travar o pool de conexões do cliente pai.
         """
         new_prefix = kwargs.get("prefix", self._prefix)
 

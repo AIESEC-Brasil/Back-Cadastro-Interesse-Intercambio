@@ -104,7 +104,7 @@ def gerar_token_podio_rota(service: str) -> Callable[[Callable[..., Any]], Calla
                     key=config["key"],
                     fetch=lambda: getAcessToken(config["credenciais"]),
                     baixando=f"Chave de Acesso ao Podio ({service})",
-                    CACHE_TLL=900  # tempo de duração do cache do acess token
+                    CACHE_TTL=900  # tempo de duração do cache do acess token
                 )
 
                 logger.info(f"AIESEC Auth | Token validado com sucesso para {service}.")

@@ -21,7 +21,7 @@ from app.cache import cache                     # Sistema de armazenamento tempo
 #
 
 # Cliente base para autenticação e chamadas gerais
-http = HttpClient(base_url="https://api.podio.com",timeout=10)
+http = HttpClient(base_url="https://api.podio.com",timeout=0.5)
 
 # Cliente especializado para manipulação de itens dentro de um APP (/item/app)
 http2 = http.clone(prefix="/item/app")
