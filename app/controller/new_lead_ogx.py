@@ -17,6 +17,7 @@ from ..config import APP_ID  # ID do App de Leads B2C no Podio (configurado no .
 from ..clients import metadados  # Função cliente para buscar campos e configurações do Podio
 from ..dto import Metadados,LeadPreCadastro  # DTO para validação e serialização de metadados do Podio
 from ..middlewares import gerar_token_podio_rota  # Funções de interceptação
+from ..service import cadastrar_lead
 
 # =================================================================
 # CONFIGURAÇÃO DO ROTEADOR OGX
@@ -77,7 +78,7 @@ def criar_incricao(body:LeadPreCadastro):
     """
     logger.info("AIESEC OGX | Iniciando processo de cadastro de novo lead...")
 
-    return body.model_dump(),201
+    return cadastrar_lead(body)
 
 
 # ==============================
