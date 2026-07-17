@@ -9,7 +9,6 @@ hash fragment com os parametros codificados.
 # Importacoes (Dependencies)
 # ==============================
 from urllib.parse import urlencode  # Converte dicionarios em strings de consulta (key=value&...)
-from ..config import URL_FIT_CULTURAL # URL base definida nas variaveis de ambiente/configuracao
 
 # ==============================
 # Formatadores de Integracao
