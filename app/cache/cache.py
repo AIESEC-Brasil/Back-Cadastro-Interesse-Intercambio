@@ -27,9 +27,11 @@ from typing import (
 )
 
 from ..config import CACHE_TTL      # Tempo limite (em segundos) definido no ambiente global
-from ..utils import (
-    agora_timestamp,                # Função para obter tempo atual (Horário de São Paulo)
+from ..utils.resolve import (
     resolve_response                # Garante o tratamento de retornos de forma assíncrona
+)
+from ..utils.data import (
+    agora_timestamp,                # Função para obter tempo atual (Horário de São Paulo)
 )
 from ..dto import HttpStatus        # Enum com os Status Http
 
@@ -49,7 +51,9 @@ FIELDS_PERMITIDOS = {
     "produto",
     "aiesec-mais-proxima",
     "tag-origem-2",
-    "tag-meio-2-2"
+    "tag-meio-2-2",
+    "status",
+    "produto"
 }
 
 # =================================================================

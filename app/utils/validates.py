@@ -12,7 +12,7 @@ import base64  # Para decodificação e validação de arquivos em strings base6
 from typing import Dict, Any, List  # Utilitários de sistema e tipos
 from datetime import  datetime, date
 import re, unicodedata
-
+from ..cache import cache
 # ==============================
 # Validações de Identidade
 # ==============================
@@ -98,14 +98,16 @@ def validar_telefone_com_55(telefone: str) -> bool:
     Exemplo: +5511999999999
     """
     if telefone == "":
-        return True
+        return False
     padrao: str = r'^\+55[1-9][0-9]9\d{8}$'
     return bool(re.fullmatch(padrao, telefone))
 
 @validar
 def validar_telefone(telefone: str) -> bool:
     """Valida telefone celular brasileiro (DDD + 9 dígitos) sem o prefixo do país."""
-    padrao: str = r'^[1-9][0-9]9\d{8}$'
+    if telefone == "":
+        return False
+    padrao: str = r'^[1-9]{2}9[0-9]\d{8}$'
     return bool(re.fullmatch(padrao, telefone))
 
 @validar
@@ -119,16 +121,58 @@ def validar_email(email: str) -> bool:
     Returns:
         bool: True se vazio ou pertencente a: gmail, hotmail, outlook ou yahoo.
     """
-    dominios_permitidos: List[str] = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com']
-    if email == "":
-        return True
 
-    regex_email: str = r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$'
-    if not re.fullmatch(regex_email, email):
+    regex_email: str = r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$'
+    if not re.fullmatch(regex_email, email) or email=="":
         return False
 
-    dominio: str = email.split('@')[1].lower()
-    return dominio in dominios_permitidos
+    return True
+
+@validar
+def validar_dados_comite(id_comite: int, nome_comite: str) -> bool:
+    """
+    Busca e valida a existência e correspondência do comitê dentro da estrutura
+    de dicionários aninhados salvos no cache de metadados.
+
+    Varre as opções disponíveis dentro da chave externa 'aiesec-mais-proxima'.
+
+    Args:
+        id_comite (int): O ID numérico limpo vindo do modelo.
+        nome_comite (str): O nome em formato string vindo do modelo.
+
+    Returns:
+        bool: True se encontrar uma opção onde o 'id' e o 'text' coincidam; False caso contrário.
+    """
+    # Recupera a lista de metadados salvos no cache da aplicação
+    cache_metadados = cache.store["metadados_card-ogx"]["data"]
+
+    for item in cache_metadados:
+        # Localiza o bloco de configuração específico da AIESEC
+        if item.get("external_id") == "aiesec-mais-proxima":
+            # Itera sobre a lista de dicionários contida em 'options'
+            for opcao in item.get("options", []):
+                if opcao.get("id") == id_comite:
+                    # Limpa espaços em branco extras nas pontas para evitar falsos negativos
+                    if opcao.get("text", "").strip() == nome_comite.strip():
+                        return True
+
+    return False
+
+@validar
+def validar_dados_produto(nome,id_podio,id_expa):
+    list_id_expa = [7,8,9]
+    cache_metadados = cache.store["metadados_card-ogx"]["data"]
+    for item in cache_metadados:
+        # Localiza o bloco de configuração específico da AIESEC
+        if item.get("external_id") == "status":
+            # Itera sobre a lista de dicionários contida em 'options'
+            for opcao in item.get("options", []):
+                if opcao.get("id") == id_podio:
+                    # Limpa espaços em branco extras nas pontas para evitar falsos negativos
+                    if opcao.get("text", "").strip() == nome.strip():
+                        if id_expa in list_id_expa:
+                           return True
+    return False
 
 # ==============================
 # Exportações
@@ -139,5 +183,7 @@ __all__ = [
     "validar_senha",
     "validar_email",
     "validar_telefone_com_55",
-    "validar_nome_com_acentos"
+    "validar_nome_com_acentos",
+    "validar_dados_comite",
+    "validar_dados_produto"
 ]
