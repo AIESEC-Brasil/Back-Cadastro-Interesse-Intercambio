@@ -15,7 +15,7 @@ from .router import Router  # Classe base de roteamento integrada ao OpenAPI3
 from ..cache import cache  # Gerenciador de cache para otimizar chamadas de API
 from ..config import APP_ID  # ID do App de Leads B2C no Podio (configurado no .env)
 from ..clients import metadados  # Função cliente para buscar campos e configurações do Podio
-from ..dto import Metadados  # DTO para validação e serialização de metadados do Podio
+from ..dto import Metadados,LeadPreCadastro  # DTO para validação e serialização de metadados do Podio
 from ..middlewares import gerar_token_podio_rota  # Funções de interceptação
 
 # =================================================================
@@ -68,7 +68,7 @@ def buscar_metadados() -> Metadados:
 
 @new_lead_ogx.post("/cadastro")
 @gerar_token_podio_rota(service="new-lead-ogx")
-def criar_incricao():
+def criar_incricao(body:LeadPreCadastro):
     """
     Endpoint para recepção de novos leads de intercâmbio.
 
@@ -79,7 +79,7 @@ def criar_incricao():
 
 
 
-    return "<h1>ROTA PARA CADASTRO DE LEADS E CACHE ATUALIZADO</h1>"
+    return body.model_dump(),201
 
 
 # ==============================
