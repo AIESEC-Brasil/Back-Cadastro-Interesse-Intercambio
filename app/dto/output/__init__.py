@@ -14,7 +14,7 @@ envelopes de integração para APIs externas.
 # (HttpStatus, ModelPodio, ReponsePselPreCadastro, etc.)
 from .httpstatus import HttpStatus
 from .metadados import Metadados
-from .DivisaoMercado import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL
+from .DivisaoMercado import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL,ListagemEscritoriosRespostaDTOUniversidades
 
 # =================================================================
 # Exportação Consolidada
@@ -29,5 +29,6 @@ __all__ = [
     "Metadados",
     "DivisaoMercadoCl",
     "DivisaoMercadoUniversidades",
-    "ListagemEscritoriosRespostaDTOCL"
+    "ListagemEscritoriosRespostaDTOCL",
+    "ListagemEscritoriosRespostaDTOUniversidades"
 ]

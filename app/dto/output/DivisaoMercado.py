@@ -138,4 +138,14 @@ class ListagemEscritoriosRespostaDTOCL(BaseModel):
         "populate_by_name": True
     }
 
-__all__ = ["DivisaoMercadoCl","DivisaoMercadoUniversidades","ListagemEscritoriosRespostaDTOCL"]
+class ListagemEscritoriosRespostaDTOUniversidades(BaseModel):
+    """Modelo principal que unifica e valida o payload completo de retorno reaproveitando o tipo existente."""
+    data: DivisaoMercadoUniversidades = Field(..., description="Lista contendo os escritórios e seus respectivos mercados.")
+    pagination: PaginacaoMetaDTO = Field(..., description="Metadados de controle da paginação.")
+
+    # Configuração do Pydantic v2 para aceitar os aliases e manter os nomes originais se necessário
+    model_config = {
+        "populate_by_name": True
+    }
+
+__all__ = ["DivisaoMercadoCl","DivisaoMercadoUniversidades","ListagemEscritoriosRespostaDTOCL","ListagemEscritoriosRespostaDTOUniversidades"]

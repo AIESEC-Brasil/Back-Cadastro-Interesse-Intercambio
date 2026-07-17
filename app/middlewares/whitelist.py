@@ -1,5 +1,6 @@
 from functools import wraps
 from flask import request, jsonify
+from ..core import IS_DEV
 from ..dto import HttpStatus
 from ..storage import storage
 
@@ -11,7 +12,7 @@ def require_ip_whitelist(func):
         
         # Pega o primeiro IP (evita problemas com múltiplos proxies)
         client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-        if client_ip not in allowed_ip_list:
+        if client_ip not in allowed_ip_list and not IS_DEV:
             return jsonify({"error": "Sua máquina não está autorizada a entrar nessa rota"}), HttpStatus.UNAUTHORIZED
         
         return func(*args, **kwargs)
