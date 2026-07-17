@@ -56,8 +56,7 @@ def buscar_metadados() -> Metadados:
             chave="ogx-token-podio",
             APP_ID=APP_ID
         ),
-        baixando="Metadados de Novos lead B2C",
-        metadados=True
+        baixando="Metadados de Novos lead B2C"
     )
 
     response.headers["Content-Type"] = "application/json"
@@ -78,7 +77,7 @@ def criar_incricao():
     """
     logger.info("AIESEC OGX | Iniciando processo de cadastro de novo lead...")
 
-    
+
 
     return "<h1>ROTA PARA CADASTRO DE LEADS E CACHE ATUALIZADO</h1>"
 

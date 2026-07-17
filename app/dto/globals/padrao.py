@@ -263,25 +263,31 @@ class DivisaoMercado(BaseModel):
         }
     )
     gv: str = Field(
+        alias="Voluntario Global",  # Mapeia a chave com espaço vinda do dicionário
         description="Destino de roteamento para Voluntariado Global",
         json_schema_extra={
             "example": "AIESEC em Recife"
         }
     )
     gt: str = Field(
+        alias="Talento Global",    # Mapeia a chave com espaço vinda do dicionário
         description="Destino de roteamento para Talentos Globais",
         json_schema_extra={
             "example": "AIESEC em Recife"
         }
     )
-    
+
+    # Configuração do Pydantic v2 para aceitar os aliases e manter os nomes originais se necessário
+    model_config = {
+        "populate_by_name": True
+    }
+
     @classmethod
     def processar_lista(cls, dados) -> list:
-        # Aqui está exatamente a linha que você definiu!
-        # Usamos 'cls' no lugar do nome da classe para ficar dinâmico
+        # Usando 'cls' no lugar do nome da classe para ficar dinâmico
         adapter = TypeAdapter(List[cls])
-        return adapter.dump_python(adapter.validate_python(dados))
-
+        # O dump_python(by_alias=True) garante que o retorno da lista venha com as chaves com espaço ("Voluntario Global")
+        return adapter.dump_python(adapter.validate_python(dados), by_alias=True)
 # =================================================================
 # 4. EXPORTAÇÕES DO MÓDULO
 # =================================================================

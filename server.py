@@ -21,7 +21,7 @@ from dotenv import load_dotenv # Utilitário para carregar variáveis de ambient
 path_atual = os.path.dirname(os.path.abspath(__file__))
 
 # Concatena o caminho do diretório com o arquivo '.env' e carrega as variáveis na memória do sistema
-load_dotenv(os.path.join(path_atual, ".env.test"))
+load_dotenv(os.path.join(path_atual, ".env.dev"))
 
 # ==============================
 # Inicialização do Sistema

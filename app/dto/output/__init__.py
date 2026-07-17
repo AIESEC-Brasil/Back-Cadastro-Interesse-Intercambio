@@ -14,6 +14,7 @@ envelopes de integração para APIs externas.
 # (HttpStatus, ModelPodio, ReponsePselPreCadastro, etc.)
 from .httpstatus import HttpStatus
 from .metadados import Metadados
+from .DivisaoMercado import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL
 
 # =================================================================
 # Exportação Consolidada
@@ -25,5 +26,8 @@ from .metadados import Metadados
 # Isso facilita o uso em Services e Blueprints: from app.dtos.output import HttpStatus
 __all__ = [
     "HttpStatus",                # Enumerador de códigos de status HTTP
-    "Metadados"
+    "Metadados",
+    "DivisaoMercadoCl",
+    "DivisaoMercadoUniversidades",
+    "ListagemEscritoriosRespostaDTOCL"
 ]

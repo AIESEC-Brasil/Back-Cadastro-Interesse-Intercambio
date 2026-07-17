@@ -22,7 +22,8 @@ from typing import (
     Any,                            # Tipo flexível para aceitar diversos formatos de dados
     Callable,                       # Tipo para funções passadas como argumento (callbacks)
     Dict,                           # Definição de dicionários tipados
-    Tuple                           # Definição de tuplas para retorno (status, data)
+    Tuple,                          # Definição de tuplas para retorno (status, data)
+    Optional                        # Permite indicar que um parâmetro pode ser nulo/opcional
 )
 
 from ..config import CACHE_TTL      # Tempo limite (em segundos) definido no ambiente global
@@ -31,8 +32,6 @@ from ..utils import (
     resolve_response                # Garante o tratamento de retornos de forma assíncrona
 )
 from ..dto import HttpStatus        # Enum com os Status Http
-from ..repository import buscar_todas_universidades, buscar_todos_cl  # Funções de acesso a dados (Assíncronas)
-from ..dto import DivisaoMercado
 
 # =================================================================
 # CONFIGURAÇÕES DE LOGGING
@@ -74,9 +73,8 @@ class CacheManager:
     async def get_or_set(
             self,
             key: str,
-            fetch: Callable[[], Any],
             baixando: str,
-            metadados: bool = False,
+            fetch: Optional[Callable[[], Any]] = None,
             resync: bool = False,
             CACHE_TTL: int = CACHE_TTL
     ) -> Tuple[Any, int]:
@@ -101,6 +99,11 @@ class CacheManager:
                 logger.info(f"AIESEC Cache | HIT: '{baixando}' recuperado da memória.")
                 return jsonify(item["data"]), HttpStatus.OK
 
+        # Se não há fetch fornecido e deu cache miss, evitamos toda a lógica de resolve_response
+        if fetch is None:
+            logger.warning(f"AIESEC Cache | MISS: '{baixando}' não encontrado e nenhuma função 'fetch' foi fornecida para atualização.")
+            return jsonify({"error": f"Dados de '{baixando}' não estão em cache."}), HttpStatus.NOT_FOUND
+
         # --- 4. BLOQUEIO ASSÍNCRONO (Não-bloqueante para o Event Loop ativo) ---
         # Se outra requisição no mesmo loop já estiver atualizando o cache, esta aguarda de forma cooperativa
         async with current_lock:
@@ -123,8 +126,30 @@ class CacheManager:
             else:
                 result = fetch()
 
-            # Aguarda a resposta de rede de forma assíncrona
-            status, data = await resolve_response(result)
+            # --- TRATAMENTO DINÂMICO E SEGURO DO RETORNO ---
+            # 1. Caso retorne uma tupla contendo (status, data)
+            if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], int):
+                status, raw_data = result
+                # Se os dados dentro da tupla precisarem ser resolvidos de forma assíncrona
+                if inspect.iscoroutine(raw_data):
+                    status, data = await resolve_response(raw_data)
+                else:
+                    status = HttpStatus.OK
+                    data = raw_data
+            else:
+                # 2. Caso retorne apenas dados brutos ou uma Promise que resolve direto no dado
+                status = HttpStatus.OK
+                if inspect.iscoroutine(result):
+                    # Se o resolve_response retornar uma tupla (status, dados), extraímos corretamente
+                    resolved = await resolve_response(result)
+                    if isinstance(resolved, tuple) and len(resolved) == 2 and isinstance(resolved[0], int):
+                        status, data = resolved
+                    else:
+                        status = HttpStatus.OK
+                        data = resolved
+                else:
+                    status = HttpStatus.OK
+                    data = result
 
             # Filtra apenas os campos permitidos
             if isinstance(data, dict) and data.get("fields"):
@@ -138,24 +163,11 @@ class CacheManager:
                         })
                 data = new_fields
 
-            # Busca metadados de apoio de forma assíncrona se necessário
-            meta_cl = None
-            meta_unis = None
-            if metadados:
-                logger.info(f"AIESEC Security | Sincronizando metadados de roteamento para '{baixando}'...")
-                meta_cl = DivisaoMercado.processar_lista(await buscar_todos_cl())
-                meta_unis = DivisaoMercado.processar_lista(await buscar_todas_universidades())
-
             # Grava no dicionário de memória (operação síncrona e atômica)
             self.store[key] = {
                 "data": data,
                 "timestamp": now,
             }
-
-            if metadados:
-                self.store[key]["cl"] = meta_cl
-                self.store[key]["universidades"] = meta_unis
-                logger.info(f"AIESEC Security | Metadados de roteamento para '{baixando}' sincronizados com sucesso!")
 
         logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
         return jsonify(data), status

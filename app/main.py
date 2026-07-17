@@ -12,7 +12,7 @@ from flask_cors import CORS  # Gerenciamento de permissões de acesso entre dom�
 from .manager import migration # Função orquestradora de migração do banco de dados
 from .middlewares import verificar_origem, register_url  # Funções de interceptação
 from .utils import handle_validation_error # Função de tratamento de erros de validação do OpenAPI3
-from .controller import new_lead_ogx # Importa o roteador especializado para novos leads OGX
+from .controller import new_lead_ogx,divisao_mercado # Importa o roteador especializado para novos leads OGX
 from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
 from .core import compress  # Instância de compressão para otimizar respostas HTTP
 from .core import DB_CONNECT,AMBIENTE # Variável de ambiente que contém a string de conexão com o banco de dados
@@ -128,6 +128,7 @@ def create_app() -> OpenAPI:
 
         # Registro oficial da estrutura de endpoints
         app.register_api(new_lead_ogx)
+        app.register_api(divisao_mercado)
         app.register_api(api)
 
         logger.info("Servidor Inicializado com Sucesso!")

@@ -51,7 +51,6 @@ class HttpClient:
             timeout: Optional[float] = None  # Tempo limite padrão em segundos
     ):
         # 🔒 Infraestrutura Base
-        self._lock = None
         self._base_url = base_url.rstrip("/")  # Garante que não termine com barra para evitar double slashes (//)
         self._prefix = prefix
 
@@ -77,43 +76,42 @@ class HttpClient:
     # ==========================================
 
     @property
-    def _client(self) -> httpx.AsyncClient:
+    def _client(self) -> AsyncClient | None:
         """
-        Retorna o AsyncClient ativo. Se o loop de eventos mudou ou o cliente
-        ainda não foi criado, reconstrói o cliente de forma transparente.
+        Propriedade dinâmica que gerencia a integridade do ciclo de vida do AsyncClient.
+
+        Sob estresse no Flask, novos event loops podem ser criados. Se usarmos um AsyncClient
+        atrelado a um loop fechado, recebemos um 'RuntimeError'. Esta property resolve isso.
         """
         try:
+            # Captura o loop de eventos que está processando a requisição atual
             loop_atual = asyncio.get_running_loop()
-        except RuntimeError as e:
-            # Se não há loop rodando, disparar requisições assíncronas é impossível.
-            raise RuntimeError(
-                "Nenhum Event Loop ativo foi encontrado nesta thread. "
-                "Certifique-se de que está chamando os métodos dentro de um contexto assíncrono."
-            ) from e
+        except RuntimeError:
+            loop_atual = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop_atual)
 
-        # Verifica se precisamos criar ou reconstruir o cliente
+        # Detecta se precisamos construir ou substituir o cliente ativo
         if self._active_client is None or self._loop_associado != loop_atual:
-            with self._lock:
-                # Reavaliação de segurança (Double-checked locking)
-                if self._active_client is None or self._loop_associado != loop_atual:
-                    if self._active_client is not None:
-                        # O loop mudou! Precisamos descartar o cliente antigo para evitar erros.
-                        old_client = self._active_client
-                        if loop_atual.is_running():
-                            # Despara o fechamento do cliente antigo em background, sem bloquear o fluxo atual
-                            loop_atual.create_task(_safe_close_client(old_client))
-                        else:
-                            # Fallback síncrono emergencial se o loop estiver parando
-                            try:
-                                old_client.close()
-                            except Exception as err:
-                                logger.debug(f"Erro ao fechar cliente de forma síncrona: {err}")
 
-                    # Cria o novo AsyncClient associado ao loop atual
-                    self._active_client = httpx.AsyncClient(limits=self._limits)
-                    self._loop_associado = loop_atual
+            if self._active_client is not None:
+                # 🚨 SOLUÇÃO PARA O VAZAMENTO DE MEMÓRIA/SOCKETS:
+                # Se o loop antigo morreu, um '.close()' síncrono trava ou falha em fechar os sockets reais do SO.
+                # Para evitar vazamentos, capturamos o cliente antigo e agendamos o encerramento real (aclose)
+                # de forma assíncrona dentro do novo loop ativo.
+                old_client = self._active_client
+                if loop_atual and loop_atual.is_running():
+                    # Executa o fechamento em background sem bloquear o fluxo principal da requisição
+                    loop_atual.create_task(_safe_close_client(old_client))
+                else:
+                    # Fallback de segurança se não houver um loop rodando para agendar a task
+                    try:
+                        old_client.close()
+                    except Exception as e:
+                        logger.debug(f"Erro ao fechar cliente síncronamente: {e}")
 
-        # 💡 O truque está aqui: garantimos ao linter que o retorno não é None
+            # Inicializa o novo cliente aplicando os limites rígidos de pool definidos no __init__
+            self._active_client = httpx.AsyncClient(limits=self._limits)
+            self._loop_associado = loop_atual
         assert self._active_client is not None
         return self._active_client
 
@@ -173,14 +171,14 @@ class HttpClient:
             # Em testes de estresse, não podemos dar muito tempo para a etapa de CONEXÃO (connect),
             # pois se o servidor cair, acumulamos conexões abertas esperando o handshake.
             # Limitamos a conexão em no máximo 5 segundos, mas permitimos o tempo total (t) para a leitura (read).
-            connect_timeout = min(5.0, t)
+            connect_timeout = min(10.0, t)
             return httpx.Timeout(timeout=t, connect=connect_timeout, read=t)
 
         # Padrão de segurança adaptado para evitar lentidão extrema sob alta carga
         return httpx.Timeout(
-            connect=5.0,   # Limite para estabelecer a conexão de rede TCP/TLS
-            read=20.0,     # Limite de espera pelo processamento interno da API externa (ex: Podio)
-            write=10.0,    # Limite para envio do corpo da requisição (payloads grandes)
+            connect=10.0,   # Limite para estabelecer a conexão de rede TCP/TLS
+            read=30.0,     # Limite de espera pelo processamento interno da API externa (ex: Podio)
+            write=15.0,    # Limite para envio do corpo da requisição (payloads grandes)
             pool=5.0       # Limite de espera para obter uma conexão livre do pool interno
         )
 

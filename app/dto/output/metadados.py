@@ -35,50 +35,6 @@ class Metadados(BaseModel):
         DataHora (datetime | str): Registro temporal do processamento da requisição.
     """
 
-    cl: List[DivisaoMercado] = Field(
-        title="Comitê Local (CL)",
-        description="Informações de roteamento e configuração do Comitê Local (CL).",
-        json_schema_extra={
-            "type": "object",
-            "example": [
-                    {
-                        "nome": "Comitê Local Exemplo",
-                        "gv": "Roteamento GV Exemplo",
-                        "gt": "Roteamento GT Exemplo",
-                        "id": "ID do Comitê Local Exemplo"
-                    },
-                    {
-                        "nome": "Comitê Local Exemplo",
-                        "gv": "Roteamento GV Exemplo",
-                        "gt": "Roteamento GT Exemplo",
-                        "id": "ID do Comitê Local Exemplo"
-                    }
-                ]
-        }
-    )
-
-    universidades: List[DivisaoMercado] = Field(
-        title="Universidades",
-        description="Mapeamento de universidades e seus respectivos roteamentos.",
-        json_schema_extra={
-            "type": "object",
-            "example":  [
-                    {
-                        "nome": "Universidade Exemplo",
-                        "gv": "Roteamento GV Exemplo",
-                        "gt": "Roteamento GT Exemplo",
-                        "id": "ID da Universidade Exemplo"
-                    },
-                    {
-                        "nome": "Universidade Exemplo",
-                        "gv": "Roteamento GV Exemplo",
-                        "gt": "Roteamento GT Exemplo",
-                        "id": "ID da Universidade Exemplo"
-                    }
-                ]
-        }
-    )
-
     # 'title' personaliza o rótulo no Swagger/OpenAPI.
     # 'json_schema_extra' garante a representação correta como objeto dinâmico.
     data: List[Dict[str, Any]] = Field(
