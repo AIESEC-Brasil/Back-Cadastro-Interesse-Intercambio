@@ -13,6 +13,10 @@ Ele expõe todas as funções validadas para manipulação de leads e autentica�
 # Importa todas as funções definidas em psel_input.py (ou podio.py, dependendo do arquivo)
 # como getAcessToken, adicionar_lead, atualizar_lead, etc.
 from .podio import *
+from .buscar import *
+from .remover import *
+from .adicionar import *
+from .atualizar import *
 
 # =================================================================
 # Exportação Consolidada
@@ -24,5 +28,9 @@ from .podio import *
 # Isso permite que ao importar o pacote (ex: from app.clients.podio import *),
 # apenas as funções de negócio pretendidas sejam expostas, mantendo o encapsulamento.
 __all__ = (
-    podio.__all__
+    podio.__all__+
+    buscar.__all__+
+    adicionar.__all__+
+    atualizar.__all__+
+    remover.__all__
 )

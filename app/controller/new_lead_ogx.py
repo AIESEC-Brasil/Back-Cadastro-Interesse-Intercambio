@@ -77,8 +77,6 @@ def criar_incricao(body:LeadPreCadastro):
     """
     logger.info("AIESEC OGX | Iniciando processo de cadastro de novo lead...")
 
-
-
     return body.model_dump(),201
 
 

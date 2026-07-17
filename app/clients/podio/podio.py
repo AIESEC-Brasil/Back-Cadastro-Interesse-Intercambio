@@ -23,12 +23,6 @@ from app.cache import cache                     # Sistema de armazenamento tempo
 # Cliente base para autenticação e chamadas gerais
 http = HttpClient(base_url="https://api.podio.com")
 
-# Cliente especializado para manipulação de itens dentro de um APP (/item/app)
-http2 = http.clone(prefix="/item/app")
-
-# Cliente especializado para manipulação de ITENS específicos por ID (/item)
-http3 = http2.clone(prefix="/item")
-
 # =================================================================
 # FUNÇÕES DE AUTENTICAÇÃO
 # =================================================================
@@ -101,64 +95,12 @@ async def metadados(chave: str, APP_ID: int) -> Tuple[int, dict]:
     status, data = await resolve_response(response)
     return status, data
 
-@validar
-def adicionar_lead(chave: str, data: Any, APP_ID: int) -> tuple[dict, int]:
-    """
-    Cria um card no Podio.
-    Retorna o corpo da resposta e o 'app_item_id' (ID sequencial amigável).
-    """
-    headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    # Payload deve ser um dicionário com a chave "fields" (conforme DTO de Output)
-    response = http2.post(path=f"/{APP_ID}", payload=data, headers=headers)
-    status, data = resolve_response(response)
-
-    return data, buscar_id_lead(data)
-
-@validar
-def atualizar_lead(chave: str, data: Any, data_response: dict) -> Tuple[int, int]:
-    """
-    Atualiza dados de um card existente.
-    Usa o 'item_id' (ID global do Podio) extraído de uma criação anterior.
-    """
-    item_id = buscar_id_card(data_response)
-    headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    # Método PUT para substituição/atualização dos campos enviados
-    response = http3.put(path=f"/{item_id}", payload=data, headers=headers)
-    status, data = resolve_response(response)
-
-    return item_id, data
-
-@validar
-def remover_lead(chave: str, data_response: dict) -> bool | tuple[bool, Any]:
-    """Remove permanentemente um card do CRM."""
-    item_id = buscar_id_card(data_response)
-    headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    response = http3.delete(path=f"/{item_id}", headers=headers)
-    status, data = resolve_response(response)
-
-    # Status 204 indica que a deleção foi processada com sucesso e não há conteúdo a retornar.
-    if status == 204:
-        return True
-    return False, data
-
 # =================================================================
 # UTILITÁRIOS DE EXTRAÇÃO DE IDs
 # =================================================================
 
 @validar
-def buscar_id_card(data: dict) -> int:
+def buscar_id_card(data: dict) -> Any | None:
     """Extrai o 'item_id' (ID único e imutável no banco de dados do Podio)."""
     return data.get("item_id")
 
@@ -169,8 +111,5 @@ __all__ = [
     "getAcessToken",
     "buscarToken",
     "metadados",
-    "adicionar_lead",
-    "atualizar_lead",
-    "remover_lead",
     "buscar_id_card"
 ]
