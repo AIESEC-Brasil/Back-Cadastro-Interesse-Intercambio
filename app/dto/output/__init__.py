@@ -15,7 +15,7 @@ envelopes de integração para APIs externas.
 from .httpstatusDTO import HttpStatus
 from .metadadosDTO import Metadados
 from .DivisaoMercadoDTO import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL,ListagemEscritoriosRespostaDTOUniversidades
-
+from .LeadCadastroDTO import LeadPreCadastroOutput
 # =================================================================
 # Exportação Consolidada
 # =================================================================
@@ -30,5 +30,6 @@ __all__ = [
     "DivisaoMercadoCl",
     "DivisaoMercadoUniversidades",
     "ListagemEscritoriosRespostaDTOCL",
-    "ListagemEscritoriosRespostaDTOUniversidades"
+    "ListagemEscritoriosRespostaDTOUniversidades",
+    "LeadPreCadastroOutput"
 ]

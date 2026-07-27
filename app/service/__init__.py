@@ -1,3 +1,3 @@
-from .CadastrarLead import cadastrar_lead
+from .CadastrarLeadService import cadastrar_lead
 
 __all__ = ["cadastrar_lead"]
