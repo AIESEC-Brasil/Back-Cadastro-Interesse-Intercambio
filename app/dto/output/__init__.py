@@ -12,9 +12,9 @@ envelopes de integração para APIs externas.
 
 # Importa todos os modelos de resposta definidos no módulo psel
 # (HttpStatus, ModelPodio, ReponsePselPreCadastro, etc.)
-from .httpstatus import HttpStatus
-from .metadados import Metadados
-from .DivisaoMercado import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL,ListagemEscritoriosRespostaDTOUniversidades
+from .httpstatusDTO import HttpStatus
+from .metadadosDTO import Metadados
+from .DivisaoMercadoDTO import DivisaoMercadoUniversidades,DivisaoMercadoCl,ListagemEscritoriosRespostaDTOCL,ListagemEscritoriosRespostaDTOUniversidades
 
 # =================================================================
 # Exportação Consolidada

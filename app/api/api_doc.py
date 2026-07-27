@@ -11,7 +11,7 @@ Responsável por versionar a API e organizar os prefixos de URL.
 import os  # Manipulação de variáveis de ambiente e sistema operacional
 
 from flask import render_template_string, request,redirect
-from ..controller import Router
+from ..router import Router
 from ..dto import HttpStatus
 from ..storage import storage
 from ..middlewares import require_ip_whitelist

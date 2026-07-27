@@ -18,7 +18,7 @@ os.environ["TOKEN_EXPA"] = "test"
 
 from app.main import create_app
 from app.core import db
-from app.model.divisaoMercado import Universidades, DivisaoCL
+from app.model.divisaoMercadoModel import Universidades, DivisaoCL
 
 
 class InitialMigrationTest(unittest.TestCase):

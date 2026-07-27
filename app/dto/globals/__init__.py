@@ -1,3 +1,3 @@
-from .padrao import *
+from .padraoDTO import *
 
-__all__ = padrao.__all__ 
+__all__ = padraoDTO.__all__

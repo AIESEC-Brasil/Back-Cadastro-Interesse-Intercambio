@@ -11,15 +11,15 @@ Organiza a segurança, autenticação de serviços externos e auditoria de rotas
 # ==============================
 
 # 1. Segurança de Infraestrutura: Valida se quem chama a API tem permissão (IP/Domínio)
-from .auth import verificar_origem
+from .autorizacao import verificar_origem
 
 # 2. Integração com Terceiros: Garante que o token do Podio esteja pronto para o serviço
-from .token_routes import gerar_token_podio_rota
+from .registrando_token_rota import gerar_token_podio_rota
 
 # 3. Observabilidade: Registra os logs de acesso e define políticas de cache pós-processamento
-from .register_endpoint import register_url
+from .registrando_endpoint import register_url
 
-from .whitelist import require_ip_whitelist
+from .lista_autorizados import require_ip_whitelist
 
 # ==============================
 # Exportação Consolidada
