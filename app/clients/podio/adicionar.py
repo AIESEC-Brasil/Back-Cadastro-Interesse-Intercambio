@@ -7,7 +7,7 @@ from app.utils import resolve_response
 http = HttpClient(base_url="https://api.podio.com",prefix="/item/app")
 
 @validar
-def adicionar_lead(chave: str, data: Any, APP_ID: int) -> tuple[dict, int]:
+async def adicionar_lead(chave: str, data: Any, APP_ID: int) -> tuple[dict, int]:
     """
     Cria um card no Podio.
     Retorna o corpo da resposta e o 'app_item_id' (ID sequencial amigável).
@@ -19,7 +19,7 @@ def adicionar_lead(chave: str, data: Any, APP_ID: int) -> tuple[dict, int]:
     }
     # Payload deve ser um dicionário com a chave "fields" (conforme DTO de Output)
     response = http.post(path=f"/{APP_ID}", payload=data, headers=headers)
-    status, data = resolve_response(response)
+    status, data = await resolve_response(response)
 
     return data
 

@@ -76,7 +76,7 @@ async def getAcessToken(item: str | Dict[str, Any], PATH: str = "/oauth/token") 
 def buscarToken(chave: str) -> str:
     """
     Recupera o access_token válido de dentro do dicionário de Cache.
-    A chave geralmente é o nome do Workspace (ex: 'PSEL' ou 'OGX').
+    A chave geralmente é o nome do Workspace (ex: 'OGX').
     """
     return cache.store[chave]["data"]["access_token"]
 
