@@ -7,7 +7,7 @@ from app.utils import resolve_response
 http = HttpClient(base_url="https://api.podio.com",prefix="/item")
 
 @validar
-def remover_lead(chave: str, data_response: dict) -> bool | tuple[bool, Any]:
+async def remover_lead(chave: str, data_response: dict) -> bool | tuple[bool, Any]:
     """Remove permanentemente um card do CRM."""
     item_id = buscar_id_card(data_response)
     headers = {
@@ -16,7 +16,7 @@ def remover_lead(chave: str, data_response: dict) -> bool | tuple[bool, Any]:
         "Accept": "application/json"
     }
     response = http.delete(path=f"/{item_id}", headers=headers)
-    status, data = resolve_response(response)
+    status, data = await resolve_response(response)
 
     # Status 204 indica que a deleção foi processada com sucesso e não há conteúdo a retornar.
     if status == 204:

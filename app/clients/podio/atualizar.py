@@ -7,7 +7,7 @@ from app.utils import resolve_response
 http = HttpClient(base_url="https://api.podio.com",prefix="/item")
 
 @validar
-def atualizar_lead(chave: str, data: Any, data_response: dict) -> tuple[Any | None, Any]:
+async def atualizar_lead(chave: str, data: Any, data_response: dict) -> tuple[Any | None, Any]:
     """
     Atualiza dados de um card existente.
     Usa o 'item_id' (ID global do Podio) extraído de uma criação anterior.
@@ -20,7 +20,7 @@ def atualizar_lead(chave: str, data: Any, data_response: dict) -> tuple[Any | No
     }
     # Método PUT para substituição/atualização dos campos enviados
     response = http.put(path=f"/{item_id}", payload=data, headers=headers)
-    status, data = resolve_response(response)
+    status, data = await resolve_response(response)
 
     return item_id, data
 
