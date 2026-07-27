@@ -13,7 +13,7 @@ de escritórios (CLs).
 # ==============================
 
 # Importa a instância do banco e as classes de modelo do arquivo de definição
-from .divisaoMercado import db, DivisaoCL, Universidades
+from .divisaoMercadoModel import db, DivisaoCL, Universidades
 
 # ==============================
 # Exportação Consolidada

@@ -1,3 +1,3 @@
-from .exceptions import *
+from .exceptionsDTO import *
 
-__all__ = exceptions.__all__
+__all__ = exceptionsDTO.__all__

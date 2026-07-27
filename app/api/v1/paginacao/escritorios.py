@@ -5,7 +5,7 @@ from flask import request, jsonify
 from asgiref.sync import async_to_sync
 
 # Classe customizada do projeto para gerenciamento e agrupamento de rotas (Blueprint/Router)
-from app.controller import Router
+from app.router import Router
 
 # Modelos do SQLAlchemy que representam as tabelas 'DivisaoCL' e 'Universidades' no Banco de Dados
 from app.model import DivisaoCL

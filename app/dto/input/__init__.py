@@ -11,7 +11,7 @@ e tipar as entradas de dados no fluxo do Processo Seletivo (PSEL).
 # =================================================================
 
 # Importa todos os modelos definidos no módulo new leads (LeadPselInput, ParamsInput, etc.)
-from .LeadCadastro import LeadPreCadastro
+from .LeadCadastroDTO import LeadPreCadastro
 
 # =================================================================
 # Exportação Consolidada

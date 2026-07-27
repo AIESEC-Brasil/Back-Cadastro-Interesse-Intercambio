@@ -11,7 +11,7 @@ Gerencia metadados estruturais do Podio e o fluxo de inscrição para OGX.
 # ==============================
 import logging  # Sistema de log para rastreamento de performance e erros
 from asgiref.sync import async_to_sync
-from .router import Router  # Classe base de roteamento integrada ao OpenAPI3
+from ..router import Router  # Classe base de roteamento integrada ao OpenAPI3
 from ..cache import cache  # Gerenciador de cache para otimizar chamadas de API
 from ..config import APP_ID  # ID do App de Leads B2C no Podio (configurado no .env)
 from ..clients import metadados  # Função cliente para buscar campos e configurações do Podio
