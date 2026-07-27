@@ -11,7 +11,7 @@ e tipar as entradas de dados no fluxo do Processo Seletivo (PSEL).
 # =================================================================
 
 # Importa todos os modelos definidos no módulo new leads (LeadPselInput, ParamsInput, etc.)
-from .LeadCadastroDTO import LeadPreCadastro
+from .LeadCadastroDTO import LeadPreCadastroInput
 
 # =================================================================
 # Exportação Consolidada
@@ -20,4 +20,4 @@ from .LeadCadastroDTO import LeadPreCadastro
 # O __all__ define a interface pública deste pacote.
 # Ao herdar a lista psel.__all__, garantimos que ao fazer
 # 'from inputs import *', apenas as classes autorizadas sejam expostas.
-__all__ = ["LeadPreCadastro"]
+__all__ = ["LeadPreCadastroInput"]

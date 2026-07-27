@@ -13,7 +13,7 @@ from typing import (
 # Importação dos tipos/modelos globais customizados da aplicação
 from ..globals import Comite, EmailItem, Autorizacao, TelefoneItem, DataNascimento, Produto
 
-class LeadPreCadastro(BaseModel):
+class LeadPreCadastroInput(BaseModel):
     """
     Modelo de dados Pydantic para validação e documentação do pré-cadastro de Leads.
 
@@ -73,5 +73,6 @@ class LeadPreCadastro(BaseModel):
     comite: Comite
     autorizacao: Autorizacao
 
+
 # Define os elementos exportados publicamente ao utilizar 'from modulo import *'
-__all__ = ["LeadPreCadastro"]
+__all__ = ["LeadPreCadastroInput"]

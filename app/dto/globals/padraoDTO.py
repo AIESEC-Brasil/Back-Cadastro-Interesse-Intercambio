@@ -28,10 +28,10 @@ from enum import (
     IntEnum          # Variante de enumerador onde os membros são comparáveis a inteiros, ideal para flags numéricas.
 )
 from typing import (
-    Dict,            # Hint de tipo para representar dicionários (mapeamentos chave-valor) nas assinaturas de métodos.
-    Any,             # Hint de tipo especial que indica que um valor pode ser de qualquer natureza (dinâmico).
-    Union,           # Hint de tipo que permite que um campo aceite mais de um tipo de dado (ex: datetime OU string).
-    List             # Hint de tipo para representar listas/arrays de elementos de um tipo específico.
+    Dict,  # Hint de tipo para representar dicionários (mapeamentos chave-valor) nas assinaturas de métodos.
+    Any,  # Hint de tipo especial que indica que um valor pode ser de qualquer natureza (dinâmico).
+    Union,  # Hint de tipo que permite que um campo aceite mais de um tipo de dado (ex: datetime OU string).
+    List, Self  # Hint de tipo para representar listas/arrays de elementos de um tipo específico.
 )
 from datetime import (
     datetime,        # Objeto padrão para manipulação de carimbos de data e hora (timestamp).
@@ -143,7 +143,7 @@ def validar_telefone(telefone: str) -> bool:
     return bool(re.fullmatch(padrao, telefone))
 
 
-def validar_dados_comite(id_comite: int, nome_comite: str) -> bool:
+def validar_dados_comite(id_comite: int, nome_comite: str) -> Union[bool, str]:
     """
     Varre a base de dados do cache local de metadados para confirmar a integridade de um comitê.
 
@@ -155,10 +155,15 @@ def validar_dados_comite(id_comite: int, nome_comite: str) -> bool:
         nome_comite (str): Nome descritivo da unidade fornecido pelo usuário ou formulário.
 
     Returns:
-        bool: True se a chave e o valor coincidirem exatamente com os registros do cache;
-              False em caso de divergência de dados ou se a infraestrutura de cache falhar.
+        bool | str: True se a chave e o valor coincidirem exatamente com os registros do cache;
+                   String com a mensagem exata do erro caso contrário.
     """
     from app.cache import cache
+
+    # Variáveis de controle para rastrear onde a validação falhou
+    tem_comite = False
+    tem_id_comite = False
+
     try:
         # Acessa profundamente a estrutura de dicionários aninhados salvos no repositório de cache
         cache_metadados = cache.store["metadados_card-ogx"]["data"]
@@ -167,20 +172,36 @@ def validar_dados_comite(id_comite: int, nome_comite: str) -> bool:
         for item in cache_metadados:
             # Filtra apenas o bloco de chaves mapeado para a seletora de comitês locais da AIESEC
             if item.get("external_id") == "aiesec-mais-proxima":
+                tem_comite = True  # Encontrou o bloco do comitê no cache
+
                 # Itera sobre o array de opções ativas configuradas no Podio para este campo
                 for opcao in item.get("options", []):
                     # Localiza o nó cujo identificador seja idêntico ao ID que estamos validando
                     if opcao.get("id") == id_comite:
+                        tem_id_comite = True  # O ID enviado existe nas opções
+
                         # Realiza o isolamento de strings limpando lacunas de espaçamento antes da igualdade
                         if opcao.get("text", "").strip() == nome_comite.strip():
                             return True  # Validação bem-sucedida: par ID e Nome é idêntico ao oficial
+
+        # --- Retornos de erro exatos após sair de todos os loops ---
+        if not tem_comite:
+            return "Não possui o extern_id aiesec-mais-proxima"
+
+        if not tem_id_comite:
+            return "ID do comitê informado não foi encontrado nas opções"
+
+        # Se encontrou o bloco e o ID, mas o fluxo não retornou True, o nome está errado
+        return "O nome do comitê não corresponde ao ID informado"
+
     except (NameError, KeyError, TypeError):
         # Captura e neutraliza exceções de escopo ou de estrutura nula caso o cache não esteja carregado
-        pass
-    return False  # Se o fluxo terminar sem o retorno interno, a informação é inválida
+        return "Erro interno ao processar a estrutura do cache do comitê"
+
+    return False
 
 
-def validar_dados_produto(nome: str, id_podio: int, id_expa: int) -> bool:
+def validar_dados_produto(nome: str, id_podio: int, id_expa: int) -> Union[bool, str]:
     """
     Valida as chaves de identificação e regras de negócio de um produto de intercâmbio.
 
@@ -194,29 +215,57 @@ def validar_dados_produto(nome: str, id_podio: int, id_expa: int) -> bool:
         id_expa (int): Código internacional mapeado na plataforma global da AIESEC (EXPA).
 
     Returns:
-        bool: True se todos os parâmetros passarem nas regras de negócio cruzadas;
-              False caso contrário.
+        bool | str: True se todos os parâmetros passarem nas regras de negócio cruzadas;
+                   String com o motivo do erro caso contrário.
     """
     from app.cache import cache
     # Lista de IDs internacionais permitidos e aceitos pelas regras globais (Ex: GV, GT, GE)
     list_id_expa = [7, 8, 9]
+
+    # Variáveis de controle para rastrear onde a validação travou
+    tem_produto = False
+    tem_id_podio = False
+    tem_nome_correto = False
+
     try:
         # Puxa o estado atualizado dos metadados extraídos da API do Podio
         cache_metadados = cache.store["metadados_card-ogx"]["data"]
         for item in cache_metadados:
             # Localiza o campo chave que gerencia os estados/produtos do formulário
             if item.get("external_id") == "produto":
+                tem_produto = True  # Encontrou o bloco de produto
+
                 for opcao in item.get("options", []):
                     # Verifica se o identificador local corresponde ao enviado
                     if opcao.get("id") == id_podio:
+                        tem_id_podio = True  # Encontrou o ID do Podio dentro das opções
+
                         # Valida se o título do produto corresponde ao texto configurado no backend
                         if opcao.get("text", "").strip() == nome.strip():
+                            tem_nome_correto = True  # O texto bateu com o ID do Podio
+
                             # Confirma se o programa está contido na matriz de IDs internacionais permitidos
                             if id_expa in list_id_expa:
-                                return True  # Todas as 3 pontas de checagem batem com as definições
+                                return True # Todas as 3 pontas de checagem batem com as definições
+
+        # --- Retornos de erro após sair de todos os loops ---
+        if not tem_produto:
+            return "Não possui o extern_id produto"
+
+        if not tem_id_podio:
+            return "ID do Podio informado não foi encontrado nas opções do produto"
+
+        if not tem_nome_correto:
+            return "O nome não corresponde ao ID do Podio informado"
+
+        # Se encontrou o produto, o ID e o nome correto, mas o ID EXPA falhou na lista [7, 8, 9]
+        if id_expa not in list_id_expa:
+            return "ID EXPA inválido!"
+
     except (NameError, KeyError, TypeError):
         # Trata exceções estruturais defensivamente para evitar quebras abruptas na API
-        pass
+        return "Erro interno ao processar a estrutura do cache"
+
     return False
 
 
@@ -369,22 +418,37 @@ class Comite(BaseModel):
     @model_validator(mode="after")
     def verificar_comite_no_cache(self) -> "Comite":
         """
-        Validador executado após a modelagem que cruza os dados limpos do objeto contra o Cache ativo.
+        Validador de negócio executado após a higienização que audita o comitê em relação ao cache.
 
-        Como este validador roda após o Pydantic higienizar os tipos, garante-se que o id é um `int`
-        e o nome é uma `str`, permitindo buscas seguras sem quebras de tipo primitivo.
+        Garante de forma cruzada que o ID informado exista no escopo correto e que o nome
+        corresponda exatamente à unidade cadastrada no cache de metadados do Podio.
 
         Returns:
-            Comite: Retorna a própria instância do objeto comitê validada.
+            Comite: Retorna a instância limpa e autorizada do modelo de Comitê.
 
         Raises:
-            ValueError: Caso o par ID/Nome não conste como registro ativo nas listas oficiais do Podio.
+            ValueError: Caso haja divergência cadastral entre o ID do comitê e o nome informado.
         """
-        # Dispara a busca integrada mapeando os atributos finais tipados do objeto criado
-        if validar_dados_comite(self.id, self.nome):
-            return self  # Objeto aprovado com sucesso nas regras de negócio
+        # Encaminha as chaves consolidadas do modelo para auditoria contra os metadados ativos
+        valido = validar_dados_comite(self.id_comite, self.nome_comite)
 
-        raise ValueError("Dados Inválidos de comitê: Correspondência não localizada.")
+        if valido is True:
+            return self
+
+        # Comparação idêntica caractere por caractere
+        if valido == "Não possui o extern_id aiesec-mais-proxima":
+            raise ValueError("Dados Inválidos: Não foi achada a referência de comitê local")
+
+        elif valido == "ID do comitê informado não foi encontrado nas opções":
+            raise ValueError("Dados Inválidos: O id do comitê informado não está presente nos dados")
+
+        elif valido == "O nome do comitê não corresponde ao ID informado":
+            raise ValueError("Dados Inválidos: O nome do comitê está incoerente")
+
+        elif valido == "Erro interno ao processar a estrutura do cache do comitê":
+            raise ValueError("Dados Inválidos: Falha de comunicação com a estrutura de cache")
+
+        return None
 
 
 class DataNascimento:
@@ -483,7 +547,7 @@ class Produto(BaseModel):
     )
 
     @model_validator(mode="after")
-    def verificar_produto_no_cache(self) -> "Produto":
+    def verificar_produto_no_cache(self) -> Self | None:
         """
         Validador de negócio executado após a higienização que audita o produto em relação ao cache.
 
@@ -497,10 +561,25 @@ class Produto(BaseModel):
             ValueError: Caso haja divergência cadastral entre os códigos Podio, EXPA ou nome do programa.
         """
         # Encaminha os três eixos de dados consolidados do modelo para auditoria contra os metadados ativos
-        if validar_dados_produto(self.titulo, self.id_podio, self.id_expa):
-            return self  # Produto aprovado e homologado para transações no fluxo
+        valido = validar_dados_produto(self.titulo, self.id_podio, self.id_expa)
 
-        raise ValueError("Dados Inválidos de produto: ID Podio, ID EXPA ou Nome incorretos.")
+        # Se for um booleano True, o produto está aprovado
+        if valido is True:
+            return self
+
+        if valido == "Não possui o extern_id produto":
+            raise ValueError("Dados Inválidos: Não foi achado a referencia de produto")
+
+        elif valido == "ID do Podio informado não foi encontrado nas opções do produto":
+            raise ValueError("Dados Inválidos: O id do podio informado não está presente nos dados")
+
+        elif valido == "O nome não corresponde ao ID do Podio informado":
+            raise ValueError("Dados Inválidos: O nome do produto está incoerente")
+
+        elif valido == "ID EXPA inválido!":
+            raise ValueError("Dados Inválidos: O id do expa está incoerente")
+
+        return None
 
 
 class DivisaoMercado(BaseModel):
