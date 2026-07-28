@@ -20,6 +20,19 @@ from httpx import AsyncClient
 # Configuração de log para ajudar no rastreio de conexões em produção/testes
 logger = logging.getLogger(__name__)
 
+def _force_sync_close_client(client: httpx.AsyncClient) -> None:
+    """
+    Fecha o cliente antigo de forma síncrona e segura quando o event loop original
+    já foi fechado pelo Flask, evitando o erro 'Event loop is closed'.
+    """
+    try:
+        # No HTTPX, o AsyncClient gerencia as conexões através de um transportador síncrono interno.
+        # Se o loop morreu, fechar o transport diretamente limpa os recursos sem disparar tasks assíncronas.
+        if hasattr(client, "_transport") and client.transport is not None:
+            client.transport.close()
+    except Exception as e:
+        logger.debug(f"Erro ao limpar transportador do cliente antigo: {e}")
+
 
 async def _safe_close_client(client: httpx.AsyncClient) -> None:
     """
@@ -98,16 +111,9 @@ class HttpClient:
                 # Se o loop antigo morreu, um '.close()' síncrono trava ou falha em fechar os sockets reais do SO.
                 # Para evitar vazamentos, capturamos o cliente antigo e agendamos o encerramento real (aclose)
                 # de forma assíncrona dentro do novo loop ativo.
-                old_client = self._active_client
-                if loop_atual and loop_atual.is_running():
-                    # Executa o fechamento em background sem bloquear o fluxo principal da requisição
-                    loop_atual.create_task(_safe_close_client(old_client))
-                else:
-                    # Fallback de segurança se não houver um loop rodando para agendar a task
-                    try:
-                        old_client.close()
-                    except Exception as e:
-                        logger.debug(f"Erro ao fechar cliente síncronamente: {e}")
+                # Se o cliente antigo pertencia a um loop que já morreu, tentar dar 'aclose'
+                # nele vai estourar erro de loop fechado. Forçamos a limpeza síncrona do pool.
+                _force_sync_close_client(self._active_client)
 
             # Inicializa o novo cliente aplicando os limites rígidos de pool definidos no __init__
             self._active_client = httpx.AsyncClient(limits=self._limits)

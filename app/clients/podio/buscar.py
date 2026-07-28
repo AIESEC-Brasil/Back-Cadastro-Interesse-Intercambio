@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
-from app.dto import LeadPreCadastro
+from app.dto import LeadPreCadastroInput
 from .podio import buscarToken
 from ..http_request import HttpClient
 from app.utils import resolve_response
@@ -109,7 +109,7 @@ class Buscar:
                 f"Erro ao filtrar por telefone: {texto_erro}"
             ) from e
 
-    async def item_completo(self, data: LeadPreCadastro) -> Optional[ItemPodio]:
+    async def item_completo(self, data: LeadPreCadastroInput) -> Optional[ItemPodio]:
         """Método mestre que executa uma estratégia de funil e cruzamento de dados.
 
         Método alterado para ASYNC porque chama sub-métodos que agora são assíncronos.
