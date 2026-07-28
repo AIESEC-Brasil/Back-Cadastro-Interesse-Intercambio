@@ -191,12 +191,9 @@ def validar_dados_comite(id_comite: int, nome_comite: str) -> Union[bool, str]:
         if not tem_id_comite:
             return "ID do comitê informado não foi encontrado nas opções"
 
-        # Se encontrou o bloco e o ID, mas o fluxo não retornou True, o nome está errado
-        return "O nome do comitê não corresponde ao ID informado"
-
     except (NameError, KeyError, TypeError):
         # Captura e neutraliza exceções de escopo ou de estrutura nula caso o cache não esteja carregado
-        return "Erro interno ao processar a estrutura do cache do comitê"
+        pass
 
     return False
 
@@ -416,7 +413,7 @@ class Comite(BaseModel):
     )
 
     @model_validator(mode="after")
-    def verificar_comite_no_cache(self) -> "Comite":
+    def verificar_comite_no_cache(self) -> Self | None:
         """
         Validador de negócio executado após a higienização que audita o comitê em relação ao cache.
 
@@ -430,7 +427,7 @@ class Comite(BaseModel):
             ValueError: Caso haja divergência cadastral entre o ID do comitê e o nome informado.
         """
         # Encaminha as chaves consolidadas do modelo para auditoria contra os metadados ativos
-        valido = validar_dados_comite(self.id_comite, self.nome_comite)
+        valido = validar_dados_comite(self.id, self.nome)
 
         if valido is True:
             return self
@@ -444,9 +441,6 @@ class Comite(BaseModel):
 
         elif valido == "O nome do comitê não corresponde ao ID informado":
             raise ValueError("Dados Inválidos: O nome do comitê está incoerente")
-
-        elif valido == "Erro interno ao processar a estrutura do cache do comitê":
-            raise ValueError("Dados Inválidos: Falha de comunicação com a estrutura de cache")
 
         return None
 

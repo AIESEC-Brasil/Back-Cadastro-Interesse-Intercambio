@@ -8,7 +8,7 @@ def cadastrar_lead(body:LeadPreCadastroInput):
     buscar = Buscar(APP_ID)
     leadExiste = asyncio.run(buscar.item_completo(body.model_dump()))
     if leadExiste:
-        return
+        return "exist",200
     return "sucess",201
 
 
