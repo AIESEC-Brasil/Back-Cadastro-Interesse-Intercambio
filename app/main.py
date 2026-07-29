@@ -9,13 +9,14 @@ Migrações, documentação, middlewares e registro de rotas.
 import logging  # Registro de eventos para monitoramento do ciclo de vida da app
 from flask_openapi3 import OpenAPI, Info  # Extensão Flask para documentação automática OpenAPI/Swagger
 from flask_cors import CORS  # Gerenciamento de permissões de acesso entre domínios (CORS)
+import asyncio
 from .manager import migration # Função orquestradora de migração do banco de dados
 from .middlewares import verificar_origem, register_url  # Funções de interceptação
 from .utils import handle_validation_error # Função de tratamento de erros de validação do OpenAPI3
 from .controller import new_lead_ogx,divisao_mercado # Importa o roteador especializado para novos leads OGX
 from .api import api # Importa a árvore de rotas principal (Blueprints) do projeto
 from .core import compress  # Instância de compressão para otimizar respostas HTTP
-from .core import DB_CONNECT,AMBIENTE # Variável de ambiente que contém a string de conexão com o banco de dados
+from .core import DB_CONNECT,AMBIENTE,pre_carregamento_metadados # Variável de ambiente que contém a string de conexão com o banco de dados
 from .core import db,ma,migrate # Instâncias de persistência e serialização (SQLAlchemy, Marshmallow, Flask-Migrate)
 from .model import db as model_db  # Garante que os modelos ORM sejam registrados para as migrações
 
@@ -144,6 +145,12 @@ def create_app() -> OpenAPI:
         # ==========================
         """for url in app.url_map.iter_rules():
             print(url.rule)"""
+
+        # ==========================
+        # PRE-CARREGAMENTO DOS METADADOS
+        # ==========================
+        with app.app_context():
+        	asyncio.run(pre_carregamento_metadados())
 
         return app
 
