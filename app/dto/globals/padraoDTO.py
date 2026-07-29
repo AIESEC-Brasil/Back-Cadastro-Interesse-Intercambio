@@ -173,7 +173,6 @@ def validar_dados_comite(id_comite: int, nome_comite: str) -> Union[bool, str]:
             # Filtra apenas o bloco de chaves mapeado para a seletora de comitês locais da AIESEC
             if item.get("external_id") == "aiesec-mais-proxima":
                 tem_comite = True  # Encontrou o bloco do comitê no cache
-
                 # Itera sobre o array de opções ativas configuradas no Podio para este campo
                 for opcao in item.get("options", []):
                     # Localiza o nó cujo identificador seja idêntico ao ID que estamos validando
@@ -188,12 +187,14 @@ def validar_dados_comite(id_comite: int, nome_comite: str) -> Union[bool, str]:
         if not tem_comite:
             return "Não possui o extern_id aiesec-mais-proxima"
 
-        if not tem_id_comite:
+        elif not tem_id_comite:
             return "ID do comitê informado não foi encontrado nas opções"
+        else:
+            return "O nome do comitê não corresponde ao ID informado"
 
     except (NameError, KeyError, TypeError):
         # Captura e neutraliza exceções de escopo ou de estrutura nula caso o cache não esteja carregado
-        pass
+        return "erro"
 
     return False
 
@@ -244,7 +245,6 @@ def validar_dados_produto(nome: str, id_podio: int, id_expa: int) -> Union[bool,
                             # Confirma se o programa está contido na matriz de IDs internacionais permitidos
                             if id_expa in list_id_expa:
                                 return True # Todas as 3 pontas de checagem batem com as definições
-
         # --- Retornos de erro após sair de todos os loops ---
         if not tem_produto:
             return "Não possui o extern_id produto"
@@ -261,7 +261,7 @@ def validar_dados_produto(nome: str, id_podio: int, id_expa: int) -> Union[bool,
 
     except (NameError, KeyError, TypeError):
         # Trata exceções estruturais defensivamente para evitar quebras abruptas na API
-        return "Erro interno ao processar a estrutura do cache"
+        return "erro"
 
     return False
 
@@ -442,6 +442,9 @@ class Comite(BaseModel):
         elif valido == "O nome do comitê não corresponde ao ID informado":
             raise ValueError("Dados Inválidos: O nome do comitê está incoerente")
 
+        elif valido == "erro":
+            raise ValueError("Metadados do Podio Não foram baixados")
+
         return None
 
 
@@ -573,6 +576,8 @@ class Produto(BaseModel):
         elif valido == "ID EXPA inválido!":
             raise ValueError("Dados Inválidos: O id do expa está incoerente")
 
+        elif valido == "erro":
+            raise ValueError("Metadados do Podio Não foram baixados")
         return None
 
 

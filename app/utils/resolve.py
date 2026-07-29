@@ -10,6 +10,8 @@ garantindo compatibilidade com ambientes assíncronos e evitando o erro:
 # Importações (Dependencies)
 # ==============================
 import asyncio  # Biblioteca para verificação de objetos assíncronos (corotinas)
+import inspect
+
 from pydantic import ConfigDict
 from typing import Any, Tuple  # Suporte para anotações de tipo genéricas e estruturas de tuplas
 from ..dto import (
