@@ -1,115 +1,150 @@
-"""
-Cliente de integração com a API do Podio.
+"""Módulo de Integração com a API do Podio.
 
-Provê funções para autenticação via credenciais de App, além de operações
-básicas de CRUD de itens (cards) relacionados ao app do Podio.
+Provê funções para autenticação via credenciais de aplicativo (App Authentication)
+e operações essenciais de metadados e manipulação de itens/cards do Podio.
 """
-
-# ==============================
-# Importações (Dependencies)
-# ==============================
-from typing import Any, Dict, Tuple        # Tipagem estática
-from ..http_request import HttpClient # Cliente base assíncrono
-from app.utils import agora                     # Captura timestamp atual (Brasil)
-from app.utils import resolve_response          # Utilitário para tratar Coroutines/Respostas HTTP
-from app.cache import cache                     # Sistema de armazenamento temporário de tokens
 
 # =================================================================
-# INSTÂNCIAS DE CLIENTES (Contextos do Podio)
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+from typing import Any, Dict, Tuple  # Anotação formal de tipos estáticos
+
+from app.cache import cache  # Sistema de cache em memória para armazenar tokens
+from app.utils import agora  # Helper para captura de timestamp atual
+from app.utils import resolve_response  # Resolver assíncrono de respostas HTTP
+
+from ..http_request import HttpClient  # Instância do cliente HTTP assíncrono base
+
+# =================================================================
+# 2. INSTÂNCIAS DE CLIENTES
 # =================================================================
 
-#
-
-# Cliente base para autenticação e chamadas gerais
+# Cliente HTTP dedicado para a API do Podio
 http = HttpClient(base_url="https://api.podio.com")
 
+
 # =================================================================
-# FUNÇÕES DE AUTENTICAÇÃO
+# 3. FUNÇÕES DE AUTENTICAÇÃO
 # =================================================================
 
-@validar
-async def getAcessToken(item: str | Dict[str, Any], PATH: str = "/oauth/token") -> tuple[int, dict[str, Any]]:
-    """
-    Obtém tokens de acesso/refresh do Podio usando o fluxo 'App Authentication'.
+async def get_access_token(
+        item: Dict[str, Any],
+        path: str = "/oauth/token",
+) -> Tuple[int, Dict[str, Any]]:
+    """Obtém tokens de acesso e refresh do Podio via 'App Authentication'.
 
     Args:
-        item: Dicionário com CLIENT_ID, CLIENT_SECRET, APP_ID e APP_TOKEN.
-        PATH: Endpoint de autenticação.
+        item (Dict[str, Any]): Dicionário contendo CLIENT_ID, CLIENT_SECRET,
+            APP_ID e APP_TOKEN.
+        path (str, optional): Endpoint de autenticação OAuth2.
 
     Returns:
-        Status HTTP e payload contendo tokens e metadados de expiração.
+        Tuple[int, Dict[str, Any]]: Status HTTP e payload com access_token,
+            refresh_token e tempo de expiração.
+
+    Raises:
+        ValueError: Se as credenciais forem inválidas ou recusadas.
+        RuntimeError: Se ocorrer falha na estrutura dos dados ou no envio.
     """
-    # Montagem do formulário de autenticação exigido pelo Podio (x-www-form-urlencoded)
+    # Monta o payload no formato x-www-form-urlencoded exigido pelo Podio
     payload = {
         "grant_type": "app",
         "client_id": item["CLIENT_ID"],
         "client_secret": item["CLIENT_SECRET"],
         "app_id": item["APP_ID"],
-        "app_token": item["APP_TOKEN"]
+        "app_token": item["APP_TOKEN"],
     }
+
     try:
-        # Realiza a requisição POST assíncrona
-        respose = http.post(path=PATH, payload=payload, as_form=True)
+        # Dispara a requisição POST assíncrona
+        response = http.post(path=path, payload=payload, as_form=True)
 
-        # Resolve a resposta (trata await e extrai dados)
-        status, data = await resolve_response(respose)
+        # Resolve a coroutine e obtém o tuple (status, data)
+        status, data = await resolve_response(response)
 
-        # 🛑 Tratamento de Erro Crítico: Se as credenciais estiverem erradas, para o processo.
+        # Trata falhas de autenticação (credenciais incorretas ou inválidas)
         if status != 200:
-            error_msg = data.get("error_description", "Erro desconhecido no Podio")
-            raise ValueError(f"Parada Crítica: Falha na Autenticação ({status}) - {error_msg}")
+            msg_erro = data.get(
+                "error_description", "Erro desconhecido no Podio."
+            )
+            raise ValueError(
+                f"Parada Crítica: Falha na Autenticação ({status}) - {msg_erro}"
+            )
 
-        # ✨ Retorno formatado para ser armazenado na estrutura de Cache da aplicação
+        # Estrutura tratada para armazenamento no Cache do sistema
         return status, {
             "access_token": data["access_token"],
             "expires_in": data["expires_in"],
             "refresh_token": data["refresh_token"],
-            "created_at": agora() # Timestamp para controle de expiração manual se necessário
+            "created_at": agora(),  # Timestamp local para auditoria
         }
 
     except KeyError as e:
-        raise RuntimeError(f"Erro de estrutura nos dados do Podio: Chave {e} não encontrada.") from e
+        raise RuntimeError(
+            f"Erro de estrutura nos dados do Podio: Chave {e} não encontrada."
+        ) from e
     except Exception as e:
         raise RuntimeError(f"Erro Fatal na integração: {str(e)}") from e
 
-@validar
-def buscarToken(chave: str) -> str:
-    """
-    Recupera o access_token válido de dentro do dicionário de Cache.
-    A chave geralmente é o nome do Workspace (ex: 'OGX').
+
+def buscar_token(chave: str) -> str:
+    """Recupera o access_token ativo armazenado no dicionário de Cache.
+
+    Args:
+        chave (str): Identificador do workspace ou contexto (ex: 'OGX').
+
+    Returns:
+        str: Access token válido para requisições na API do Podio.
     """
     return cache.store[chave]["data"]["access_token"]
 
+
 # =================================================================
-# OPERAÇÕES DE APP E LEADS
+# 4. OPERAÇÕES DE APLICATIVOS E METADADOS
 # =================================================================
 
-@validar
-async def metadados(chave: str, APP_ID: int) -> Tuple[int, dict]:
-    """Busca informações estruturais de um App (campos, slugs, tipos)."""
+async def metadados(chave: str, app_id: int) -> Tuple[int, Dict[str, Any]]:
+    """Recupera a estrutura detalhada de um App no Podio (campos, slugs e tipos).
+
+    Args:
+        chave (str): Chave para recuperar o token no cache.
+        app_id (int): ID numérico do aplicativo no Podio.
+
+    Returns:
+        Tuple[int, Dict[str, Any]]: Status HTTP e dicionário com metadados do App.
+    """
     headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}", # Autenticação via Token no Header
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {buscar_token(chave)}",
+        "Content-Type": "application/json",
     }
-    response = http.get(path=f"/app/{APP_ID}", headers=headers)
+    response = http.get(path=f"/app/{app_id}", headers=headers)
     status, data = await resolve_response(response)
     return status, data
 
+
 # =================================================================
-# UTILITÁRIOS DE EXTRAÇÃO DE IDs
+# 5. UTILITÁRIOS DE EXTRAÇÃO DE DADOS
 # =================================================================
 
-@validar
-def buscar_id_card(data: dict) -> Any | None:
-    """Extrai o 'item_id' (ID único e imutável no banco de dados do Podio)."""
+def buscar_id_card(data: Dict[str, Any]) -> Any:
+    """Extrai o 'item_id' único e imutável de um payload de card/item do Podio.
+
+    Args:
+        data (Dict[str, Any]): Dicionário com os dados do card retornado.
+
+    Returns:
+        Any: ID do item ou None caso a chave não exista.
+    """
     return data.get("item_id")
 
-# ==============================
-# Exportações do Módulo
-# ==============================
+
+# =================================================================
+# 6. EXPORTAÇÃO PÚBLICA (INTERFACE DO MÓDULO)
+# =================================================================
+
 __all__ = [
-    "getAcessToken",
-    "buscarToken",
-    "metadados",
-    "buscar_id_card"
+    "get_access_token",  # Obtém access token via App Authentication
+    "buscar_token",  # Recupera o token atrelado à chave no cache
+    "metadados",  # Obtém a estrutura e campos de um aplicativo
+    "buscar_id_card",  # Extrai o ID único de um item/card
 ]

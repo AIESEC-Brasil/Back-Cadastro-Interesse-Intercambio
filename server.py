@@ -1,58 +1,60 @@
+"""Ponto de entrada principal do servidor de aplicação.
+
+Este módulo orquestra a inicialização da aplicação executando as seguintes etapas:
+1. Carrega as variáveis de ambiente a partir do arquivo `.env.dev`.
+2. Configura a localização/idioma e o sistema de logging global.
+3. Inicializa a instância da aplicação Flask via Application Factory (`create_app`).
+4. Executa o servidor de desenvolvimento interno do Flask ou o servidor WSGI
+   de alta performance Waitress, dependendo do ambiente (`IS_DEV`, `IS_TEST`, `PROD`).
 """
-Ponto de entrada do servidor.
 
-- Carrega variáveis de ambiente (.env)
-- Configura logging
-- Inicializa a aplicação Flask
-- Executa com app.run (desenvolvimento) ou waitress (produção)
-"""
+# =================================================================
+# 1. IMPORTAÇÕES E CONFIGURAÇÃO DE AMBIENTE
+# =================================================================
+import os  # Utilitário para manipulação do sistema operacional e caminhos de arquivo
+from dotenv import load_dotenv  # Biblioteca para carregar variáveis de ambiente de arquivos .env
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import os # Biblioteca para manipulação de arquivos e caminhos do sistema operacional
-from dotenv import load_dotenv # Utilitário para carregar variáveis de ambiente de um arquivo .env
-
-# ==============================
-# Configuração de Ambiente
-# ==============================
-
-# Localiza o diretório absoluto onde este arquivo (run.py/main.py) está residindo
+# Localiza o caminho absoluto do diretório onde este script está sendo executado
 path_atual = os.path.dirname(os.path.abspath(__file__))
 
-# Concatena o caminho do diretório com o arquivo '.env' e carrega as variáveis na memória do sistema
+# Concatena o caminho absoluto com o arquivo '.env.dev' e injeta as variáveis no os.environ
 load_dotenv(os.path.join(path_atual, ".env.dev"))
 
-# ==============================
-# Inicialização do Sistema
-# ==============================
+# =================================================================
+# 2. INICIALIZAÇÃO DE RECURSOS CORE
+# =================================================================
+# Importações relativas de módulos internos (devem ocorrer obrigatoriamente após a carga do .env)
+from app import create_app  # Fábrica da aplicação Flask/OpenAPI
+from app.core import (
+    IS_DEV,             # Booleano indicando se o ambiente é de desenvolvimento
+    IS_TEST,            # Booleano indicando se o ambiente é de testes
+    configurar_idioma,  # Configura preferências regionais e locale do sistema
+    setup_logging,      # Configura handlers, formatação e níveis do logger
+)
+from waitress import serve  # Servidor WSGI robusto e multithread para produção/testes
 
-# Importação de utilitários internos após o carregamento do .env (necessário para as configs funcionarem)
-from app.core import setup_logging, IS_DEV,IS_TEST,configurar_idioma
-
+# Configura o locale e preferências regionais da aplicação
 configurar_idioma()
-# Configura o formato de saída, níveis (INFO/DEBUG) e destinos dos logs da aplicação
+
+# Configura os logs globais da aplicação conforme o ambiente carregado
 setup_logging()
 
-# Importa a fábrica da aplicação e o servidor WSGI de produção
-from app import create_app
-from waitress import serve
-
-# Inicializa a instância da aplicação Flask com todas as configurações, rotas e middlewares
+# Inicializa a aplicação Flask com todas as extensões, rotas e middlewares registrados
 app = create_app()
 
-# ==============================
-# Execução do Servidor
-# ==============================
 
+# =================================================================
+# 3. EXECUÇÃO DO SERVIDOR WSGI / DEV
+# =================================================================
 if __name__ == "__main__":
-    # Verifica se o ambiente NÃO é de produção (ex: development, testing)
     if IS_DEV:
-        # Roda o servidor interno do Flask, ideal para debug (reinicia ao alterar código)
-        app.run(debug=True,host="127.0.0.1",port=5000)
+        # Executa o servidor nativo do Flask com auto-reload ativado (apenas para desenvolvimento)
+        app.run(debug=True, host="127.0.0.1", port=5000)
+
     elif IS_TEST:
+        # Executa o servidor Waitress configurado para ambiente de homologação/testes
         serve(app, host="0.0.0.0", port=5000, threads=5)
+
     else:
-        # Roda o servidor Waitress, um servidor WSGI robusto para ambientes produtivos
-        # host="0.0.0.0" permite conexões externas ao servidor
+        # Executa o servidor Waitress pronto para produção (aceita conexões externas via 0.0.0.0)
         serve(app, host="0.0.0.0", port=5000, threads=5)

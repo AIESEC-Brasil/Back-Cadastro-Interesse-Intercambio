@@ -1,49 +1,88 @@
-# Módulos nativos e extensões do ecossistema Flask para manipulação de requisições e respostas JSON
-from flask import request, jsonify
+"""Módulo de Rotas e Paginação de Escritórios (CLs) - AIESEC Gateway.
 
-# Conversor assíncrono para executar funções assíncronas de forma síncrona no ecossistema Flask
+Fornece endpoints GET e POST para consulta, filtragem e paginação dinâmica
+dos Comitês Locais (CLs / Escritórios) da AIESEC, com suporte a cache transparente
+e padronização de respostas via DTOs.
+"""
+
+# ==============================================================================
+# 1. IMPORTAÇÕES DA BIBLIOTECA PADRÃO E ECOSSISTEMA FLASK
+# ==============================================================================
+
+# Conversor assíncrono para executar funções async de forma síncrona no Flask
 from asgiref.sync import async_to_sync
 
-# Classe customizada do projeto para gerenciamento e agrupamento de rotas (Blueprint/Router)
-from app.router import Router
+# Recursos do Flask para captura do contexto de requisição e geração de JSON
+from flask import jsonify, request
 
-# Modelos do SQLAlchemy que representam as tabelas 'DivisaoCL' e 'Universidades' no Banco de Dados
-from app.model import DivisaoCL
+# ==============================================================================
+# 2. IMPORTAÇÕES INTERNAS DA APLICAÇÃO
+# ==============================================================================
 
-# Classe ou Enum que padroniza os códigos de status HTTP do projeto (Ex: HttpStatus.OK = 200)
-from app.dto import HttpStatus, ListagemEscritoriosRespostaDTOCL, DivisaoMercadoCl
-
-# Instância global do sistema de cache assíncrono do projeto
+# Gerenciador de cache assíncrono em memória
 from app.cache import cache
 
-# Inicialização do módulo de rotas para escritórios com prefixo raiz limpo
+# DTOs e Enums de status HTTP para validação e serialização de dados
+from app.dto import (
+    DivisaoMercadoCl,
+    HttpStatus,
+    ListagemEscritoriosRespostaDTOCL,
+)
+
+# Modelo SQLAlchemy para acesso à tabela DivisaoCL
+from app.model import DivisaoCL
+
+# Roteador customizado da aplicação
+from app.router import Router
+
+# ==============================================================================
+# 3. CONFIGURAÇÃO DO ROTEADOR
+# ==============================================================================
+
+# Inicializa o roteador de escritórios com prefixo raiz limpo
 escritorios = Router(name="escritorios", url_prefix="")
 
 
-def _processar_listagem_escritorios(filtros):
-    """
-    Mecanismo centralizador de busca, filtragem e paginação de escritórios.
+# ==============================================================================
+# 4. FUNÇÕES AUXILIARES E REGRA DE NEGÓCIO
+# ==============================================================================
+
+def _processar_listagem_escritorios(filtros: dict):
+    """Mecanismo centralizador de busca, filtragem e paginação de escritórios.
+
+    Args:
+        filtros (dict): Dicionário contendo os parâmetros de busca (nome,
+          busca, sort_by, order).
+
+    Returns:
+        Tuple[HttpStatus, dict]: Tupla contendo o status HTTP e a estrutura
+        paginada dos dados recuperados do banco de dados.
     """
     # -------------------------------------------------------------------------
-    # 1. VALIDAÇÃO E CONFIGURAÇÃO DA PAGINAÇÃO (Query Params)
+    # 4.1 Validação dos Parâmetros de Paginação (Query Params)
     # -------------------------------------------------------------------------
     try:
-        page = request.args.get('page', default=1, type=int)
-        limit = request.args.get('limit', default=20, type=int)
+        page = request.args.get("page", default=1, type=int)
+        limit = request.args.get("limit", default=20, type=int)
     except ValueError:
-        return jsonify({"erro": "Parâmetros 'page' e 'limit' devem ser inteiros."}), HttpStatus.BAD_REQUEST
+        return (
+            jsonify({"erro": "Parâmetros 'page' e 'limit' devem ser inteiros."}),
+            HttpStatus.BAD_REQUEST,
+        )
 
+    # Limites de segurança para evitar sobrecarga na paginação
     if limit > 100:
         limit = 100
     if limit < 1:
         limit = 20
 
+    # Inicialização da query SQLAlchemy
     query = DivisaoCL.query
 
     # -------------------------------------------------------------------------
-    # 2. APLICAÇÃO DOS FILTROS DE BUSCA
+    # 4.2 Aplicação dos Filtros de Busca
     # -------------------------------------------------------------------------
-    nome = filtros.get('nome')
+    nome = filtros.get("nome")
     busca = filtros.get("busca")
 
     if nome:
@@ -53,44 +92,46 @@ def _processar_listagem_escritorios(filtros):
         query = query.filter(DivisaoCL.nome.ilike(f"%{busca}%"))
 
     # -------------------------------------------------------------------------
-    # 3. TRATAMENTO DA ORDENAÇÃO DINÂMICA
+    # 4.3 Tratamento da Ordenação Dinâmica
     # -------------------------------------------------------------------------
-    sort_by = filtros.get('sort_by', 'id')
-    order = filtros.get('order', 'asc')
+    sort_by = filtros.get("sort_by", "id")
+    order = filtros.get("order", "asc")
 
     sort_columns = {
-        'id': DivisaoCL.id,
-        'nome': DivisaoCL.nome,
+        "id": DivisaoCL.id,
+        "nome": DivisaoCL.nome,
         "Voluntario Global": DivisaoCL.gv,
         "Talento Global": DivisaoCL.gt,
     }
 
     coluna_ordenacao = sort_columns.get(sort_by, DivisaoCL.id)
 
-    if order.lower() == 'desc':
+    if order.lower() == "desc":
         query = query.order_by(coluna_ordenacao.desc())
     else:
         query = query.order_by(coluna_ordenacao.asc())
 
     # -------------------------------------------------------------------------
-    # 4. EXECUÇÃO DA PAGINAÇÃO NO BANCO DE DADOS
+    # 4.4 Execução da Paginação no Banco de Dados
     # -------------------------------------------------------------------------
     paginated_data = query.paginate(page=page, per_page=limit, error_out=False)
 
     # -------------------------------------------------------------------------
-    # 5. CONSTRUÇÃO DO PAYLOAD ENXUTO (Mapeamento DTO)
+    # 4.5 Construção do Payload Enxuto
     # -------------------------------------------------------------------------
     escritorios_lista = []
     for escritorio in paginated_data.items:
-        escritorios_lista.append({
-            "id": escritorio.id,
-            "nome": escritorio.nome,
-            "Voluntario Global": escritorio.gv,
-            "Talento Global": escritorio.gt,
-        })
+        escritorios_lista.append(
+            {
+                "id": escritorio.id,
+                "nome": escritorio.nome,
+                "Voluntario Global": escritorio.gv,
+                "Talento Global": escritorio.gt,
+            }
+        )
 
     # -------------------------------------------------------------------------
-    # 6. RETORNO DE ACORDO COM O REQUISITADO (Status primeiro, depois os Dados)
+    # 4.6 Retorno do Resultado Padrão (Status + Dados)
     # -------------------------------------------------------------------------
     return HttpStatus.OK, {
         "data": escritorios_lista,
@@ -100,79 +141,100 @@ def _processar_listagem_escritorios(filtros):
             "total_items": paginated_data.total,
             "total_pages": paginated_data.pages,
             "has_next": paginated_data.has_next,
-            "has_prev": paginated_data.has_prev
-        }
+            "has_prev": paginated_data.has_prev,
+        },
     }
 
 
+# ==============================================================================
+# 5. ENDPOINTS DA API (POST & GET)
+# ==============================================================================
+
 @escritorios.post("/escritorios")
 def lista_escritorios_post():
-    """
-    Buscador de escritórios e alocações de mercado (POST).
+    """Buscador de escritórios e alocações de mercado (método POST).
+
+    Permite o envio de filtros avançados no corpo da requisição JSON,
+    com suporte a armazenamento em cache dinâmico.
     """
     filtros = request.get_json(silent=True) or {}
     chave_dinamica = f"escritorios_post:{request.full_path}:{str(filtros)}"
 
-    response_data,status_code = async_to_sync(cache.get_or_set)(
+    # Tenta recuperar os dados do cache ou executa o callback de busca
+    response_data, status_code = async_to_sync(cache.get_or_set)(
         key=chave_dinamica,
         fetch=lambda: _processar_listagem_escritorios(filtros),
-        baixando="Divisão de mercado dos Escritorios da AIESEC"
+        baixando="Divisão de mercado dos Escritorios da AIESEC",
     )
 
-    # 1. Recupera os dados de dentro da tupla armazenada no cache (na posição index 1)
+    # 1. Recupera os dados armazenados na estrutura de cache
     dados_cache = cache.store[chave_dinamica]["data"]
     lista_original = dados_cache["data"]
     paginacao = dados_cache["pagination"]
 
-    # 2. Instancia o DTO passando a lista original para o argumento 'cl'
+    # 2. Instancia o DTO convertendo a lista original para o alias esperado
     lista_tratada = DivisaoMercadoCl(cl=lista_original).model_dump(by_alias=True)
 
-    # 3. Monta o objeto no formato esperado pela raiz do DTO final
-    response = {
-        "data": lista_tratada,
-        "pagination": paginacao
-    }
+    # 3. Estrutura o payload de resposta final
+    response = {"data": lista_tratada, "pagination": paginacao}
 
-    # 4. Valida no DTO principal, faz o dump respeitando os aliases e retorna com jsonify
-    return jsonify(ListagemEscritoriosRespostaDTOCL(**response).model_dump(by_alias=True)), HttpStatus.OK
+    # 4. Valida no DTO principal e retorna o JSON formatado
+    return (
+        jsonify(
+            ListagemEscritoriosRespostaDTOCL(**response).model_dump(
+                by_alias=True
+            )
+        ),
+        HttpStatus.OK,
+    )
 
 
-@escritorios.get("/escritorios", responses={200: ListagemEscritoriosRespostaDTOCL})
+@escritorios.get(
+    "/escritorios", responses={200: ListagemEscritoriosRespostaDTOCL}
+)
 def lista_escritorios_get():
-    """
-    Buscador de escritórios e alocações de mercado (GET).
+    """Buscador de escritórios e alocações de mercado (método GET).
+
+    Recebe parâmetros de busca e ordenação diretamente da URL (Query Params).
     """
     filtros = {
-        'nome': request.args.get('nome'),
-        'busca': request.args.get('busca'),
-        'sort_by': request.args.get('sort_by', 'id'),
-        'order': request.args.get('order', 'asc')
+        "nome": request.args.get("nome"),
+        "busca": request.args.get("busca"),
+        "sort_by": request.args.get("sort_by", "id"),
+        "order": request.args.get("order", "asc"),
     }
 
     chave_dinamica = f"escritorios_get:{request.full_path}"
 
-    response_data,status_code = async_to_sync(cache.get_or_set)(
+    # Tenta recuperar os dados do cache ou executa o callback de busca
+    response_data, status_code = async_to_sync(cache.get_or_set)(
         key=chave_dinamica,
         fetch=lambda: _processar_listagem_escritorios(filtros),
-        baixando="Divisão de mercado dos Escritorios da AIESEC"
+        baixando="Divisão de mercado dos Escritorios da AIESEC",
     )
 
-    # 1. Recupera os dados de dentro da tupla armazenada no cache (na posição index 1)
+    # 1. Recupera os dados armazenados no cache
     dados_cache = cache.store[chave_dinamica]["data"]
     lista_original = dados_cache["data"]
     paginacao = dados_cache["pagination"]
 
-    # 2. Instancia o DTO passando a lista original para o argumento 'cl'
+    # 2. Converte a lista utilizando o DTO especializado
     lista_tratada = DivisaoMercadoCl(cl=lista_original).model_dump(by_alias=True)
 
-    # 3. Monta o objeto no formato esperado pela raiz do DTO final
-    response = {
-        "data": lista_tratada,
-        "pagination": paginacao
-    }
+    # 3. Monta o objeto final de resposta
+    response = {"data": lista_tratada, "pagination": paginacao}
 
-    # 4. Valida no DTO principal e faz o dump respeitando os aliases
-    return ListagemEscritoriosRespostaDTOCL(**response).model_dump(by_alias=True), HttpStatus.OK
+    # 4. Valida no DTO principal e retorna o dicionário serializável
+    return (
+        ListagemEscritoriosRespostaDTOCL(**response).model_dump(by_alias=True),
+        HttpStatus.OK,
+    )
 
 
-__all__ = ["escritorios"]
+# ==============================================================================
+# 6. EXPORTAÇÃO CONSOLIDADA E CONTRATO PÚBLICO
+# ==============================================================================
+
+__all__ = [
+    "escritorios",  # Roteador consolidado contendo os endpoints de escritórios
+]

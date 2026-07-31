@@ -1,28 +1,28 @@
-"""
-Inicialização do Flask-Migrate (integração Alembic) para migrações de banco.
-Exponibiliza a instância global 'migrate'.
+"""Módulo de Configuração do Flask-Migrate.
+
+Inicialização do Flask-Migrate (integração com Alembic) para controle de versão
+e migrações de banco de dados.
+Disponibiliza a instância global 'migrate'.
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
 # O Flask-Migrate lida com o controle de versão do banco de dados SQLAlchemy
 # através da interface de linha de comando (CLI) ou automações.
 from flask_migrate import Migrate
 
-# ==============================
-# Instância Global
-# ==============================
-
-
+# =================================================================
+# 2. INSTÂNCIA GLOBAL DO FLASK-MIGRATE
+# =================================================================
 
 # Criação do objeto Migrate.
-# Importante: No arquivo principal (app.py), ele deve ser vinculado ao app e ao db
-# através de: migrate.init_app(app, db)
+# Nota de arquitetura: No arquivo principal da aplicação (app.py),
+# ele deve ser vinculado à aplicação e ao banco de dados via `migrate.init_app(app, db)`.
 migrate = Migrate()
 
-# ==============================
-# Exportações
-# ==============================
 
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["migrate"]

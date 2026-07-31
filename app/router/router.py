@@ -1,52 +1,54 @@
-"""
-router.py
----------
+"""Router Module (router.py).
 
 Extensão customizada do APIBlueprint para padronização de rotas e documentação.
-Este componente é o que permite a geração automática do Swagger (OpenAPI).
+Este componente é o que permite a geração automática da documentação Swagger (OpenAPI).
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-# O Flask-OpenAPI3 substitui o Blueprint padrão do Flask, adicionando 
-# suporte nativo para validação de esquemas e documentação interativa.
-from flask_openapi3 import APIBlueprint
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+from typing import Optional  # Suporte para digitação de tipos opcionais
 
-# Importa o tipo Callable do nosso módulo global para tipagem estática
-from typing import Callable
+from flask_openapi3 import APIBlueprint  # Blueprint estendido do Flask com OpenAPI3
 
 
 # =================================================================
-# CLASSE ROUTER (CUSTOM BLUEPRINT)
+# 2. CLASSE ROUTER (CUSTOM BLUEPRINT)
 # =================================================================
-
 
 class Router(APIBlueprint):
-    """
-    Especialização do APIBlueprint para o ecossistema da aplicação.
+    """Especialização do APIBlueprint para o ecossistema da aplicação.
 
-    Ao usar esta classe, todas as rotas registradas herdarão:
+    Ao utilizar esta classe, todas as rotas registradas herdarão:
     - Prefixo de URL consistente.
-    - Validação automática de respostas (validate_response=True).
+    - Validação automática de schemas de resposta (validate_response=True).
     - Integração direta com a documentação OpenAPI/Swagger.
     """
 
-    def __init__(self, name: str | None = None, url_prefix: str = ""):
-        # Inicializa a classe pai (APIBlueprint).
-        # passamos o nome do blueprint, o nome do módulo atual (__name__) 
-        # e o prefixo que todas as rotas deste grupo usarão.
+    def __init__(
+            self,
+            name: Optional[str] = None,
+            url_prefix: str = "",
+    ) -> None:
+        """Inicializa o Router customizado herdando as funcionalidades do APIBlueprint.
+
+        Args:
+            name (Optional[str]): Nome identificador do Blueprint. Se omitido, assume __name__.
+            url_prefix (str): Prefixo de URL que antecede todas as rotas registradas neste grupo.
+        """
+        # Inicializa a classe pai (APIBlueprint)
+        # Passamos o nome do blueprint, o nome do módulo atual (__name__)
+        # e o prefixo que todas as rotas deste grupo utilizarão.
         super().__init__(
             name or __name__,  # Nome identificador do Blueprint
-            __name__,  # Nome do pacote/módulo de importação
+            __name__,          # Nome do pacote/módulo de importação
             url_prefix=url_prefix,
-            # Força a API a validar se o que está sendo retornado condiz 
-            # com o esquema (DTO) definido na documentação.
-            validate_response=True
-        )
+            # Força a API a validar se o retorno da rota condiz com o DTO/schema documentado
+            validate_response=True,
+            )
 
 
-# ==============================
-# Exportações do Módulo
-# ==============================
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["Router"]

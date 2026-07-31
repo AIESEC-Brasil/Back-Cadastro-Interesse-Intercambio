@@ -1,32 +1,29 @@
-"""
-Helpers Module
---------------
+"""Módulo de Exportação de Helpers (Helpers Package).
 
 Ponto central de acesso para utilitários de validação e formatação.
 Este pacote organiza funções auxiliares que dão suporte à lógica de
-apresentação e integração com serviços externos.
+apresentação e integração com serviços externos (ex: Podio API).
 """
 
-# ==============================
-# Importações de Submódulos
-# ==============================
+# =================================================================
+# 1. IMPORTAÇÕES DE SUBMÓDULOS
+# =================================================================
 
-# Importa todas as validações de regras de negócio (idade, e-mail, membresia)
-from .validates import *
+# Importação direta dos subpódulos para mapear as exportações
+from . import formatar, validates
 
-# Importa todos os formatadores de strings e URLs de integração
-from .formatar import *
+# Importações explícitas dos componentes para viabilizar acesso direto
+from .formatar import payload_podio
+from .validates import tem_mais_de_31_anos
 
-# ==============================
-# Exportação Consolidada
-# ==============================
-
-#
+# =================================================================
+# 2. EXPORTAÇÃO CONSOLIDADA VIA __all__
+# =================================================================
 
 # O __all__ define a interface pública do pacote.
-# Concatenamos as listas exportadas em 'validates' e 'formatar' para
+# Concatena as listas exportadas em 'validates' e 'formatar' para
 # permitir importações diretas como: 'from app.helpers import tem_mais_de_31_anos'
 __all__ = (
-    validates.__all__ +
-    formatar.__all__
+        validates.__all__ +
+        formatar.__all__
 )

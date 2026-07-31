@@ -1,90 +1,95 @@
+"""Utilitário para normalizar resultados de operações assíncronas e síncronas.
+
+Garante a execução não-bloqueante de corotinas usando await dentro do loop ativo
+(evitando o erro RuntimeError: 'This event loop is already running') e realiza o
+mapeamento dinâmico de exceções capturadas para DTOs de erro padronizados.
 """
-Utilitário para normalizar resultados de operações assíncronas/síncronas de forma não-bloqueante.
 
-resolve_response executa corotinas (awaitables) usando await dentro do loop ativo,
-garantindo compatibilidade com ambientes assíncronos e evitando o erro:
-"RuntimeError: This event loop is already running".
-"""
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import asyncio  # Biblioteca para verificação de objetos e corotinas assíncronas
+import inspect  # Utilitário para inspeção de objetos executáveis e aguardáveis (awaitables)
+from typing import Any, Tuple  # Anotações de tipo para retornos e estruturas de dados
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import asyncio  # Biblioteca para verificação de objetos assíncronos (corotinas)
-import inspect
+from pydantic import ConfigDict  # Configuração de validação para tipos arbitrários no Pydantic
 
-from pydantic import ConfigDict
-from typing import Any, Tuple  # Suporte para anotações de tipo genéricas e estruturas de tuplas
 from ..dto import (
-    PYTHON_EXCEPTION_MAP,
     HTTP_EXCEPTION_MAP,
+    PYTHON_EXCEPTION_MAP,
     BaseErrorResponse,
-    ValidationErrorResponse,
+    ExceptionErrorResponse,
     HTTPErrorResponse,
-    PydanticValidationError,
     HTTPException,
-    ExceptionErrorResponse
+    PydanticValidationError,
+    ValidationErrorResponse,
 )
 
-# ==============================
-# Normalizador de Resposta
-# ==============================
+
+# =================================================================
+# 2. NORMALIZADORES DE RESPOSTA E EXCEÇÕES
+# =================================================================
 
 @validar
 async def resolve_response(result: Any) -> Tuple[int, Any]:
-    """
-    Resolve o resultado de uma operação de forma assíncrona e não-bloqueante,
-    garantindo um retorno uniforme de (status, data).
+    """Resolve o resultado de uma operação de forma assíncrona e não-bloqueante.
 
-    Por que mudamos para 'async def' com 'await'?
-    O uso anterior de 'asyncio.run(result)' tentava abrir um novo loop de eventos.
-    Se o Flask ou o middleware já tivessem um loop ativo processando a request,
-    isso causava um travamento ou erro de "event loop is already running".
+    Garante um retorno uniforme no formato (status_code, body).
 
-    Usando 'await', nós pegamos "carona" no loop que já está rodando de forma limpa,
-    permitindo que todo o fluxo da aplicação permaneça assíncrono de ponta a ponta.
+    Por que usamos 'async def' com 'await'?
+    O uso anterior de 'asyncio.run(result)' tentava criar um novo loop de eventos.
+    Se o Flask ou o servidor WSGI/ASGI já tivessem um loop ativo processando
+    a requisição, isso causava travamentos ou o erro "event loop is already running".
+
+    Com 'await', reaproveitamos o Event Loop ativo de forma limpa,
+    permitindo que o fluxo da aplicação permaneça não-bloqueante.
 
     Args:
-        result (Any): O objeto a ser resolvido. Pode ser um valor direto ou uma corotina pendente.
+        result (Any): O objeto a ser resolvido. Pode ser um valor direto ou corotina.
 
     Returns:
-        Tuple[int, Any]: Uma tupla contendo o código de status HTTP (int) e o corpo da resposta (Any).
+        Tuple[int, Any]: Tupla contendo o código de status HTTP (int) e a resposta (Any).
     """
-
-    # Verifica se o objeto retornado é uma corotina (criada por uma função 'async def')
-    # ou qualquer outro objeto aguardável (awaitable)
+    # Verifica se o objeto retornado é uma corotina ou qualquer outro awaitable
     if asyncio.iscoroutine(result) or inspect.isawaitable(result):
-        # Resolve a corotina usando o Event Loop ativo sem criar loops novos e concorrentes
+        # Resolve a corotina utilizando o Event Loop ativo
         return await result
 
-    # Se o resultado já for um valor síncrono (um dict, string ou tupla já resolvida), retorna-o diretamente
+    # Se o resultado já for um valor síncrono (dict, string ou tupla), retorna diretamente
     return result
 
 
 @validar(config=ConfigDict(arbitrary_types_allowed=True))
 def resolve_exception(exception: Exception) -> BaseErrorResponse:
+    """Mapeia uma exceção capturada para o respectivo DTO de resposta de erro.
+
+    Mantida síncrona por ser uma operação leve de CPU-bound sem I/O.
+
+    Args:
+        exception (Exception): Instância da exceção disparada na aplicação.
+
+    Returns:
+        BaseErrorResponse: DTO de erro devidamente populado e formatado.
     """
-    Retorna a instância correta da classe de Response de erro com base na exceção capturada.
-    Mantida síncrona, pois o tratamento de exceções em si é uma operação CPU-bound simples e rápida.
-    """
-    # Tratamento específico para erros de validação de esquemas Pydantic
+    # Tratamento específico para erros de validação do Pydantic
     if isinstance(exception, PydanticValidationError):
         return ValidationErrorResponse(exception)
 
-    # Tratamento para exceções HTTP conhecidas do sistema
+    # Tratamento para exceções HTTP conhecidas do Werkzeug / Flask
     if isinstance(exception, HTTPException):
         cls = HTTP_EXCEPTION_MAP.get(type(exception), HTTPErrorResponse)
         return cls(exception)
 
-    # Varre o mapa de exceções padrão do Python para envelopar o erro no DTO correto
+    # Varre o mapeamento de exceções padrão do Python para encontrar o DTO adequado
     for exc_type, cls in PYTHON_EXCEPTION_MAP.items():
         if isinstance(exception, exc_type):
             return cls(exception)
 
-    # Fallback genérico para qualquer erro inesperado do sistema (Ex: KeyError, ValueError não mapeados)
+    # Fallback genérico para exceções não mapeadas explicitamente
     return ExceptionErrorResponse(exception)
 
 
-# ==============================
-# Exportações
-# ==============================
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["resolve_response", "resolve_exception"]

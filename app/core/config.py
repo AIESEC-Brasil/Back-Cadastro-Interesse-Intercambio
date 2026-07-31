@@ -1,69 +1,78 @@
-"""
-Configuração derivada por ambiente (produção vs não-produção).
+"""Configuração derivada por ambiente (produção vs não-produção).
 
 Define domínios permitidos (CORS/origem), URLs de conexão e flags de ambiente,
 com base em constantes importadas de app.config.settings.
 """
 
-# ==============================
-# Importações de Configurações
-# ==============================
-# Importa as constantes brutas do arquivo de configurações central (settings.py)
-from ..config import (
-    AMBIENTE,           # String identificadora do ambiente (ex: 'PROD', 'DEV')
-    DOMINIOS_PERMITIDOS,  # Lista de domínios oficiais da organização
-    DB_CONNECT
-)
-from ..clients import metadados  # Função cliente para buscar campos e configurações do Podio
-from ..clients import getAcessToken # Client responsável pelo handshake de OAuth2 com a API do Podio
-from ..cache import cache           # Mecanismo de persistência temporária para otimizar performance
-from ..config import CLIENT_SECRET, CLIENT_ID, APP_ID, APP_TOKEN
-import locale
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import locale  # Manipulação de configurações regionais e de idioma
+from typing import Any, Dict  # Suporte para anotações de tipagem estática
 
-# ==============================
-# Identificação de Ambiente
-# ==============================
+from ..cache import cache  # Mecanismo de persistência temporária/cache
+from ..clients import get_access_token  # Client para handshake de OAuth2
+from ..clients import metadados  # Client para metadados de campos do Podio
+from ..config import (  # Constantes brutas importadas da configuração central
+    AMBIENTE,
+    APP_ID,
+    APP_TOKEN,
+    CLIENT_ID,
+    CLIENT_SECRET,
+    DB_CONNECT,
+    DOMINIOS_PERMITIDOS,
+)
+
+# =================================================================
+# 2. IDENTIFICAÇÃO DE AMBIENTE E FLAGS
+# =================================================================
 
 # Flag booleana para identificar se a execução ocorre em ambiente de Produção
 IS_PRODUCTION: bool = AMBIENTE in {"PRODUCTION", "PROD"}
 
-# Flag booleana para identificar ambientes de não-produção (Desenvolvimento/Testes)
+# Flags booleanas para identificar ambientes de Desenvolvimento e Testes
 IS_DEV: bool = AMBIENTE in {"DEVELOPMENT", "DEV"}
 IS_TEST: bool = AMBIENTE in {"TEST", "TESTING"}
 
-# Validação de Segurança: Impede que a aplicação suba sem um ambiente definido
+# Validação de Segurança: Impede que a aplicação suba sem ambiente válido
 if not (IS_PRODUCTION or IS_DEV or IS_TEST):
     raise ValueError(f"Ambiente inválido detectado: {AMBIENTE}")
 
-# ==============================
-# Definição de Variáveis Dinâmicas
-# ==============================
 
+# =================================================================
+# 3. FUNÇÕES E CONFIGURAÇÕES DINÂMICAS
+# =================================================================
 
-def configurar_idioma():
-    # Lista de nomes comuns para o mesmo idioma
-    locales_tentativa = ["pt_BR.UTF-8", "pt_BR.utf8", "pt_BR", "Portuguese_Brazil.1252"]
+def configurar_idioma() -> bool:
+    """Tenta definir o locale da aplicação para o idioma Português (Brasil).
+
+    Returns:
+        bool: True se algum locale compatível for configurado com sucesso,
+            False caso contrário.
+    """
+    # Lista de nomes e codificações comuns para o locale PT-BR
+    locales_tentativa = [
+        "pt_BR.UTF-8",
+        "pt_BR.utf8",
+        "pt_BR",
+        "Portuguese_Brazil.1252",
+    ]
 
     for loc in locales_tentativa:
         try:
             locale.setlocale(locale.LC_TIME, loc)
-            print(f"Sucesso! Locale definido para: {loc}")
             return True
         except locale.Error:
             continue
 
     return False
 
+
 async def pre_carregamento_metadados() -> None:
-    """Pré-carrega os tokens de autenticação e metadados das aplicações do Podio no cache.
+    """Pré-carrega tokens de autenticação e metadados de apps no cache.
 
-    A função estrutura as credenciais necessárias para cada integração e executa
-    o carregamento assíncrono do token de acesso do Podio e dos metadados dos
-    formulários/cards correspondentes.
-
-    Raises:
-        NameError: Se as credenciais globais (CLIENT_SECRET, CLIENT_ID, etc.) não
-            estiverem definidas no escopo.
+    Estrutura as credenciais para cada integração e executa o carregamento
+    assíncrono do token de acesso do Podio e dos metadados das aplicações.
     """
     # Mapeamento de configurações e credenciais por fluxo/integração
     config_map: Dict[str, Dict[str, Any]] = {
@@ -84,31 +93,31 @@ async def pre_carregamento_metadados() -> None:
     # Busca no cache ou gera/armazena o token de acesso do Podio
     await cache.get_or_set(
         key=ogx_config["key"],
-        fetch=lambda: getAcessToken(ogx_config["credenciais"]),  # Use async lambda/def se getAcessToken for async
+        fetch=lambda: get_access_token(ogx_config["credenciais"]),
         baixando="Chave de Acesso ao Podio ('new-lead-ogx')",
     )
 
-    # Busca no cache ou recupera/armazena os metadados dos campos do aplicativo Podio
+    # Busca no cache ou recupera/armazena os metadados do aplicativo Podio
     await cache.get_or_set(
         key="metadados_card-ogx",
         fetch=lambda: metadados(
             chave=ogx_config["key"],
-            APP_ID=APP_ID,
+            app_id=APP_ID,
         ),
         baixando="Metadados de Novos lead B2C",
     )
-# ==============================
-# Exportações do Módulo
-# ==============================
 
+
+# =================================================================
+# 4. EXPORTAÇÕES DO MÓDULO
+# =================================================================
 __all__ = [
-
-    "AMBIENTE",
-    "DOMINIOS_PERMITIDOS", # Lista final de domínios para políticas de CORS
-    "IS_PRODUCTION",       # Booleano para verificações de segurança/logs
-    "IS_DEV",          # Booleano para habilitar ferramentas de debug
-    "IS_TEST",
-    "DB_CONNECT",
-    "configurar_idioma",
-    "pre_carregamento_metadados"
+    "AMBIENTE",  # Nome/identificador bruto do ambiente (PROD, DEV, TEST)
+    "DOMINIOS_PERMITIDOS",  # Whitelist de URLs/origens para segurança de CORS e Host
+    "IS_PRODUCTION",  # Booleano que indica se o ambiente é de Produção
+    "IS_DEV",  # Booleano que indica se o ambiente é de Desenvolvimento
+    "IS_TEST",  # Booleano que indica se o ambiente é de Teste/Homologação
+    "DB_CONNECT",  # String de conexão/URI com o banco de dados
+    "configurar_idioma",  # Função utilitária para definir locale da aplicação para PT-BR
+    "pre_carregamento_metadados",  # Rotina assíncrona para aquecimento e cache de dados do Podio
 ]

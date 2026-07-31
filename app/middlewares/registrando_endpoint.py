@@ -1,5 +1,4 @@
-"""
-Módulo de Auditoria e Controle de Tráfego.
+"""Módulo de Auditoria e Controle de Tráfego.
 
 Este middleware é executado após o processamento da rota (pós-request).
 Sua função é dupla:
@@ -7,23 +6,24 @@ Sua função é dupla:
 2. Injetar cabeçalhos de controle de cache (HTTP Cache-Control) baseados no endpoint.
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import logging                      # Engine de logs nativa do Python
-from pydantic import ConfigDict      # Validador de configurações para o decorador
-from flask import request, Response # Objetos globais (Proxy) da requisição e resposta
-from ..utils import agora_format_brasil_mes # Gerador de timestamp formatado
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import logging  # Engine de logs nativa do Python
 
-# ==============================
-# Configurações e Instâncias Globais
-# ==============================
+from flask import Response, request  # Objetos globais de requisição e resposta do Flask
+from pydantic import ConfigDict  # Validador de configurações para o decorador
 
-# logger: Instanciado no escopo do módulo para otimizar performance (evita repetidas buscas na árvore de logs).
+from ..utils import agora_format_brasil_mes  # Gerador de timestamp formatado
+
+# =================================================================
+# 2. CONFIGURAÇÕES E INSTÂNCIAS GLOBAIS
+# =================================================================
+
+# Instanciado no escopo do módulo para otimizar busca na árvore de logs
 logger = logging.getLogger(__name__)
 
-# NO_CACHE_ROUTES: Conjunto (set) de strings para busca exata.
-# Utilizado para endpoints fixos. O acesso em 'set' tem complexidade O(1).
+# Conjunto (set) de strings para busca exata de rotas sem cache (Complexidade O(1))
 NO_CACHE_ROUTES = {
     "/api/docs",
     "/openapi",
@@ -36,8 +36,7 @@ NO_CACHE_ROUTES = {
     "/apidoc/openapi.json",
 }
 
-# NO_CACHE_PREFIXES: Tupla de prefixos para rotas dinâmicas ou diretórios.
-# Necessário para capturar caminhos como /static/logo.png ou /openapi/swagger/index.html.
+# Tupla de prefixos para checagem em rotas dinâmicas ou diretórios
 NO_CACHE_PREFIXES = (
     "/static/",
     "/openapi/swagger",
@@ -47,14 +46,14 @@ NO_CACHE_PREFIXES = (
     "/openapi/scalar/",
 )
 
-# ==============================
-# Middleware de Auditoria
-# ==============================
+
+# =================================================================
+# 3. MIDDLEWARE DE AUDITORIA E TRÁFEGO
+# =================================================================
 
 @validar(config=ConfigDict(arbitrary_types_allowed=True))
 def register_url(response: Response) -> Response:
-    """
-    Intercepta a resposta para registrar log de auditoria e definir política de cache.
+    """Intercepta a resposta para registrar log de auditoria e definir política de cache.
 
     Args:
         response (Response): O objeto de resposta retornado pela lógica da rota.
@@ -62,57 +61,56 @@ def register_url(response: Response) -> Response:
     Returns:
         Response: A resposta modificada com os cabeçalhos de cache injetados.
     """
+    # --- 1. Extração de Metadados da Requisição ---
 
-    # --- 1. Extração de Metadados ---
-
-    # protocol: Identifica a versão do HTTP (ex: HTTP/1.1); essencial para conformidade com o Common Log Format.
+    # Identifica a versão do protocolo HTTP
     protocol = request.environ.get("SERVER_PROTOCOL", "HTTP/1.1")
 
-    # ip: Captura o endereço de rede do cliente ou do último proxy/load balancer.
+    # Captura o IP do cliente ou do proxy/load balancer
     ip = request.remote_addr
 
-    # hora: Carimbo de tempo customizado no formato dia/mês/ano hora:minuto:segundo.
+    # Carimbo de tempo formatado no padrão nacional
     hora = agora_format_brasil_mes()
 
-    # metodo: O verbo HTTP utilizado (GET, POST, PUT, DELETE, etc.).
+    # Verbo HTTP (GET, POST, PUT, DELETE, etc.)
     metodo = request.method
 
-    # endpoint: O caminho absoluto da URL solicitada (sem parâmetros de query string).
+    # Caminho absoluto da URL solicitada
     endpoint = request.path
 
-    # --- 2. Registro de Auditoria ---
+    # --- 2. Registro de Log de Auditoria ---
 
-    # mensagem: Composição do log seguindo o padrão clássico de servidores Apache/Nginx.
-    # Exemplo de saída: 192.168.1.1 - - [18/Fev/2026 13:40:00] "POST /api/v1/validarToken HTTP/1.1" 200 -
-    mensagem = f'{ip} - - [{hora}] "{metodo} {endpoint} {protocol}" {response.status_code} -'
+    # Mensagem no formato clássico Common Log Format (Apache/Nginx)
+    mensagem = (
+        f'{ip} - - [{hora}] "{metodo} {endpoint} {protocol}" '
+        f"{response.status_code} -"
+    )
     logger.info(mensagem)
 
-    # --- 3. Lógica de Injeção de Cache ---
+    # --- 3. Lógica de Injeção de Cabeçalhos de Cache ---
 
-    # Verifica se o endpoint atual está na lista negra de cache (exata ou por prefixo)
+    # Verifica se o endpoint atual requer neutralização de cache
     if endpoint in NO_CACHE_ROUTES or endpoint.startswith(NO_CACHE_PREFIXES):
-        # POLÍTICA: SEM CACHE (Segurança e Dados em Tempo Real)
-        # 'no-store': Proíbe o armazenamento em disco.
-        # 'no-cache, must-revalidate': Obriga a consulta ao servidor em cada acesso.
-        # 'proxy-revalidate': Estende a obrigatoriedade para CDNs e Proxies intermediários.
+        # Política de segurança e tempo real (Sem Cache)
         response.headers["Cache-Control"] = (
             "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
         )
 
-        # Pragma: Garante comportamento 'no-cache' em navegadores muito antigos (HTTP/1.0).
+        # Suporte a navegadores antigos (HTTP/1.0)
         response.headers["Pragma"] = "no-cache"
 
-        # Expires: Data de expiração no passado (0) para invalidar o conteúdo imediatamente.
+        # Expira o recurso imediatamente no navegador
         response.headers["Expires"] = "0"
     else:
-        # POLÍTICA: CACHE PADRÃO (Otimização de Performance)
-        # 'public': Permite que o cache seja compartilhado (browser e proxies).
-        # 'max-age=7200': O navegador guarda o recurso por 2 horas (7200 segundos).
-        response.headers["Cache-Control"] = "public, max-age=7200, must-revalidate"
+        # Política de Otimização de Desempenho (Cache Padrão de 2 horas)
+        response.headers["Cache-Control"] = (
+            "public, max-age=7200, must-revalidate"
+        )
 
     return response
 
-# ==============================
-# Exportações do Módulo
-# ==============================
-__all__ = ['register_url']
+
+# =================================================================
+# 4. EXPORTAÇÃO DO MÓDULO
+# =================================================================
+__all__ = ["register_url"]

@@ -1,27 +1,36 @@
-"""
-config
-------
+"""Módulo de Exportação de Configurações (Config Package).
 
-Módulo de configuração global da aplicação.
-Este arquivo facilita o acesso às variáveis de ambiente e constantes
-definidas no submódulo 'settings'.
+Ponto central de acesso para as variáveis de ambiente e constantes
+validadas no submódulo 'settings'. Facilita o acesso limpo via
+`from app.config import AMBIENTE`.
 """
 
 # =================================================================
-# Importações de Configurações
+# 1. IMPORTAÇÕES DE CONFIGURAÇÕES E CONSTANTES
 # =================================================================
 
-# Importa todas as variáveis validadas (DB, API Keys, Podio Tokens, etc.)
-# definidas no arquivo settings.py
-from .settings import *
+# Importa o módulo settings para acesso às suas exportações
+from . import settings
+
+# Importação explícita das constantes para exposição e verificação de tipos
+from .settings import (
+    AMBIENTE,
+    API_KEYS_PERMITIDAS,
+    APP_ID,
+    APP_TOKEN,
+    CACHE_TTL,
+    CLIENT_ID,
+    CLIENT_SECRET,
+    DB_CONNECT,
+    DOMINIOS_PERMITIDOS,
+    ID_APPSCRIPT_EXPA,
+    TOKEN_EXPA,
+)
 
 # =================================================================
-# Exportação Consolidada
+# 2. EXPORTAÇÃO CONSOLIDADA VIA __all__
 # =================================================================
 
-#
-
-# O __all__ define a interface pública deste pacote.
-# Nota: Aqui usamos a lista de strings definida em settings.__all__
-# para que o acesso seja feito de forma limpa: from app.config import AMBIENTE
+# O __all__ define a interface pública exportada por este pacote.
+# Reutiliza dinamicamente a lista de strings definida em settings.__all__.
 __all__ = settings.__all__

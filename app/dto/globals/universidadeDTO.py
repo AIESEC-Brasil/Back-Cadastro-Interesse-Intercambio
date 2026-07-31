@@ -1,18 +1,57 @@
+"""Módulo de Schemas e DTOs para Entidades Universitárias.
+
+Este módulo define a estrutura Pydantic utilizada para representar a Universidade.
+Por se tratar de um objeto opcional, todos os seus campos possuem valores padrão
+nulos (`default=None`), permitindo payloads parciais ou vazios.
+"""
+
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+from typing import Optional  # Suporte a tipagem estática para valores que podem ser Nulos (None)
+
 from pydantic import (
-    BaseModel,       # Classe base para criação de modelos de dados com validação automática.
-    EmailStr,        # Tipo de campo especializado que valida se a string segue o formato de e-mail (RFC 5322).
-    Field,           # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
-    ConfigDict,      # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
-    field_serializer,# Decorador que permite customizar como um campo específico é convertido para JSON (ex: formatar datas).
-    field_validator, # Decorador que permite definir funções de validação customizadas para campos específicos, garantindo integridade dos dados.
-    TypeAdapter,     # Permite criar adaptadores de tipo para conversão e validação de dados complexos.
-    model_validator  # Decorador para aplicar regras de validação no nível do modelo completo (múltiplos campos).
+    BaseModel,   # Classe base para criação de modelos de dados com validação automática.
+    ConfigDict,  # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
+    Field,       # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
 )
 
+
+# =================================================================
+# 2. MODELOS DE DADOS (SCHEMAS)
+# =================================================================
+
 class Universidade(BaseModel):
-    id: int = Field(...,description="Id da Universidade no Banco de Dados",json_schema_extra={"exemple":1})
-    nome:str = Field(...,description="Nome da Universidade no Banco de Dados",json_schema_extra={"exemple":"Universidade Federal de Pernambuco"})
+    """Representa a entidade opcional de dados de uma Universidade.
 
-    model_config = ConfigDict(extra='ignore')
+    Esta classe abstrai as propriedades de identificação da universidade.
+    Todos os campos possuem `default=None`, tornando o preenchimento da classe
+    totalmente opcional no modelo e na visão geral.
 
+    Attributes:
+        id (Optional[int]): Identificador da universidade no banco de dados. Padrão: None.
+        nome (Optional[str]): Nome oficial da universidade. Padrão: None.
+    """
+
+    # Identificador único da universidade no banco de dados (Opcional)
+    id: Optional[int] = Field(
+        default=None,
+        description="Id da Universidade no Banco de Dados",
+        json_schema_extra={"example": 1},
+    )
+
+    # Nome completo da universidade no banco de dados (Opcional)
+    nome: Optional[str] = Field(
+        default=None,
+        description="Nome da Universidade no Banco de Dados",
+        json_schema_extra={"example": "Universidade Federal de Pernambuco"},
+    )
+
+    # Configuração global do Pydantic para ignorar atributos não declarados no payload de entrada
+    model_config = ConfigDict(extra="ignore")
+
+
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["Universidade"]

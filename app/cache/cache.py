@@ -1,48 +1,69 @@
+"""Módulo de Infraestrutura de Cache - AIESEC Security.
+
+Este módulo implementa uma camada de gerenciamento de cache em memória RAM
+utilizando a arquitetura "Cache-Aside" (Lazy Loading) com sincronização
+assíncrona não-bloqueante.
+
+O objetivo principal é interceptar requisições repetitivas a serviços externos
+(como a API do Podio), reduzindo o tempo de latência da aplicação e evitando
+bloqueios do Event Loop em ambientes web assíncronos ou multi-thread (Flask/Gunicorn).
 """
-Módulo de Infraestrutura: AIESEC Security - Cache Layer.
 
-Gerenciamento de cache em memória (RAM) utilizando o padrão Cache-Aside.
-Este módulo evita chamadas repetitivas a serviços externos, respeitando um
-tempo de vida (TTL) configurado globalmente ou customizado por chamada.
+# ==============================================================================
+# 1. IMPORTAÇÕES DA BIBLIOTECA PADRÃO E DE TERCEIROS
+# ==============================================================================
 
-Pode ser usado tanto como classe singleton clássica (`await cache.get_or_set(...)`)
-quanto como decorador de rota assíncrona do Flask (`@cache(key="...", baixando="...")`).
-"""
+# O módulo asyncio fornece a infraestrutura para concorrência cooperativa via Event Loop
+import asyncio
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import logging                      # Sistema de registros para monitoramento
-import inspect                      # Suporte ao event loop e detecção de corotinas
-import asyncio                      # Sincronização assíncrona não-bloqueante (asyncio.Lock)
-from dataclasses import dataclass, field # Facilita a criação de classes de estrutura de dados
-from functools import wraps         # Preserva metadados de funções decoradas
-from flask import jsonify, request  # Serializador JSON e objeto de requisição do Flask
+# O módulo inspect é utilizado para introspecção de objetos em tempo de execução
+# (ex: verificar se uma função é corotina antes de usar o operador 'await')
+import inspect
+
+# O sistema de logging padrão do Python é usado para rastreabilidade e auditoria
+import logging
+
+# O decorator @dataclass automatiza a criação do método __init__ e estruturas de dados
+from dataclasses import dataclass, field
+
+# Tipos abstratos fornecidos pelo módulo typing para anotação estática de código (Mypy)
 from typing import (
-    Any,                            # Tipo flexível para aceitar diversos formatos de dados
-    Callable,                       # Tipo para funções passadas como argumento (callbacks)
-    Dict,                           # Definição de dicionários tipados
-    Tuple,                          # Definição de tuplas para retorno (status, data)
-    Optional                        # Permite indicar que um parâmetro pode ser nulo/opcional
+    Any,        # Indica que um valor pode ser de qualquer tipo
+    Callable,   # Anotação para funções ou métodos passados como argumentos (callbacks)
+    Dict,       # Tipo dicionário Python
+    Optional,   # Indica que um parâmetro pode ser do tipo especificado ou None
+    Tuple,      # Tipo tupla (usado para retornos múltiplos como status e payload)
 )
 
-from ..config import CACHE_TTL      # Tempo limite (em segundos) definido no ambiente global
-from ..utils.resolve import (
-    resolve_response                # Garante o tratamento de retornos de forma assíncrona
-)
-from ..utils.data import (
-    agora_timestamp,                # Função para obter tempo atual (Horário de São Paulo)
-)
-from ..dto import HttpStatus        # Enum com os Status Http
+# O utilitário jsonify do Flask formata dicionários Python em objetos HTTP Response com MIME JSON
+from flask import jsonify
 
-# =================================================================
-# CONFIGURAÇÕES DE LOGGING
-# =================================================================
+# ==============================================================================
+# 2. IMPORTAÇÕES DE MÓDULOS INTERNOS DA APLICAÇÃO
+# ==============================================================================
+
+# Importa o Tempo de Vida padrão (Time To Live) definido nas configurações da aplicação
+from ..config import CACHE_TTL
+
+# Enum que encapsula os códigos de status HTTP padrão (ex: HttpStatus.OK = 200)
+from ..dto import HttpStatus
+
+# Utilitário que retorna o timestamp Unix atual ajustado para o fuso horário local
+from ..utils.data import agora_timestamp
+
+# Helper responsável por resolver Promises/Coroutines e extrair o conteúdo real de respostas
+from ..utils.resolve import resolve_response
+
+# ==============================================================================
+# 3. CONFIGURAÇÃO DE LOGS E CONSTANTES GLOBAIS
+# ==============================================================================
+
+# Cria uma instância do logger associada ao nome deste módulo específico (__name__)
 logger = logging.getLogger(__name__)
 
-# =================================================================
-# CONSTANTES DE CACHE
-# =================================================================
+# Conjunto (Set) contendo os IDs externos dos campos que têm permissão para serem
+# armazenados no cache e expostos aos clientes da API. Isso garante a higienização
+# e segurança dos dados recebidos do Podio.
 FIELDS_PERMITIDOS = {
     "qual-semestre-do-curso",
     "qual-sua-area-de-atuacao",
@@ -53,26 +74,34 @@ FIELDS_PERMITIDOS = {
     "tag-origem-2",
     "tag-meio-2-2",
     "status",
-    "produto"
 }
 
-# =================================================================
-# GERENCIADOR DE CACHE (CLASS E DECORADOR HÍBRIDO ASSÍNCRONO)
-# =================================================================
+
+# ==============================================================================
+# 4. CLASSE GERENCIADORA DE CACHE (CACHE MANAGER)
+# ==============================================================================
+
 @dataclass
 class CacheManager:
-    """
-    Controla o ciclo de vida de dados voláteis armazenados em memória de forma não-bloqueante.
+    """Gerenciador centralizado de cache em memória com controle de concorrência.
 
-    Suporta uso clássico imperativo assíncrono ou uso declarativo através de decoradores de rotas.
-    Utiliza asyncio.Lock para serializar a gravação de forma cooperativa sem congelar a aplicação.
+    Esta classe armazena pares de chave-valor em memória RAM (self.store) e
+    gerencia o ciclo de vida dos dados, expirando-os conforme o TTL estipulado.
     """
 
+    # Armazenamento em memória: Dicionário onde a chave é o ID do recurso (str)
+    # e o valor é outro dicionário contendo o 'data' (payload) e 'timestamp' (tempo da gravação).
+    # O campo init=False impede que esse parâmetro seja exigido na instanciação da classe.
     store: Dict[str, Dict[str, Any]] = field(default_factory=dict, init=False)
 
-    # Mapeia dinamicamente os locks para cada Event Loop de requisição ativa
-    # Isso evita o erro: 'RuntimeError: Lock is bound to a different event loop'
-    _locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = field(default_factory=dict, init=False)
+    # Dicionário de Locks por Event Loop:
+    # O Python em ambientes assíncronos pode criar múltiplos Event Loops (um por thread do Flask).
+    # Como um asyncio.Lock é vinculado estritamente ao loop em que foi criado, este dicionário
+    # mapeia cada Event Loop ativo para seu próprio Lock correspondente, prevenindo o erro:
+    # "RuntimeError: Lock is bound to a different event loop".
+    _locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = field(
+        default_factory=dict, init=False
+    )
 
     async def get_or_set(
             self,
@@ -80,73 +109,141 @@ class CacheManager:
             baixando: str,
             fetch: Optional[Callable[[], Any]] = None,
             resync: bool = False,
-            CACHE_TTL: int = CACHE_TTL
+            ttl: int = CACHE_TTL,
     ) -> Tuple[Any, int]:
+        """Recupera um dado do cache ou executa a função de busca (Cache-Aside).
+
+        Args:
+            key (str): Chave identificadora única do item no dicionário em memória.
+            baixando (str): Descrição legível usada exclusivamente nos logs do sistema.
+            fetch (Optional[Callable]): Função ou Corotina a ser invocada caso ocorra CACHE MISS.
+            resync (bool): Se True, ignora o cache existente e força uma nova busca na API externa.
+            ttl (int): Tempo limite de validade do dado armazenado (em segundos).
+
+        Returns:
+            Tuple[Any, int]: Uma tupla contendo o objeto de resposta Flask (JSON) e o Status HTTP.
         """
-        Executa a estratégia clássica Cache-Aside utilizando sincronização assíncrona.
-        """
+        # Captura o instante de tempo atual em segundos desde o Unix Epoch
         now = agora_timestamp()
 
-        # 1. Obtém dinamicamente o loop de eventos que está tratando esta thread/requisição
+        # ----------------------------------------------------------------------
+        # ETAPA 1: Identificação e Mapeamento do Event Loop Atual
+        # ----------------------------------------------------------------------
+        # Obtém o Loop de Eventos assíncrono que está executando a thread presente
         loop = asyncio.get_running_loop()
 
-        # 2. Garante que exista um Lock exclusivo associado a este loop ativo
+        # Verifica se já existe um Lock de sincronização associado ao loop atual.
+        # Se não existir, instancia um novo Lock e salva no mapeamento interno da classe.
         if loop not in self._locks:
             self._locks[loop] = asyncio.Lock()
 
+        # Armazena a referência do Lock que controlará o acesso concorrente nesta thread
         current_lock = self._locks[loop]
 
-        # --- 3. CENÁRIO: CACHE HIT (Leitura inicial ultra rápida sem lock) ---
+        # ----------------------------------------------------------------------
+        # ETAPA 2: Validação de Leitura Rápida (CACHE HIT - Fase Não-Bloqueante)
+        # ----------------------------------------------------------------------
+        # Se a chave existe na memória e a flag 'resync' NÃO foi ativada:
         if key in self.store and not resync:
             item = self.store[key]
-            if now - item["timestamp"] < CACHE_TTL:
-                logger.info(f"AIESEC Cache | HIT: '{baixando}' recuperado da memória.")
+
+            # Subtrai o timestamp atual pelo timestamp de criação do item.
+            # Se a diferença for menor que o TTL estipulado, o dado ainda é válido!
+            if now - item["timestamp"] < ttl:
+                logger.info(
+                    f"AIESEC Cache | HIT: '{baixando}' recuperado da memória."
+                )
+                # Retorna os dados convertidos para JSON e com status 200 (OK) sem tocar no Lock
                 return jsonify(item["data"]), HttpStatus.OK
 
-        # Se não há fetch fornecido e deu cache miss, evitamos toda a lógica de resolve_response
+        # ----------------------------------------------------------------------
+        # ETAPA 3: Tratamento para Ausência da Função de Busca (Fetch)
+        # ----------------------------------------------------------------------
+        # Se a requisição resultou em Cache Miss (ou expirou) e nenhuma função 'fetch' foi informada,
+        # é impossível buscar os dados da fonte original. Retorna erro 404 imediatamente.
         if fetch is None:
-            logger.warning(f"AIESEC Cache | MISS: '{baixando}' não encontrado e nenhuma função 'fetch' foi fornecida para atualização.")
-            return jsonify({"error": f"Dados de '{baixando}' não estão em cache."}), HttpStatus.NOT_FOUND
+            logger.warning(
+                f"AIESEC Cache | MISS: '{baixando}' não encontrado e "
+                f"nenhuma função 'fetch' foi fornecida para atualização."
+            )
+            return (
+                jsonify({"error": f"Dados de '{baixando}' não estão em cache."}),
+                HttpStatus.NOT_FOUND,
+            )
 
-        # --- 4. BLOQUEIO ASSÍNCRONO (Não-bloqueante para o Event Loop ativo) ---
-        # Se outra requisição no mesmo loop já estiver atualizando o cache, esta aguarda de forma cooperativa
+        # ----------------------------------------------------------------------
+        # ETAPA 4: Bloqueio Assíncrono e Resolução do Cache Miss (Seção Crítica)
+        # ----------------------------------------------------------------------
+        # Garante que, se 10 requisições simultâneas tentarem acessar o mesmo recurso expirado,
+        # apenas A PRIMEIRA executará o bloco abaixo. As outras 9 aguardarão assincronamente a liberação do Lock.
         async with current_lock:
 
-            # Double check: Verifica se a tarefa que acabou de liberar o lock já atualizou o cache
+            # --- Padrão Double-Checked Locking (Checagem Dupla após o Lock) ---
+            # Quando as outras 9 requisições forem liberadas uma por uma pelo Lock, elas
+            # re-verificam o cache. Como a 1ª requisição já terá atualizado a chave, as
+            # subsequentes receberão CACHE HIT e não farão chamadas repetidas à API!
             if key in self.store and not resync:
                 item = self.store[key]
-                if now - item["timestamp"] < CACHE_TTL:
-                    logger.info(f"AIESEC Cache | HIT (Post-Lock): '{baixando}' resolvido após concorrência.")
+                if now - item["timestamp"] < ttl:
+                    logger.info(
+                        f"AIESEC Cache | HIT (Post-Lock): '{baixando}' "
+                        f"resolvido após concorrência."
+                    )
                     return jsonify(item["data"]), HttpStatus.OK
 
+            # Registro de logs para auditoria no console sobre a origem da sincronização
             if resync:
-                logger.info(f"AIESEC Cache | FORCED RESYNC: Forçando atualização de '{baixando}'...")
+                logger.info(
+                    f"AIESEC Cache | FORCED RESYNC: Forçando atualização de "
+                    f"'{baixando}'..."
+                )
             else:
-                logger.info(f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. Sincronizando com a fonte...")
+                logger.info(
+                    f"AIESEC Cache | MISS: '{baixando}' expirado ou novo. "
+                    f"Sincronizando com a fonte..."
+                )
 
-            # Resolve a busca externa (pode ser síncrona ou assíncrona)
+            # ------------------------------------------------------------------
+            # ETAPA 5: Invocação da Função Externa de Busca
+            # ------------------------------------------------------------------
+            # Utiliza introspecção para verificar se a função 'fetch' é uma corotina (async)
             if inspect.iscoroutinefunction(fetch):
+                # Se for async, utiliza o operador 'await' para resolver a Promise de forma não-bloqueante
                 result = await fetch()
             else:
+                # Se for uma função síncrona tradicional, executa diretamente
                 result = fetch()
 
-            # --- TRATAMENTO DINÂMICO E SEGURO DO RETORNO ---
-            # 1. Caso retorne uma tupla contendo (status, data)
-            if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], int):
+            # ------------------------------------------------------------------
+            # ETAPA 6: Normalização e Tratamento da Resposta Recebida
+            # ------------------------------------------------------------------
+            # Caso 1: O resultado da busca é uma tupla no formato (status_code, payload)
+            if (
+                    isinstance(result, tuple)
+                    and len(result) == 2
+                    and isinstance(result[0], int)
+            ):
                 status, raw_data = result
-                # Se os dados dentro da tupla precisarem ser resolvidos de forma assíncrona
+
+                # Se o payload dentro da tupla for uma corotina pendente, resolve-a via helper
                 if inspect.iscoroutine(raw_data):
                     status, data = await resolve_response(raw_data)
                 else:
                     status = HttpStatus.OK
                     data = raw_data
             else:
-                # 2. Caso retorne apenas dados brutos ou uma Promise que resolve direto no dado
+                # Caso 2: O resultado é um objeto direto (dicionário ou lista) ou uma Promise pura
                 status = HttpStatus.OK
+
                 if inspect.iscoroutine(result):
-                    # Se o resolve_response retornar uma tupla (status, dados), extraímos corretamente
                     resolved = await resolve_response(result)
-                    if isinstance(resolved, tuple) and len(resolved) == 2 and isinstance(resolved[0], int):
+
+                    # Verifica se o resolvedor retornou uma tupla desestruturada
+                    if (
+                            isinstance(resolved, tuple)
+                            and len(resolved) == 2
+                            and isinstance(resolved[0], int)
+                    ):
                         status, data = resolved
                     else:
                         status = HttpStatus.OK
@@ -155,34 +252,62 @@ class CacheManager:
                     status = HttpStatus.OK
                     data = result
 
-            # Filtra apenas os campos permitidos
+            # ------------------------------------------------------------------
+            # ETAPA 7: Filtragem e Sanitização dos Dados (Podio/AIESEC Payload)
+            # ------------------------------------------------------------------
+            # Se os dados recebidos possuem uma estrutura de campos vindos da API do Podio:
             if isinstance(data, dict) and data.get("fields"):
                 new_fields = []
+
+                # Percorre cada campo retornado do banco/API externa
                 for field_data in data["fields"]:
+
+                    # Mantém no resultado apenas os campos cujos IDs estejam na lista branca (FIELDS_PERMITIDOS)
                     if field_data.get("external_id") in FIELDS_PERMITIDOS:
-                        opts = field_data.get("config", {}).get("settings", {}).get("options", [])
+                        # Extrai a lista de opções ativas configuradas no campo
+                        opts = (
+                            field_data.get("config", {})
+                            .get("settings", {})
+                            .get("options", [])
+                        )
+
+                        # Adiciona à nova lista filtrada
                         new_fields.append({
                             "external_id": field_data["external_id"],
-                            "options": [o for o in opts if o.get("status") == "active"]
+                            "options": [
+                                o for o in opts if o.get("status") == "active"
+                            ],
                         })
+
+                # Sobrescreve a variável 'data' apenas com a lista higienizada de campos
                 data = new_fields
 
-            # Grava no dicionário de memória (operação síncrona e atômica)
+            # ------------------------------------------------------------------
+            # ETAPA 8: Armazenamento Atômico em Memória RAM
+            # ------------------------------------------------------------------
+            # Salva o resultado tratado e o tempo de criação no dicionário global de memória
             self.store[key] = {
                 "data": data,
                 "timestamp": now,
             }
 
-        logger.info(f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!")
+        # Emite mensagem de sucesso no log de execução do servidor
+        logger.info(
+            f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!"
+        )
+
+        # Retorna a resposta final em formato JSON junto ao código de status HTTP correspondente
         return jsonify(data), status
 
 
-# ==============================
-# Singleton (Instância Única)
-# ==============================
+# ==============================================================================
+# 5. INSTANCIAÇÃO DO PATTERN SINGLETON E EXPORTAÇÃO
+# ==============================================================================
+
+# Cria uma instância única e global do CacheManager para ser compartilhada em toda a aplicação
 cache = CacheManager()
 
-# ==============================
-# Exportações do Módulo
-# ==============================
-__all__ = ['cache']
+# Declaração estrita dos símbolos expostos ao realizar 'from app.cache import *'
+__all__ = [
+    "cache",  # Instância Singleton exportada do gerenciador de cache
+]

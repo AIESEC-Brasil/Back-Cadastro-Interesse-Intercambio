@@ -1,5 +1,5 @@
 from typing import Any
-from .podio import buscarToken
+from .podio import buscar_token
 from ..http_request import HttpClient
 from app.utils import resolve_response
 
@@ -13,7 +13,7 @@ async def adicionar_lead(chave: str, data: Any, APP_ID: int) -> tuple[dict, int]
     Retorna o corpo da resposta e o 'app_item_id' (ID sequencial amigável).
     """
     headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}",
+        "Authorization": f"Bearer {buscar_token(chave)}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }

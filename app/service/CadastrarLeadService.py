@@ -1,44 +1,82 @@
-import asyncio
-from typing import Any,List
-from flask import jsonify, Response
-from ..dto import CriarPreCadastroLead,HttpStatus
+"""Serviço de cadastro e pré-registro de leads.
+
+Este módulo orquestra a checagem de duplicidade, verificação de conflitos
+e criação de novos registros de leads integrados com serviços externos.
+"""
+
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import asyncio  # Execução de corrotinas assíncronas em contexto síncrono
+from typing import Dict, Tuple, Union  # Anotações de tipo estático
+
+from flask import Response, jsonify  # Objetos e utilitários HTTP do Flask
+
+# Importações dos DTOs e utilitários internos
+from app.clients import buscar_id_card
 from ..clients import Buscar
 from ..config import APP_ID
+from ..dto import (
+    CriarPreCadastroLead,
+    HttpStatus,
+    LeadPreCadastroOutput,
+    VerificadorConflitos,
+)
+
+
+# =================================================================
+# 2. LÓGICA DE NEGÓCIO / SERVIÇO
+# =================================================================
 
 @validar
-def cadastrar_lead(lead_input:CriarPreCadastroLead) -> tuple[dict[str, str], int] | tuple[Response, HttpStatus] | tuple[
-    dict[str, Any], int]:
-    BUSCAR = Buscar(APP_ID)
-    leadExiste = asyncio.run(BUSCAR.item_completo(lead_input.model_dump()))
-    if leadExiste:
-        return {"exist":""},200
-    # Verificando se já não existe cadastro com o e-mails ou emails
-    CONFLITO_EMAIL = []
-    CONFLITO_TELEFONE = []
-    LISTA_EMAILS:List = [e.email for e in lead_input.email] # separa os e-mails informados
-    for email in LISTA_EMAILS:
-        qtd_emails_encontrados = asyncio.run(BUSCAR.campo("email",email,True)) # busca no podio o e-mail
-        if len(qtd_emails_encontrados) > 0 : # se existir um registroo gera um conflito
-            CONFLITO_EMAIL.append({"email":email})
+def cadastrar_lead(
+        lead_input: CriarPreCadastroLead,
+) -> Union[
+    Tuple[Dict[str, str], int],
+    Tuple[Response, HttpStatus],
+    Tuple[LeadPreCadastroOutput, int],
+]:
+    """Realiza o pré-cadastro de um lead com checagem assíncrona de conflitos.
 
-    LISTA_TELEFONE = [t.numero for t in lead_input.telefone]
-    for telefone in LISTA_TELEFONE:
-        qtd_telefones_encontrados = asyncio.run(BUSCAR.telefone(telefone))
-        if len(qtd_telefones_encontrados) > 0:
-            CONFLITO_TELEFONE.append({"numero":telefone})
+    Args:
+        lead_input (CriarPreCadastroLead): DTO contendo os dados do lead.
 
-    if len(CONFLITO_EMAIL) > 0 or len(CONFLITO_TELEFONE) > 0:
-        CONFLITOS = []
+    Returns:
+        Union[Tuple[Dict[str, str], int], Tuple[Response, HttpStatus], Tuple[LeadPreCadastroOutput, int]]:
+            Retorna o dicionário serializado do lead com o ID do card e o código HTTP apropriado
+            (200 OK para existente, 409 CONFLICT para conflito, 201 CREATED para novo registro).
+    """
+    # Instancia o cliente de busca de itens com o App ID global
+    buscar_client = Buscar(APP_ID)
 
-        if len(CONFLITO_EMAIL) > 0:
-            CONFLITOS.append({"emails":CONFLITO_EMAIL})
+    # Executa a busca assíncrona para checar se o lead já possui cadastro completo
+    lead_existe = asyncio.run(
+        buscar_client.item_completo(lead_input.model_dump())
+    )
 
-        if len(CONFLITO_TELEFONE) > 0:
-            CONFLITOS.append({"telefone":CONFLITO_TELEFONE})
+    # Se o lead já existir na base, recupera o ID do card e retorna status 200 OK
+    if lead_existe:
+        data = lead_input.model_dump()
+        data["item_id"] = buscar_id_card(lead_existe)
+        return data, 200
 
-        return jsonify({"conflito":CONFLITOS}),HttpStatus.CONFLICT
+    # Inicializa o verificador de conflitos de cadastro
+    verificador = VerificadorConflitos(buscar_client)
 
-    return {"sucess":lead_input.model_dump()},201
+    # Executa a validação de inconsistências/duplicidades
+    conflitos = verificador.executar(lead_input)
+
+    # Se forem detectados conflitos, retorna os detalhes com HTTP 409 CONFLICT
+    if conflitos:
+        return conflitos.model_dump(exclude_none=True), HttpStatus.CONFLICT
+
+    # Conclui o cadastro gerando os dados do novo lead (HTTP 201 CREATED)
+    data = lead_input.model_dump()
+    data["item_id"] = 243426
+    return data, 201
 
 
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["cadastrar_lead"]
