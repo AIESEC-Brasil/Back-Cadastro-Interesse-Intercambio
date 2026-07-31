@@ -10,7 +10,6 @@ herdar os campos físicos (como 'id', 'nome') para não quebrar a validação.
 from pydantic import (
     BaseModel,       # Classe base do Pydantic para criação de modelos/containers de dados.
     Field,           # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
-    model_validator
 )
 
 from typing import (

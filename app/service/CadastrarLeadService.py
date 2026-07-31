@@ -1,12 +1,12 @@
 import asyncio
 from typing import Any,List
 from flask import jsonify, Response
-from ..dto import LeadPreCadastroInput,HttpStatus
+from ..dto import CriarPreCadastroLead,HttpStatus
 from ..clients import Buscar
 from ..config import APP_ID
 
 @validar
-def cadastrar_lead(lead_input:LeadPreCadastroInput) -> tuple[dict[str, str], int] | tuple[Response, HttpStatus] | tuple[
+def cadastrar_lead(lead_input:CriarPreCadastroLead) -> tuple[dict[str, str], int] | tuple[Response, HttpStatus] | tuple[
     dict[str, Any], int]:
     BUSCAR = Buscar(APP_ID)
     leadExiste = asyncio.run(BUSCAR.item_completo(lead_input.model_dump()))

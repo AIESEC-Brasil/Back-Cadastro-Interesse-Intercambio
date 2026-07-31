@@ -107,7 +107,7 @@ def validar_telefone(telefone: str) -> bool:
     """Valida telefone celular brasileiro (DDD + 9 dígitos) sem o prefixo do país."""
     if telefone == "":
         return False
-    padrao: str = r'^[1-9]{2}9[0-9]\d{8}$'
+    padrao: str = r'^[1-9]{2}9[0-9]{8}$'
     return bool(re.fullmatch(padrao, telefone))
 
 @validar
