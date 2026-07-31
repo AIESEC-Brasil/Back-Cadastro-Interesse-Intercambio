@@ -1,36 +1,33 @@
-"""
-Módulo de Automação de Migrações.
+"""Módulo de Automação de Migrações.
 
 Gerencia a criação de tabelas, controle de versão do esquema e sincronização
 entre os modelos SQLAlchemy e o banco de dados via CLI ou inicialização automática.
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import os  # Interação com o sistema de arquivos (verificar diretórios)
-import sys  # Acesso aos argumentos passados via terminal (CLI)
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
 import logging  # Registro de logs das operações de banco de dados
+import os  # Interação com o sistema de arquivos
+import sys  # Acesso aos argumentos passados via terminal (CLI)
 
 # Componentes do Flask-Migrate para manipulação das versões do banco
-from flask_migrate import init, migrate, upgrade, downgrade, current, show, stamp
+from flask_migrate import downgrade, init, migrate, upgrade
 
-from app.utils import gerar_sql_seed  # Função utilitária para gerar scripts SQL de seed
+from app.utils import gerar_sql_seed  # Utilitário para gerar scripts SQL de seed
 
-# ==============================
-# Orquestrador de Migração
-# ==============================
+
+# =================================================================
+# 2. ORQUESTRADOR DE MIGRAÇÃO
+# =================================================================
 
 def migration() -> None:
-    """
-    Gerencia o estado do esquema do banco de dados.
+    """Gerencia o estado do esquema do banco de dados.
 
     A função realiza três tarefas principais:
     1. Setup Automático: Cria o ambiente de migrações caso seja a primeira execução.
     2. Interface CLI: Escuta comandos 'migrate', 'upgrade' ou 'downgrade' vindos do terminal.
     3. Versionamento: Garante que o banco esteja na última revisão disponível.
-
-
 
     Returns:
         None
@@ -39,10 +36,10 @@ def migration() -> None:
     args = sys.argv
 
     # 2. Localização lógica do projeto
-    # Necessário para garantir que a pasta 'migrations' fique na raiz, independente de onde o script é chamado
+    # Garante que a pasta 'migrations' fique na raiz, independente de onde o script é chamado
     diretorio_atual = os.path.dirname(os.path.abspath(__file__))
     raiz_projeto = os.path.abspath(os.path.join(diretorio_atual, "..", ".."))
-    migrations_dir = os.path.join(raiz_projeto, 'migrations')
+    migrations_dir = os.path.join(raiz_projeto, "migrations")
 
     # 3. Instanciando o Logger para monitoramento
     logger = logging.getLogger(__name__)
@@ -50,7 +47,9 @@ def migration() -> None:
     # ---------- 1. Inicialização Automática (First Run) ----------
     # Se a pasta 'migrations' não existe, o sistema prepara o banco do zero
     if not os.path.exists(migrations_dir):
-        logger.info(f"Diretório migrations não detectado. Iniciando setup em: {migrations_dir}")
+        logger.info(
+            f"Diretório migrations não detectado. Iniciando setup em: {migrations_dir}"
+        )
         try:
             # Inicializa o repositório do Alembic
             init(directory=migrations_dir)
@@ -93,23 +92,13 @@ def migration() -> None:
     elif "downgrade" in args:
         logger.info("Comando detectado: DOWNGRADE (Revertendo última versão...)")
         try:
-            # sql=True pode ser usado para gerar o script SQL em vez de executar
             downgrade(directory=migrations_dir)
             logger.info("Downgrade concluído com sucesso!")
         except Exception as e:
             logger.error(f"Erro ao reverter migração: {e}")
 
-    # ---------- 3. Debug (Opcional) ----------
-    # Útil para conferir em qual versão (Hash) o banco se encontra no momento
-    """
-    try:
-        logger.debug(f"Revisão atual do banco: {current(directory=migrations_dir)}")
-    except Exception as e:
-        logger.error(f"Erro ao ler versão atual: {e}")
-    """
 
-
-# ==============================
-# Exportações
-# ==============================
-__all__ = ["migration"]
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
+__all__ = ["migration","upgrade"]

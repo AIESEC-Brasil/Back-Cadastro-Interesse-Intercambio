@@ -1,56 +1,66 @@
+"""Helpers de validação específicos da camada de apresentação/regras de negócio.
+
+Contém utilitários para verificação de limites de idade, formatos e regras
+corporativas aplicadas ao recrutamento e elegibilidade de candidatos.
 """
-Helpers de validação específicos da camada de apresentação/regras de negócio.
-"""
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import re                           # Biblioteca de Expressões Regulares para validação de padrões
-from ..globals import List, date, datetime # Tipagem e objetos de manipulação de data/tempo
-
-# ==============================
-# Validações de Formato e Regras
-# ==============================
-def tem_mais_de_31_anos(data_nascimento: datetime | str) -> bool:
-    """
-    Verifica se o candidato atende ao critério de idade (limite: 31 anos).
-
-    Esta é uma regra crítica para programas de intercâmbio ou voluntariado
-    jovem que possuem restrição de faixa etária.
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import re  # Biblioteca de Expressões Regulares para validação de padrões
+from datetime import date, datetime  # Manipulação de datas e horários
+from typing import Union  # Tipagem estática para suporte a múltiplos tipos
 
 
+# =================================================================
+# 2. VALIDAÇÕES DE FORMATO E REGRAS DE NEGÓCIO
+# =================================================================
+
+def tem_mais_de_31_anos(data_nascimento: Union[datetime, date, str]) -> bool:
+    """Verifica se o candidato excede o limite de idade de 31 anos.
+
+    Regra de negócio crítica para elegibilidade em programas com restrição de faixa etária.
 
     Args:
-        data_nascimento (datetime | str): Objeto de data ou string formatada.
+        data_nascimento (Union[datetime, date, str]): Objeto de data, data-hora
+            ou string no formato ISO/banco ("%Y-%m-%d %H:%M:%S" ou "%Y-%m-%d").
 
     Returns:
-        bool: True se a pessoa tiver 31 anos ou menos. False se tiver 32 ou mais.
+        bool: True se a pessoa tiver mais de 30/31 anos completos. False caso contrário.
     """
-    # 1. Normalização da entrada para o tipo 'date'
+    # 1. Normalização do tipo de entrada para objeto 'date'
     if isinstance(data_nascimento, datetime):
         nascimento = data_nascimento.date()
     elif isinstance(data_nascimento, str):
-        # Converte a string considerando o formato padrão de timestamp do banco/API
-        nascimento = datetime.strptime(data_nascimento, "%Y-%m-%d %H:%M:%S").date()
+        try:
+            # Tenta converter string com carimbo de data e hora (Timestamp)
+            nascimento = datetime.strptime(
+                data_nascimento, "%Y-%m-%d %H:%M:%S"
+            ).date()
+        except ValueError:
+            # Fallback para string contendo apenas a data
+            nascimento = datetime.strptime(data_nascimento, "%Y-%m-%d").date()
     else:
-        nascimento = data_nascimento  # Assume que o objeto já é do tipo 'date'
+        # Assume que o objeto informado já seja do tipo 'date'
+        nascimento = data_nascimento
 
+    # Obtém a data atual do sistema
     hoje = date.today()
 
-    # Cálculo base pela diferença de anos
+    # Cálculo base da diferença de anos
     idade = hoje.year - nascimento.year
 
-    # Ajuste fino: Se o mês/dia atual for menor que o de nascimento,
-    # significa que a pessoa ainda não fez aniversário este ano.
+    # Ajuste: subtrai 1 ano se o aniversário do ano corrente ainda não ocorreu
     if (hoje.month, hoje.day) < (nascimento.month, nascimento.day):
         idade -= 1
 
-    # Retorna True se estiver dentro do limite (<= 31)
-    return not (idade >= 31)
+    # Retorna True se a idade for maior que 30 (ou seja, 31 anos ou mais completos)
+    return idade >= 31
 
-# ==============================
-# Exportações
-# ==============================
+
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = [
     "tem_mais_de_31_anos",
 ]

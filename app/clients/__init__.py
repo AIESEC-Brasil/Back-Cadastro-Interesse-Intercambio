@@ -1,31 +1,28 @@
-"""
-Pacote de Integrações Externas (Clients)
-----------------------------------------
+"""Pacote de Integrações Externas (Clients).
 
-Este módulo consolida os clientes de comunicação para APIs de terceiros.
-Utiliza a técnica de agregação para simplificar as importações em outras camadas.
+Consolida e expõe os clientes de comunicação para APIs de terceiros (Podio,
+HTTP Base, etc.). Utiliza a técnica de agregação centralizada para simplificar
+as importações na camada de serviços da aplicação.
 """
 
 # =================================================================
-# Importações de Submódulos (Clientes Especializados)
+# 1. IMPORTAÇÕES DOS SUBMÓDULOS DE INTEGRAÇÃO
 # =================================================================
 
-# Importa o cliente HTTP base (HttpClient)
-from .http_request import *
+# Importa os módulos para acesso direto às suas variáveis de controle (__all__)
+from . import http_request, podio
 
-# Importa o cliente de integração com o CRM Podio (Auth, Items, etc.)
+# Importação explícita das classes públicas expostas pelos submódulos
+from .http_request import HttpClient
 from .podio import *
 
+
 # =================================================================
-# Exportação Consolidada
+# 2. EXPORTAÇÃO CONSOLIDADA VIA __all__
 # =================================================================
 
-
-
-# O __all__ aqui é construído dinamicamente concatenando as listas
-# de exportação de cada submódulo. Isso garante que apenas as classes
-# públicas (como HttpClient, GoogleScriptClient, PodioClient) sejam expostas.
-__all__ = (
-        http_request.__all__ +
-        podio.__all__
+# Concatena dinamicamente as interfaces públicas de cada cliente especializado,
+# garantindo que apenas as classes autorizadas sejam expostas.
+__all__ = list(
+    http_request.__all__ + podio.__all__
 )

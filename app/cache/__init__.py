@@ -1,29 +1,24 @@
-"""
-cache
------
+"""Pacote de Cache em Memória - AIESEC Security.
 
-Pacote de cache em memória com timestamps no horário de Recife.
-Inclui a classe CacheManager e a instância global 'cache'.
+Gerenciador de armazenamento volátil em RAM com timestamps ajustados ao fuso
+horário local. Inclui a classe CacheManager e expõe a instância global 'cache'.
 """
 
 # =================================================================
-# Importações de Infraestrutura
+# 1. IMPORTAÇÕES DOS COMPONENTES DE CACHE
 # =================================================================
 
-# Importa a instância singleton 'cache' já inicializada do módulo base.
-# Isso garante que todas as partes da aplicação compartilhem o mesmo dicionário de memória.
+# Importa a instância singleton compartilhada do módulo de cache
 from .cache import cache
 
+
 # =================================================================
-# Exportação Consolidada
+# 2. EXPORTAÇÃO CONSOLIDADA E CONTRATO PÚBLICO
 # =================================================================
 
-#
-
-# O __all__ limita a exposição apenas à instância 'cache'.
-# Dessa forma, evita-se que a classe CacheManager seja instanciada
-# acidentalmente em outros lugares, o que criaria caches isolados e
-# quebraria a lógica de persistência temporária global.
+# O __all__ expõe o singleton 'cache' para uso direto em rotas e serviços.
+# Isso impede a instanciação acidental de múltiplos objetos CacheManager,
+# o que quebraria a persistência de dados voláteis na memória RAM.
 __all__ = [
-    "cache"
+    "cache",  # Instância Singleton global do gerenciador de cache
 ]

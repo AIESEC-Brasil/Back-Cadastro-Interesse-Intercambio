@@ -1,97 +1,107 @@
-"""
-Lead B2C (OGX) Routes
----------------------
+"""Módulo de Rotas da Divisão de Mercado.
 
-Define os endpoints para captação de leads interessados em intercâmbios (B2C).
-Gerencia metadados estruturais do Podio e o fluxo de inscrição para OGX.
+Define os endpoints para consulta de escritórios locais (CLs) e universidades
+atrelados à divisão de mercado da organização, com suporte a cache.
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import logging  # Sistema de log para rastreamento de performance e erros
-from asgiref.sync import async_to_sync
-from ..router import Router  # Classe base de roteamento integrada ao OpenAPI3
-from ..cache import cache  # Gerenciador de cache para otimizar chamadas de API
-from ..dto import DivisaoMercadoUniversidades, DivisaoMercadoCl  # DTOs específicos para cada rota
-from ..repository import buscar_todas_universidades, buscar_todos_cl
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+import logging  # Sistema de log para rastreamento de operações e erros
+
+from asgiref.sync import async_to_sync  # Adaptador para execução síncrona de corotinas
+
+from ..cache import cache  # Gerenciador de cache para otimizar chamadas
+from ..dto import (  # DTOs de validação e estruturação OpenAPI3/Pydantic
+    DivisaoMercadoCl,
+    DivisaoMercadoUniversidades,
+)
+from ..repository import (  # Métodos de consulta ao banco de dados/repositório
+    buscar_todas_universidades,
+    buscar_todos_cl,
+)
+from ..router import Router  # Classe estendida de roteamento OpenAPI3
 
 # =================================================================
-# CONFIGURAÇÃO DO ROTEADOR OGX
+# 2. CONFIGURAÇÃO DO ROTEADOR E LOGGER
 # =================================================================
 
-# Instancia o roteador especializado.
-divisao_mercado = Router(name="divisao_mercadao", url_prefix="/divisao-mercado")
+# Instancia o roteador especializado para as rotas de Divisão de Mercado
+divisao_mercado = Router(name="divisao_mercado", url_prefix="/divisao-mercado")
 
-# =================================================================
-# CONFIGURAÇÃO DE LOGGING
-# =================================================================
-
-# Instancia o logger para este módulo, permitindo rastrear eventos e erros.
+# Instancia o logger específico deste módulo
 logger = logging.getLogger(__name__)
 
 
 # =================================================================
-# ENDPOINTS (ROTAS)
+# 3. ENDPOINTS E MANIPULADORES DE REQUISIÇÃO
 # =================================================================
 
 @divisao_mercado.get("/escritorios", responses={200: DivisaoMercadoCl})
 def buscar_escritorios() -> DivisaoMercadoCl:
-    """
-    Retorna a estrutura de campos do App de Leads B2C do Podio.
+    """Retorna os dados da divisão de mercado por escritórios locais (CLs).
 
     Lógica de Cache:
     - Chave: 'divisao-mercado-escritorios'
-    - Autenticação: Utiliza o token específico de OGX ('ogx-token-podio')
-    - Expiração: Segue o CACHE_TTL global.
+    - Expiração: Segue o tempo de vida (TTL) global da aplicação.
+
+    Returns:
+        DivisaoMercadoCl: Estrutura contendo a lista de escritórios locais.
     """
-    # Executa a corotina de forma síncrona e segura, aproveitando o loop do Flask
-    # sem disparar o erro do validador do Pydantic / OpenAPI3
+    # Executa a corotina do cache de forma síncrona dentro do loop do Flask
     response, status = async_to_sync(cache.get_or_set)(
         key="divisao-mercado-escritorios",
         fetch=lambda: buscar_todos_cl(),
-        baixando="Metadados da divisão de mercado por escritorio"
+        baixando="Metadados da divisão de mercado por escritorio",
     )
 
     response.headers["Content-Type"] = "application/json"
 
-    # Processa a lista de dados brutos para gerar a lista de objetos DivisaoMercado
-    dados_processados = DivisaoMercadoCl.processar_lista(cache.store["divisao-mercado-escritorios"]["data"])
+    # Processa a lista de dados brutos para gerar a lista de objetos formatados
+    dados_processados = DivisaoMercadoCl.processar_lista(
+        cache.store["divisao-mercado-escritorios"]["data"]
+    )
 
-    # Instancia o DTO passando a lista processada no atributo 'cl' e exporta como dicionário
+    # Instancia o DTO com os dados processados e exporta como dicionário/modelo
     return DivisaoMercadoCl(cl=dados_processados).model_dump()
 
 
-@divisao_mercado.get("/universidades", responses={200: DivisaoMercadoUniversidades})
+@divisao_mercado.get(
+    "/universidades", responses={200: DivisaoMercadoUniversidades}
+)
 def buscar_universidades() -> DivisaoMercadoUniversidades:
-    """
-    Retorna a estrutura de campos do App de Leads B2C do Podio.
+    """Retorna os dados da divisão de mercado agrupados por universidades.
 
     Lógica de Cache:
     - Chave: 'divisao-mercado-universidades'
-    - Autenticação: Utiliza o token específico de OGX ('ogx-token-podio')
-    - Expiração: Segue o CACHE_TTL global.
+    - Expiração: Segue o tempo de vida (TTL) global da aplicação.
+
+    Returns:
+        DivisaoMercadoUniversidades: DTO contendo a lista de universidades mapeadas.
     """
-    # Executa a corotina de forma síncrona e segura, aproveitando o loop do Flask
-    # sem disparar o erro do validador do Pydantic / OpenAPI3
+    # Executa a corotina do cache de forma síncrona dentro do loop do Flask
     response, status = async_to_sync(cache.get_or_set)(
         key="divisao-mercado-universidades",
         fetch=lambda: buscar_todas_universidades(),
-        baixando="Metadados da divisão de mercado por Universidades"
+        baixando="Metadados da divisão de mercado por Universidades",
     )
 
     response.headers["Content-Type"] = "application/json"
 
-    # Processa a lista de dados brutos para gerar a lista de objetos DivisaoMercado
-    dados_processados = DivisaoMercadoUniversidades.processar_lista(cache.store["divisao-mercado-universidades"]["data"])
+    # Processa a lista de dados brutos para gerar a lista de universidades
+    dados_processados = DivisaoMercadoUniversidades.processar_lista(
+        cache.store["divisao-mercado-universidades"]["data"]
+    )
 
-    # Instancia o DTO passando a lista processada no atributo 'universidades' e exporta como dicionário
-    return DivisaoMercadoUniversidades(universidades=dados_processados).model_dump()
+    # Instancia o DTO passando a lista processada e exporta como dicionário
+    return DivisaoMercadoUniversidades(
+        universidades=dados_processados
+    ).model_dump()
 
 
-# ==============================
-# Exportações do Módulo
-# ==============================
+# =================================================================
+# 4. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = [
-    "divisao_mercado"
+    "divisao_mercado",  # Roteador consolidado das rotas da divisão de mercado
 ]

@@ -1,146 +1,148 @@
-"""
-Utilitários de data e hora com suporte a fuso horário do Brasil (America/Sao_Paulo).
+"""Utilitários de data e hora com suporte a fuso horário do Brasil (America/Sao_Paulo).
 
 Este módulo centraliza funções para obter o horário atual com e sem timezone,
 formatar datas em padrões brasileiros, calcular expiração e converter timestamps
-para o formato esperado pelo sistema de logging.
+para o formato esperado pelo sistema de logging nativo do Python.
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import pytz  # Biblioteca para manipulação de definições de fuso horário (IANA database)
-import locale  # Permite a localização de strings (como nomes de meses em português)
-import time  # Fornece o tipo struct_time para o logging
-from datetime import timedelta  # Utilizado para cálculos de aritmética de datas
-from zoneinfo import ZoneInfo
-from datetime import datetime  # Instância global de datetime para consistência no projeto
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
+from datetime import datetime, timedelta  # Aritmética e manipulação de objetos datetime
+import locale  # Configuração regional para formatação de meses em português
+import time  # Estruturas de tempo de baixo nível (struct_time) para logging
+from zoneinfo import ZoneInfo  # Suporte nativo do Python a fusos horários IANA
 
+import pytz  # Biblioteca de fusos horários IANA estendida
+
+# Tenta definir a localização temporal para o idioma português do Brasil
 try:
-    locale.setlocale(locale.LC_TIME, 'pt_BR.utf-8')
+    locale.setlocale(locale.LC_TIME, "pt_BR.utf-8")
 except Exception:
     try:
-        locale.setlocale(locale.LC_TIME, 'pt_BR')
+        locale.setlocale(locale.LC_TIME, "pt_BR")
     except Exception:
         pass
 
 
-# ==============================
-# Funções de Tempo Atual
-# ==============================
+# =================================================================
+# 2. FUNÇÕES DE TEMPO ATUAL
+# =================================================================
+
 @validar
 def agora_timestamp(cidade_fuso: str = "America/Sao_Paulo") -> float:
-    """
-    Retorna o timestamp atual (Unix Epoch) no fuso informado.
+    """Retorna o timestamp Unix ajustado para o fuso local (-3 horas em relação a UTC).
 
     Args:
-        cidade_fuso (str): Identificador do fuso horário IANA.
+        cidade_fuso (str): Identificador do fuso horário IANA (ex: 'America/Sao_Paulo').
 
     Returns:
-        float: Segundos decorridos desde 01/01/1970 (Epoch).
+        float: Valor numérico em segundos ajustado para o horário local.
     """
-    SEGUNDOS_HORAS:int = 3600 # constante refletindo 1 hora em segundos
+    SEGUNDOS_POR_HORA: int = 3600
+    OFFSET_HORAS: int = 3  # Subtração das 3 horas em relação a Greenwich
+
     fuso = pytz.timezone(str(cidade_fuso))
-    time_zone:float = float(ZoneInfo(cidade_fuso).tzname(datetime.now(fuso))) * SEGUNDOS_HORAS
-    return datetime.now(fuso).timestamp() + time_zone
+    dt_atual = datetime.now(fuso)
+
+    # Aplica o desconto de 3 horas (10.800 segundos) sobre o UTC
+    return dt_atual.timestamp() - (OFFSET_HORAS * SEGUNDOS_POR_HORA)
+
 
 @validar
 def agora(cidade_fuso: str = "America/Sao_Paulo") -> datetime:
-    """
-    Retorna o objeto datetime atual com informação de fuso horário (aware).
+    """Retorna o objeto datetime atual com informação de fuso horário (aware).
 
     Args:
         cidade_fuso (str): Identificador do fuso horário IANA.
 
     Returns:
-        datetime: Objeto datetime localizado no fuso especificado.
+        datetime: Objeto datetime ciente do fuso especificado.
     """
     fuso = pytz.timezone(str(cidade_fuso))
     return datetime.now(fuso)
 
+
 @validar
 def agora_sem_timezone(cidade_fuso: str = "America/Sao_Paulo") -> datetime:
-    """
-    Retorna o datetime atual no fuso informado, mas remove o objeto tzinfo (naive).
-    Ideal para salvar em bancos de dados que não gerenciam timezones nativamente.
+    """Retorna o datetime atual no fuso informado, mas sem informação de tz (naive).
+
+    Ideal para salvar em bancos de dados que armazenam datas sem timezone nativo.
 
     Args:
         cidade_fuso (str): Identificador do fuso horário IANA.
 
     Returns:
-        datetime: Objeto datetime sem informação de fuso (naive).
+        datetime: Objeto datetime ingênuo (sem tzinfo).
     """
     fuso = pytz.timezone(str(cidade_fuso))
     return datetime.now(fuso).replace(tzinfo=None)
 
-# ==============================
-# Cálculos e Formatações
-# ==============================
+
+# =================================================================
+# 3. CÁLCULOS E FORMATAÇÕES DE DATA/HORA
+# =================================================================
 
 @validar
 def agora_format_brasil(cidade_fuso: str = "America/Sao_Paulo") -> str:
-    """
-    Retorna string formatada no padrão brasileiro curto.
+    """Retorna a data e hora formatadas no padrão brasileiro numérico.
 
     Args:
         cidade_fuso (str): Identificador do fuso horário IANA.
 
     Returns:
-        str: Data e hora no formato 'DD/MM/AAAA HH:MM:SS'.
+        str: Data formatada como 'DD/MM/AAAA HH:MM:SS'.
     """
     return agora(cidade_fuso).strftime("%d/%m/%Y %H:%M:%S")
 
+
 @validar
 def agora_format_brasil_mes(cidade_fuso: str = "America/Sao_Paulo") -> str:
-    """
-    Retorna data formatada com mês abreviado em português.
+    """Retorna a data formatada com a abreviação do mês em português.
 
     Args:
         cidade_fuso (str): Identificador do fuso horário IANA.
 
     Returns:
-        str: Data e hora formatada (ex: '14/Fev/2026 21:45:00').
+        str: Data formatada (ex: '14/Fev/2026 21:45:00').
     """
-    return agora(cidade_fuso).strftime(f"%d/%b/%Y %H:%M:%S").title()
+    return agora(cidade_fuso).strftime("%d/%b/%Y %H:%M:%S").title()
 
-# ==============================
-# Integração com Logging
-# ==============================
+
+# =================================================================
+# 4. INTEGRAÇÃO COM SISTEMA DE LOGGING
+# =================================================================
+
 @validar
 def logging_time_brasil(*args) -> time.struct_time:
-    """
-    Hook de conversão de tempo para o Formatador do Logging do Python.
-
-
+    """Hook de conversão de tempo para o Formatador do módulo de Logging do Python.
 
     Args:
-        *args: Argumentos variáveis passados pelo logging (o último é o timestamp).
+        *args: Argumentos variados passados pelo logging (o último elemento é o timestamp).
 
     Returns:
-        time.struct_time: Objeto de tempo compatível com a biblioteca padrão de logging.
+        time.struct_time: Estrutura de tempo compatível com a biblioteca nativa de logging.
     """
-    # O logging costuma passar o timestamp como último argumento da tupla
-    seconds = args[-1]
+    seconds = args[-1] if args else None
 
     cidade_fuso = "America/Sao_Paulo"
     tz = pytz.timezone(cidade_fuso)
 
-    # Fallback caso o timestamp recebido seja inválido
     if not isinstance(seconds, (int, float)):
         seconds = datetime.now().timestamp()
 
-    # Localiza o timestamp para o fuso de Brasília antes de converter para struct_time
     dt = datetime.fromtimestamp(seconds, tz)
     return dt.timetuple()
 
-# ==============================
-# Exportações
-# ==============================
+
+# =================================================================
+# 5. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = [
     "agora_timestamp",
     "agora",
     "agora_format_brasil",
     "logging_time_brasil",
     "agora_format_brasil_mes",
-    "agora_sem_timezone"
+    "agora_sem_timezone",
 ]

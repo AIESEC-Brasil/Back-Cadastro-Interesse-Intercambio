@@ -1,49 +1,88 @@
-# Módulos nativos e extensões do ecossistema Flask para manipulação de requisições e respostas JSON
-from flask import request, jsonify
+"""Módulo de Rotas e Paginação de Universidades - AIESEC Gateway.
 
-# Conversor assíncrono para executar funções assíncronas de forma síncrona no ecossistema Flask
+Fornece endpoints GET e POST para consulta, filtragem, ordenação dinamicamente
+paginada de instituições de ensino superior (Universidades) integradas aos
+programas Voluntário Global e Talento Global, com suporte a cache transparente.
+"""
+
+# ==============================================================================
+# 1. IMPORTAÇÕES DA BIBLIOTECA PADRÃO E ECOSSISTEMA FLASK
+# ==============================================================================
+
+# Conversor assíncrono para executar métodos async de forma síncrona no Flask
 from asgiref.sync import async_to_sync
 
-# Classe customizada do projeto para gerenciamento e agrupamento de rotas (Blueprint/Router)
-from app.router import Router
+# Funções do Flask para captura do contexto da requisição e envio de JSON
+from flask import jsonify, request
 
-# Modelos do SQLAlchemy que representam as tabelas 'DivisaoCL' e 'Universidades' no Banco de Dados
-from app.model import Universidades
+# ==============================================================================
+# 2. IMPORTAÇÕES INTERNAS DO PROJETO
+# ==============================================================================
 
-# Classe ou Enum que padroniza os códigos de status HTTP do projeto (Ex: HttpStatus.OK = 200)
-from app.dto import HttpStatus, ListagemEscritoriosRespostaDTOUniversidades, DivisaoMercadoUniversidades
-
-# Instância global do sistema de cache assíncrono do projeto
+# Gerenciador global de cache em memória/RAM
 from app.cache import cache
 
-# Inicialização do módulo de rotas para escritórios com prefixo raiz limpo
+# DTOs para validação e serialização das respostas HTTP
+from app.dto import (
+    DivisaoMercadoUniversidades,
+    HttpStatus,
+    ListagemEscritoriosRespostaDTOUniversidades,
+)
+
+# Modelo da tabela 'Universidades' no SQLAlchemy
+from app.model import Universidades
+
+# Classe de gerenciamento e agrupamento de rotas
+from app.router import Router
+
+# ==============================================================================
+# 3. INICIALIZAÇÃO DO ROTEADOR
+# ==============================================================================
+
+# Inicializa o roteador exclusivo para os endpoints de universidades
 universidades = Router(name="universidades", url_prefix="")
 
 
-def _processar_listagem_universidades(filtros):
-    """
-    Mecanismo centralizador de busca, filtragem e paginação de escritórios.
+# ==============================================================================
+# 4. FUNÇÕES DE SUPORTE E REGRA DE NEGÓCIO
+# ==============================================================================
+
+def _processar_listagem_universidades(filtros: dict):
+    """Mecanismo centralizador de busca, filtragem e paginação de universidades.
+
+    Args:
+        filtros (dict): Dicionário contendo os filtros de busca (nome, busca,
+          sort_by, order).
+
+    Returns:
+        Tuple[HttpStatus, dict]: Tupla contendo o status HTTP e a estrutura
+        paginada dos dados recuperados do banco.
     """
     # -------------------------------------------------------------------------
-    # 1. VALIDAÇÃO E CONFIGURAÇÃO DA PAGINAÇÃO (Query Params)
+    # 4.1 Validação dos Parâmetros de Paginação (Query Params)
     # -------------------------------------------------------------------------
     try:
-        page = request.args.get('page', default=1, type=int)
-        limit = request.args.get('limit', default=20, type=int)
+        page = request.args.get("page", default=1, type=int)
+        limit = request.args.get("limit", default=20, type=int)
     except ValueError:
-        return jsonify({"erro": "Parâmetros 'page' e 'limit' devem ser inteiros."}), HttpStatus.BAD_REQUEST
+        return (
+            jsonify({"erro": "Parâmetros 'page' e 'limit' devem ser inteiros."}),
+            HttpStatus.BAD_REQUEST,
+        )
 
+    # Aplica limites de segurança na paginação
     if limit > 100:
         limit = 100
     if limit < 1:
         limit = 20
 
+    # Inicia a query SQLAlchemy
     query = Universidades.query
 
     # -------------------------------------------------------------------------
-    # 2. APLICAÇÃO DOS FILTROS DE BUSCA
+    # 4.2 Aplicação dos Filtros de Busca
     # -------------------------------------------------------------------------
-    nome = filtros.get('nome')
+    nome = filtros.get("nome")
     busca = filtros.get("busca")
 
     if nome:
@@ -53,44 +92,46 @@ def _processar_listagem_universidades(filtros):
         query = query.filter(Universidades.nome.ilike(f"%{busca}%"))
 
     # -------------------------------------------------------------------------
-    # 3. TRATAMENTO DA ORDENAÇÃO DINÂMICA
+    # 4.3 Tratamento da Ordenação Dinâmica
     # -------------------------------------------------------------------------
-    sort_by = filtros.get('sort_by', 'id')
-    order = filtros.get('order', 'asc')
+    sort_by = filtros.get("sort_by", "id")
+    order = filtros.get("order", "asc")
 
     sort_columns = {
-        'id': Universidades.id,
-        'nome': Universidades.nome,
+        "id": Universidades.id,
+        "nome": Universidades.nome,
         "Voluntario Global": Universidades.gv,
         "Talento Global": Universidades.gt,
     }
 
     coluna_ordenacao = sort_columns.get(sort_by, Universidades.id)
 
-    if order.lower() == 'desc':
+    if order.lower() == "desc":
         query = query.order_by(coluna_ordenacao.desc())
     else:
         query = query.order_by(coluna_ordenacao.asc())
 
     # -------------------------------------------------------------------------
-    # 4. EXECUÇÃO DA PAGINAÇÃO NO BANCO DE DADOS
+    # 4.4 Execução da Paginação no Banco de Dados
     # -------------------------------------------------------------------------
     paginated_data = query.paginate(page=page, per_page=limit, error_out=False)
 
     # -------------------------------------------------------------------------
-    # 5. CONSTRUÇÃO DO PAYLOAD ENXUTO (Mapeamento DTO)
+    # 4.5 Construção do Payload DTO Enxuto
     # -------------------------------------------------------------------------
     universidades_lista = []
-    for universidades in paginated_data.items:
-        universidades_lista.append({
-            "id": universidades.id,
-            "nome": universidades.nome,
-            "Voluntario Global": universidades.gv,
-            "Talento Global": universidades.gt,
-        })
+    for univ in paginated_data.items:
+        universidades_lista.append(
+            {
+                "id": univ.id,
+                "nome": univ.nome,
+                "Voluntario Global": univ.gv,
+                "Talento Global": univ.gt,
+            }
+        )
 
     # -------------------------------------------------------------------------
-    # 6. RETORNO DE ACORDO COM O REQUISITADO (Status primeiro, depois os Dados)
+    # 4.6 Retorno Padrão (Status HTTP + Dicionário de Dados)
     # -------------------------------------------------------------------------
     return HttpStatus.OK, {
         "data": universidades_lista,
@@ -100,79 +141,108 @@ def _processar_listagem_universidades(filtros):
             "total_items": paginated_data.total,
             "total_pages": paginated_data.pages,
             "has_next": paginated_data.has_next,
-            "has_prev": paginated_data.has_prev
-        }
+            "has_prev": paginated_data.has_prev,
+        },
     }
 
 
+# ==============================================================================
+# 5. ENDPOINTS DA API (POST & GET)
+# ==============================================================================
+
 @universidades.post("/universidades")
 def lista_universidades_post():
-    """
-    Buscador de escritórios e alocações de mercado (POST).
+    """Buscador e filtro de universidades via requisição POST.
+
+    Permite o envio de filtros avançados no corpo do JSON da requisição,
+    utilizando cache dinâmico com base na rota e payload.
     """
     filtros = request.get_json(silent=True) or {}
     chave_dinamica = f"universidades_post:{request.full_path}:{str(filtros)}"
 
-    response_data,status_code = async_to_sync(cache.get_or_set)(
+    # Busca no cache ou executa o processamento
+    response_data, status_code = async_to_sync(cache.get_or_set)(
         key=chave_dinamica,
         fetch=lambda: _processar_listagem_universidades(filtros),
-        baixando="Divisão de mercado de Instituição por mercado da AIESEC"
+        baixando="Divisão de mercado de Instituição por mercado da AIESEC",
     )
 
-    # 1. Recupera os dados de dentro da tupla armazenada no cache (na posição index 1)
+    # 1. Recupera os dados do armazenamento de cache
     dados_cache = cache.store[chave_dinamica]["data"]
     lista_original = dados_cache["data"]
     paginacao = dados_cache["pagination"]
 
-    # 2. Instancia o DTO passando a lista original para o argumento 'cl'
-    lista_tratada = DivisaoMercadoUniversidades(universidades=lista_original).model_dump(by_alias=True)
+    # 2. Instancia o DTO convertendo os dados originais
+    lista_tratada = DivisaoMercadoUniversidades(
+        universidades=lista_original
+    ).model_dump(by_alias=True)
 
-    # 3. Monta o objeto no formato esperado pela raiz do DTO final
-    response = {
-        "data": lista_tratada,
-        "pagination": paginacao
-    }
+    # 3. Estrutura a resposta
+    response = {"data": lista_tratada, "pagination": paginacao}
 
-    # 4. Valida no DTO principal, faz o dump respeitando os aliases e retorna com jsonify
-    return jsonify(ListagemEscritoriosRespostaDTOUniversidades(**response).model_dump(by_alias=True)), HttpStatus.OK
+    # 4. Valida e retorna o JSON usando o DTO principal
+    return (
+        jsonify(
+            ListagemEscritoriosRespostaDTOUniversidades(**response).model_dump(
+                by_alias=True
+            )
+        ),
+        HttpStatus.OK,
+    )
 
 
-@universidades.get("/universidades", responses={200: ListagemEscritoriosRespostaDTOUniversidades})
+@universidades.get(
+    "/universidades",
+    responses={200: ListagemEscritoriosRespostaDTOUniversidades},
+)
 def lista_universidades_get():
-    """
-    Buscador de escritórios e alocações de mercado (GET).
+    """Buscador e filtro de universidades via consulta GET (Query Params).
+
+    Permite consulta através dos parâmetros de URL com cache dinâmico.
     """
     filtros = {
-        'nome': request.args.get('nome'),
-        'busca': request.args.get('busca'),
-        'sort_by': request.args.get('sort_by', 'id'),
-        'order': request.args.get('order', 'asc')
+        "nome": request.args.get("nome"),
+        "busca": request.args.get("busca"),
+        "sort_by": request.args.get("sort_by", "id"),
+        "order": request.args.get("order", "asc"),
     }
 
     chave_dinamica = f"universidades_get:{request.full_path}"
 
-    response_data,status_code = async_to_sync(cache.get_or_set)(
+    # Busca no cache ou executa o processamento
+    response_data, status_code = async_to_sync(cache.get_or_set)(
         key=chave_dinamica,
         fetch=lambda: _processar_listagem_universidades(filtros),
-        baixando="Divisão de mercado de Instituição por mercado da AIESEC"
+        baixando="Divisão de mercado de Instituição por mercado da AIESEC",
     )
 
-    # 1. Recupera os dados de dentro da tupla armazenada no cache (na posição index 1)
+    # 1. Recupera os dados do cache
     dados_cache = cache.store[chave_dinamica]["data"]
     lista_original = dados_cache["data"]
     paginacao = dados_cache["pagination"]
 
-    # 2. Instancia o DTO passando a lista original para o argumento 'cl'
-    lista_tratada = DivisaoMercadoUniversidades(universidades=lista_original).model_dump(by_alias=True)
+    # 2. Transforma a lista através do DTO
+    lista_tratada = DivisaoMercadoUniversidades(
+        universidades=lista_original
+    ).model_dump(by_alias=True)
 
-    # 3. Monta o objeto no formato esperado pela raiz do DTO final
-    response = {
-        "data": lista_tratada,
-        "pagination": paginacao
-    }
+    # 3. Monta a estrutura da resposta
+    response = {"data": lista_tratada, "pagination": paginacao}
 
-    # 4. Valida no DTO principal e faz o dump respeitando os aliases
-    return ListagemEscritoriosRespostaDTOUniversidades(**response).model_dump(by_alias=True), HttpStatus.OK
+    # 4. Retorna a estrutura serializada
+    return (
+        ListagemEscritoriosRespostaDTOUniversidades(**response).model_dump(
+            by_alias=True
+        ),
+        HttpStatus.OK,
+    )
 
 
-__all__ = ["escritorios"]
+# ==============================================================================
+# 6. EXPORTAÇÃO CONSOLIDADA E CONTRATO PÚBLICO
+# ==============================================================================
+
+# Corrigido o erro de nome de variável para 'universidades'
+__all__ = [
+    "universidades",  # Roteador com endpoints de consulta de universidades
+]

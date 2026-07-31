@@ -1,49 +1,65 @@
-"""
-API Router
-----------
-Ponto central de agregação de rotas.
-Responsável por versionar a API e organizar os prefixos de URL.
+"""API Router - AIESEC Security Gateway.
+
+Módulo responsável pela agregação central das rotas da API.
+Aplica versionamento, controle de acesso via Whitelist de IP e fornece
+interfaces dinâmicas de documentação técnica (OpenAPI/Swagger/Scalar).
 """
 
-# ==============================
-# Importações (Dependencies)
-# ==============================
-import os  # Manipulação de variáveis de ambiente e sistema operacional
+# ==============================================================================
+# 1. IMPORTAÇÕES DA BIBLIOTECA PADRÃO E TERCEIROS
+# ==============================================================================
 
-from flask import render_template_string, request,redirect
-from ..router import Router
+# O módulo 'os' permite a interação com variáveis de ambiente do sistema operacional
+import os
+
+# Importações do framework Flask para renderização de templates e gerenciamento de requisições
+from flask import redirect, render_template_string, request
+
+# ==============================================================================
+# 2. IMPORTAÇÕES DE MÓDULOS INTERNOS DA APLICAÇÃO
+# ==============================================================================
+
+# DTO interno que encapsula códigos de status HTTP padrão
 from ..dto import HttpStatus
-from ..storage import storage
+
+# Decorator de segurança que intercepta requisições e valida o IP do cliente
 from ..middlewares import require_ip_whitelist
 
-# =================================================================
-# CONFIGURAÇÃO DE ROTEAMENTO GLOBAL
-# =================================================================
+# Instância personalizada do roteador para agregação de endpoints
+from ..router import Router
 
-# Inicializa o roteador principal com o prefixo global '/api'.
+# Instância do gerenciador de armazenamento de IPs permitidos em memória/persistência
+from ..storage import storage
+
+# ==============================================================================
+# 3. CONFIGURAÇÃO DO ROTEADOR DA API
+# ==============================================================================
+
+# Instancia o roteador principal configurando o prefixo global de URL '/api'
 api = Router(name="api", url_prefix="/api")
 
 
-@api.get("/docs",description="Página HTML da Documentação",responses={200:None})
+# ==============================================================================
+# 4. DEFINIÇÃO DAS ROTAS E ENDPOINTS
+# ==============================================================================
+
+@api.get(
+    "/docs",
+    description="Página HTML da Documentação Central da API",
+    responses={200: None},
+)
 @require_ip_whitelist
 def documentacao() -> str:
+    """Renderiza a página principal do portal de documentação da API.
+
+    Exibe uma interface web responsiva com as cores institucionais da AIESEC,
+    disponibilizando atalhos para todas as especificações OpenAPI e visualizadores
+    interativos do sistema.
+
+    Returns:
+        str: String HTML processada pelo Jinja2 contendo o portal.
     """
-    Renderiza o portal central de documentação da API.
-
-    Esta página apresenta uma interface estilizada com a identidade visual da AIESEC,
-    servindo como hub central para desenvolvedores acessarem as especificações
-    técnicas (OpenAPI) através de diversas ferramentas de visualização.
-
-    Interfaces disponíveis:
-        - Swagger UI: Interação clássica e testes de request.
-        - Scalar/Redoc/Elements: Visualização moderna e intuitiva.
-        - RapiDoc/RapiPDF: Geração de documentos e análise de specs.
-
-    Exemplo de acesso:
-        GET /api/docs -> Retorna a página HTML interativa com o diretório de rotas.
-    """
-
-    # Rotas organizadas por tipo - Completo com extensões YAML e Assets
+    # Mapeamento categorizado das rotas de documentação técnica expostas pelo Gateway
     rotas = {
         "Swagger & OAuth": [
             "/openapi/swagger",
@@ -56,24 +72,25 @@ def documentacao() -> str:
             "/openapi/elements",
             "/openapi/elements/<path:filename>",
             "/openapi/redoc/<path:filename>",
-            "/openapi/scalar/<path:filename>"
+            "/openapi/scalar/<path:filename>",
         ],
         "RapiDoc & RapiPDF": [
             "/openapi/rapidoc",
             "/openapi/rapidoc/<path:filename>",
             "/openapi/rapipdf",
-            "/openapi/rapipdf/<path:filename>"
+            "/openapi/rapipdf/<path:filename>",
         ],
         "Especificações (JSON/GERAL)": [
             "/openapi/openapi.json",
-            "/openapi",  # Root da spec
+            "/openapi",  # Rota raiz da especificação
         ],
         "Arquivos Estáticos & Assets": [
             "/static/<path:filename>",
             "/openapi/static/<path:filename>",
-        ]
+        ],
     }
 
+    # Template HTML inline otimizado estilizado com o design system da AIESEC
     template = """
     <!DOCTYPE html>
     <html lang="pt-br">
@@ -230,7 +247,7 @@ def documentacao() -> str:
         </div>
 
         <footer>
-            <strong>AIESEC No Brasil | Documentação de Código</strong><br>
+            <strong>AIESEC no Brasil | Documentação do Código</strong><br>
             Desenvolvido para causar impacto e conectar jovens ao redor do mundo. <br>
             &copy; 2026 Todos os direitos reservados.
         </footer>
@@ -238,26 +255,36 @@ def documentacao() -> str:
     </html>
     """
 
+    # Processa e renderiza as variáveis do mapa de rotas dentro do template Jinja2
     return render_template_string(template, rotas=rotas)
 
-@api.get("/register",responses={308:None})
+
+@api.get("/register", responses={308: None})
 def registro():
+    """Registra o endereço IP do cliente solicitante na Whitelist.
+
+    Captura o IP real a partir do cabeçalho de Proxy 'X-Forwarded-For' (se disponível)
+    ou da conexão direta do socket ('request.remote_addr'). Após autorizar o IP no
+    módulo de storage, aplica um redirecionamento permanente (308) para o portal /api/docs.
+
+    Returns:
+        Tuple[Response, int]: Redirecionamento HTTP com status HttpStatus.PERMANENT_REDIRECT.
     """
-    Registra o endereço IPv6 do solicitante e redireciona para a interface da documentação.
+    # Extrai o IP considerando proxies/load balancers ou pega o IP direto do cliente
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
 
-    Este endpoint captura o IP (proveniente de proxy através do cabeçalho 'X-Forwarded-For'),
-    registra a permissão de acesso no storage e redireciona o usuário para a
-    documentação da API em '/api/docs'.
+    # Registra o IP capturado no banco/memória de autorização
+    storage.add_ip(client_ip)
 
-    Exemplo de uso:
-        1. Usuário acessa: 'https://seusite.com/api/register'
-        2. Sistema captura: '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
-        3. Ação: Adiciona ao storage e redireciona para '/api/docs'
-    """
-    storage.add_ip(request.headers.get("X-Forwarded-For", request.remote_addr))
-    return redirect("/api/docs"),HttpStatus.PERMANENT_REDIRECT
+    # Redireciona o usuário de forma permanente para o portal de documentação
+    return redirect("/api/docs"), HttpStatus.PERMANENT_REDIRECT
 
-# ==============================
-# Exportações do Módulo
-# ==============================
-__all__ = ["api"]
+
+# ==============================================================================
+# 5. EXPORTAÇÕES DO MÓDULO
+# ==============================================================================
+
+# Expõe explicitamente o objeto de rotas da API para inclusão no App principal
+__all__ = [
+    "api",  # Instância Router com as rotas /docs e /register anexadas
+]

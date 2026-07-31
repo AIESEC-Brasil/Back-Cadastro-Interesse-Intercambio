@@ -1,5 +1,5 @@
 from typing import Any,Tuple
-from .podio import buscarToken,buscar_id_card
+from .podio import buscar_token,buscar_id_card
 from ..http_request import HttpClient
 from app.utils import resolve_response
 
@@ -14,7 +14,7 @@ async def atualizar_lead(chave: str, data: Any, data_response: dict) -> tuple[An
     """
     item_id = buscar_id_card(data_response)
     headers = {
-        "Authorization": f"Bearer {buscarToken(chave)}",
+        "Authorization": f"Bearer {buscar_token(chave)}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }

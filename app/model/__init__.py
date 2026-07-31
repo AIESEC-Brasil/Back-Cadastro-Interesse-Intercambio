@@ -1,6 +1,4 @@
-"""
-Models Module
--------------
+"""Módulo de exportação de modelos ORM (Models Package).
 
 Ponto central de acesso aos modelos ORM da aplicação.
 Este módulo expõe a instância do banco de dados e as entidades responsáveis
@@ -8,19 +6,15 @@ pela lógica de Divisão de Mercado, roteamento de vendas e configuração
 de escritórios (CLs).
 """
 
-# ==============================
-# Importações de Entidades
-# ==============================
+# =================================================================
+# 1. IMPORTAÇÕES DE ENTIDADES
+# =================================================================
+from .divisaoMercadoModel import DivisaoCL, Universidades, db
 
-# Importa a instância do banco e as classes de modelo do arquivo de definição
-from .divisaoMercadoModel import db, DivisaoCL, Universidades
 
-# ==============================
-# Exportação Consolidada
-# ==============================
-
-# O __all__ define a interface pública deste pacote.
-# Quando você fizer 'from app.models import *', apenas estes itens serão expostos.
+# =================================================================
+# 2. EXPORTAÇÃO CONSOLIDADA VIA __all__
+# =================================================================
 __all__ = [
     "db",            # Instância do SQLAlchemy (Core)
     "Universidades", # Entidade de mapeamento de mercado por instituição
