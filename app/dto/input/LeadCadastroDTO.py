@@ -1,7 +1,7 @@
 from pydantic import (
     BaseModel,       # Classe base do Pydantic para criação de modelos/containers de dados.
     Field,           # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
-    model_validator
+    ConfigDict,      # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
 )
 
 from typing import (
@@ -11,7 +11,7 @@ from typing import (
 )
 
 # Importação dos tipos/modelos globais customizados da aplicação
-from ..globals import Comite, EmailItem, Autorizacao, TelefoneItem, DataNascimento, Produto
+from ..globals import Comite, EmailItem, Autorizacao, TelefoneItem, DataNascimento, Produto,Universidade
 
 class LeadPreCadastroInput(BaseModel):
     """
@@ -32,7 +32,7 @@ class LeadPreCadastroInput(BaseModel):
         comite (Comite): Comitê local responsável pelo atendimento do lead.
         autorizacao (Autorizacao): Consentimentos e autorizações de termos do lead.
     """
-
+    model_config = ConfigDict(extra='forbid')
     nome: str = Field(
         description="Nome do lead",
         json_schema_extra={
@@ -47,25 +47,15 @@ class LeadPreCadastroInput(BaseModel):
         }
     )
 
-    senha: str = Field(
-        description="Senha de acesso do lead",
-        json_schema_extra={
-            "example": "teste123"
-        }
-    )
-
     # Objetos complexos validados por sub-modelos importados do globals
     dataNascimento: DataNascimento
     telefone: List[TelefoneItem]
     email: List[EmailItem]
 
     # Campo opcional com valor padrão e metadados corrigidos
-    universidade: Optional[str] = Field(
+    universidade: Optional[Universidade] = Field(
         default=None,
-        description="Universidade ou instituição de ensino do lead",
-        json_schema_extra={
-            "example": "Universidade Federal de Pernambuco"
-        }
+        description="Universidade ou instituição de ensino do lead"
     )
 
     # Demais campos obrigatórios da regra de negócio
@@ -73,6 +63,15 @@ class LeadPreCadastroInput(BaseModel):
     comite: Comite
     autorizacao: Autorizacao
 
+class CriarPreCadastroLead(LeadPreCadastroInput):
+    model_config = ConfigDict(extra='forbid')
+    senha: str = Field(
+        description="Senha de acesso do lead",
+        json_schema_extra={
+            "example": "teste123"
+        }
+    )
+
 
 # Define os elementos exportados publicamente ao utilizar 'from modulo import *'
-__all__ = ["LeadPreCadastroInput"]
+__all__ = ["LeadPreCadastroInput","CriarPreCadastroLead"]
