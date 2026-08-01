@@ -37,7 +37,7 @@ def handle_validation_error(e: Exception):
     return make_response(jsonify(response_body), status_code)
 
 def handle_app_error(error: AppError):
-    """Congela o codigo impedindo continuidade"""
+    """Congela o codigo impedindo continuidade em caso de erro"""
     dto = error.dto # pegar o erro no formato da class base do dto
     return dto.model_dump(), dto.status_code.value # converte para um dict
 
