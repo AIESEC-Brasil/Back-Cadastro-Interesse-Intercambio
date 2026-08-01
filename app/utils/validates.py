@@ -13,10 +13,8 @@ from datetime import date, datetime  # Manipulação de objetos de data e hora
 import re  # Expressões regulares para correspondência de padrões de texto
 from typing import Any, Dict, List  # Tipagem estática para estruturas de dados
 import unicodedata  # Normalização Unicode para tratamento de caracteres acentuados
-
+from app.dto import AppError,BaseErrorResponse,HttpStatus # DTO para resposta de erro
 from ..cache import cache  # Instância global do cache da aplicação
-
-
 # =================================================================
 # 2. VALIDAÇÕES DE IDENTIDADE
 # =================================================================
@@ -75,35 +73,105 @@ def validar_nome_com_acentos(nome: str) -> bool:
 # =================================================================
 
 @validar
-def validar_senha(senha: str) -> Dict[str, Any]:
-    """Verifica a força da senha baseando-se em requisitos de complexidade.
+def validar_senha(senha: str) -> str:
+    """Verifica a força da senha baseando-se em requisitos de complexidade e caracteres permitidos.
+
+    Avalia a string enviada contra um conjunto de regras de segurança para garantir
+    a robustez da credencial e evitar falhas de parsing ou injeções de código. Acumula
+    todas as falhas encontradas dentro do modelo estruturado 'BaseErrorResponse'
+    e as dispara em um 'ValueError'.
 
     Regras exigidas:
     - Mínimo de 8 caracteres
     - Não conter espaços em branco
+    - Não conter caracteres proibidos (; ' " ` \\ tabulação/quebras de linha) ou de controle
     - Pelo menos 1 letra minúscula
     - Pelo menos 1 letra maiúscula
-    - Pelo menos 1 número e 1 caractere especial (@$!%*?&)
+    - Pelo menos 1 número
+    - Pelo menos 1 caractere especial permitido (@$!%*?&)
 
     Args:
-        senha (str): A senha em texto puro.
+        senha (str): A string contendo a senha em texto puro a ser validada.
 
     Returns:
-        Dict[str, Any]: Dicionário contendo 'condicao' (bool) e 'mensagem' (str).
+        str: A própria senha enviada, sem alterações, caso atenda a todos os requisitos.
+
+    Raises:
+        ValueError: Se a senha violar uma ou mais regras de segurança. O argumento
+                    da exceção conterá a instância do DTO BaseErrorResponse.
     """
-    minimo: bool = len(senha) >= 8 and " " not in senha
-    minusculo: bool = bool(re.search(r"[a-z]", senha))
-    maiusculo: bool = bool(re.search(r"[A-Z]", senha))
-    # Verifica a presença conjunta de dígitos e caracteres especiais permitidos
-    caracter_especial: bool = bool(re.search(r"\d", senha)) and bool(re.search(r"[@$!%*?&]", senha))
+    # Define o conjunto de caracteres proibidos por motivos de parsing e segurança (SQLi, XSS, Command Injection)
+    caracteres_proibidos = {";", "'", '"', "`", "\\", "\t", "\n", "\r"}
 
-    all_ok: bool = minimo and minusculo and maiusculo and caracter_especial
+    # Lista que acumulará os dicionários no formato exigido pela propriedade 'error_details' do DTO
+    error_details: list[str] = []
 
-    return {
-        "condicao": all_ok,
-        "mensagem": "" if all_ok else "Uma ou mais condições da senha não foi atendida",
-    }
+    # =================================================================
+    # 1. AVALIAÇÃO PRÉVIA DAS CONDIÇÕES BÁSICAS DE SEGURANÇA
+    # =================================================================
+    # Avalia booleanamente cada critério de complexidade para a checagem global inicial
+    tem_minimo: bool = len(senha) >= 8 and " " not in senha
+    tem_minuscula: bool = bool(re.search(r"[a-z]", senha))
+    tem_maiuscula: bool = bool(re.search(r"[A-Z]", senha))
+    tem_numero: bool = bool(re.search(r"\d", senha))
+    tem_especial: bool = bool(re.search(r"[@$!%*?&]", senha))
 
+    # Trava global: Interrompe imediatamente se a entrada falhar simultaneamente em TODAS as regras
+    if not any([tem_minimo, tem_minuscula, tem_maiuscula, tem_numero, tem_especial]):
+        raise ValueError("A senha enviada não atende a nenhuma das condições de segurança exigidas.")
+
+    # =================================================================
+    # 2. CHECAGEM DE CARACTERES PROIBIDOS E DE CONTROLE
+    # =================================================================
+    # Varre a string avaliando o código ASCII (ord) de cada caractere.
+    # Caracteres com valor abaixo de 32 são considerados invisíveis ou de controle (ex: \0, \n, \t).
+    if any(ord(char) < 32 for char in senha):
+        error_details.append("A senha contém caracteres invisíveis ou de controle não permitidos.")
+
+    # Converte a senha para um 'set' (conjunto único) e realiza a intersecção matemática
+    # com o conjunto de caracteres_proibidos para identificar invasões de caracteres indesejados.
+    proibidos_encontrados = caracteres_proibidos.intersection(set(senha))
+    if proibidos_encontrados:
+        # Formata os caracteres encontrados entre aspas simples para clareza na resposta ao usuário
+        fmt_proibidos = ", ".join(f"'{c}'" for c in proibidos_encontrados)
+        error_details.append(f"A senha contém caracteres não permitidos: {fmt_proibidos}.")
+
+    # =================================================================
+    # 3. TRAVAS INDIVIDUAIS DE REQUISITOS DE COMPLEXIDADE
+    # =================================================================
+    # Verifica o comprimento mínimo da senha
+    if len(senha) < 8:
+        error_details.append("A senha deve conter no mínimo 8 caracteres.")
+
+    # Garante a ausência de espaços em branco (espaços normais ' ')
+    if " " in senha:
+        error_details.append("A senha não pode conter espaços em branco.")
+
+    # Exige a presença de pelo menos um caractere alfabético minúsculo
+    if not tem_minuscula:
+        error_details.append("A senha deve conter pelo menos uma letra minúscula.")
+
+    # Exige a presença de pelo menos um caractere alfabético maiúsculo
+    if not tem_maiuscula:
+        error_details.append("A senha deve conter pelo menos uma letra maiúscula.")
+
+    # Exige a presença de pelo menos um caractere numérico (0-9)
+    if not tem_numero:
+        error_details.append("A senha deve conter pelo menos um número.")
+
+    # Exige a presença de pelo menos um caractere especial do conjunto permitido
+    if not tem_especial:
+        error_details.append("A senha deve conter pelo menos um caractere especial (@$!%*?&).")
+
+    # =================================================================
+    # 4. DISPARO DAS FALHAS E RETORNO
+    # =================================================================
+    # Se a lista contiver qualquer pendência acumulada, encapsula no BaseErrorResponse e dispara no ValueError
+    if len(error_details) > 0:
+        raise ValueError(error_details)
+
+    # Retorna a string pura tratada para consolidação no esquema final do Pydantic / DTO
+    return senha
 
 # =================================================================
 # 4. VALIDAÇÕES DE COMUNICAÇÃO

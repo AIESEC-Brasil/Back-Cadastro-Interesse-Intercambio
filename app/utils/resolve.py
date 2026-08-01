@@ -23,6 +23,7 @@ from ..dto import (
     HTTPException,
     PydanticValidationError,
     ValidationErrorResponse,
+    AppError
 )
 
 
@@ -71,6 +72,10 @@ def resolve_exception(exception: Exception) -> BaseErrorResponse:
     Returns:
         BaseErrorResponse: DTO de erro devidamente populado e formatado.
     """
+    # Se for a nossa exceção customizada, extrai o DTO diretamente!
+    if isinstance(exception, AppError):
+        return exception.dto.model_dump()
+
     # Tratamento específico para erros de validação do Pydantic
     if isinstance(exception, PydanticValidationError):
         return ValidationErrorResponse(exception)

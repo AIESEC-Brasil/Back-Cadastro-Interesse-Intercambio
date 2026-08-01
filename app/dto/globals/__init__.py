@@ -44,6 +44,10 @@ from .dataNascimentoDTO import DataNascimento
 from . import produtoDTO
 from .produtoDTO import Produto
 
+#Importa o DTO de Senha e seu moduto
+from . import senhaDTO
+from .senhaDTO import *
+
 # =================================================================
 # 2. EXPORTAÇÃO CONSOLIDADA DO PACOTE
 # =================================================================
@@ -59,4 +63,5 @@ __all__ = list(
     + comiteDTO.__all__
     + produtoDTO.__all__
     + dataNascimentoDTO.__all__
+    + senhaDTO.__all__
 )
