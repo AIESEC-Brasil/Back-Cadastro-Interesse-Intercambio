@@ -107,7 +107,7 @@ def gerar_token_podio_rota(
                     key=config["key"],
                     fetch=lambda: get_access_token(config["credenciais"]),
                     baixando=f"Chave de Acesso ao Podio ({service})",
-                    CACHE_TTL=900,  # Tempo de duração do cache do access token (15 min)
+                    ttl=900,  # Tempo de duração do cache do access token (15 min)
                 )
 
                 logger.info(

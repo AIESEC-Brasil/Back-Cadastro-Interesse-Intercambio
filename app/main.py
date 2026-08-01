@@ -27,8 +27,8 @@ from .core import (
 from .manager import migration  # Função orquestradora de migrações no banco de dados
 from .middlewares import register_url, verificar_origem  # Middlewares de auditoria e interceptação
 from .model import db as model_db  # Garantia de registro dos modelos ORM para detecção no Flask-Migrate
-from .utils import handle_validation_error  # Handler customizado para erros de validação OpenAPI3
-
+from .utils import handle_validation_error,handle_app_error  # Handler customizado para erros de validação OpenAPI3
+from .dto import AppError
 
 # =================================================================
 # 2. APPLICATION FACTORY
@@ -141,6 +141,7 @@ def create_app() -> OpenAPI:
         app.register_api(new_lead_ogx)
         app.register_api(divisao_mercado)
         app.register_api(api)
+        app.register_error_handler(AppError, handle_app_error)
 
         # Middleware executado após a conclusão da resposta (auditoria e métricas)
         app.after_request(register_url)

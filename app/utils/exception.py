@@ -10,7 +10,7 @@ o retorno em um objeto de resposta Flask HTTP válido com código de status apro
 # =================================================================
 from flask import jsonify, make_response  # Utilitários nativos do Flask para serialização JSON e construção de Response
 from .resolve import resolve_exception  # Funções de resolução e mapeamento de exceções para DTOs
-
+from ..dto import AppError
 
 # =================================================================
 # 2. HANDLER DE ERROS DE VALIDAÇÃO
@@ -36,8 +36,11 @@ def handle_validation_error(e: Exception):
     # 3. Converte o dicionário em JSON e encapsula na Response do Flask para evitar falhas no abort()
     return make_response(jsonify(response_body), status_code)
 
+def handle_app_error(error: AppError):
+    dto = error.dto
+    return dto.model_dump(), dto.status_code.value
 
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
-__all__ = ["handle_validation_error"]
+__all__ = ["handle_validation_error","handle_app_error"]

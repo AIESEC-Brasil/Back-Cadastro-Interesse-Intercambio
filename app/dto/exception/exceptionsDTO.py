@@ -15,13 +15,13 @@ O nome do tipo do erro é capturado automaticamente quando aplicável.
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
+import ast #módulo que permite ao Python "entender", analisar e manipular a estrutura do próprio código Python antes de executá-lo
 from typing import (
     Any,   # Hint para tipos genéricos/dinâmicos
     Dict,  # Hint de tipo para dicionários
     List,  # Hint de tipo para coleções do tipo lista
     Type,  # Hint de tipo para referências de classes/tipos
 )
-
 from deep_translator import GoogleTranslator  # Biblioteca de tradução para converter mensagens de erro do Pydantic
 from pydantic import (
     BaseModel,                               # Classe base do Pydantic para validação e estruturação de modelos
@@ -67,6 +67,51 @@ class BaseErrorResponse(BaseModel):
     # Código de status HTTP associado à resposta da API
     status_code: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR
 
+class AppError(Exception):
+    """Exceção customizada da aplicação para disparo direto via `raise`.
+
+    Encapsula as informações de falha em uma instância do DTO `BaseErrorResponse`,
+    permitindo que exceções de regras de negócio ou validação sejam lançadas em
+    uma única linha e posteriormente interceptadas e tratadas de forma padronizada.
+
+    Attributes:
+        dto (BaseErrorResponse): Instância do DTO de resposta de erro contendo
+            os detalhes formatados e prontos para serialização JSON na API.
+
+    Args:
+        type (str): Nome ou categoria do erro (ex: `"ValidationError"`, `"NotFoundError"`).
+        message (str): Descrição geral ou mensagem principal legível do erro.
+        status_code (HttpStatus, optional): Código de status HTTP associado à falha.
+            Defaults to `HttpStatus.UNPROCESSABLE_ENTITY`.
+        error_details (List[Dict[str, Any]] | None, optional): Lista contendo o rastro
+            detalhado e a localização dos erros (ex: `[{"loc": "senha", "msg": "..."}]`).
+            Defaults to `None` (inicializado internamente como lista vazia).
+
+    Example:
+        >>> raise AppError(
+        ...     type="ValidationError",
+        ...     message="Dados inválidos",
+        ...     status_code=HttpStatus.UNPROCESSABLE_ENTITY,
+        ...     error_details=[{"loc": "senha", "msg": "A senha deve ter no mínimo 8 caracteres."}]
+        ... )
+    """
+
+    def __init__(
+            self,
+            type: str,
+            message: str,
+            status_code: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY,
+            error_details: List[Dict[str, Any]] | None = None,
+    ) -> None:
+        # Instancia o DTO de erro com os dados fornecidos
+        self.dto = BaseErrorResponse(
+            type=type,
+            message=message,
+            status_code=status_code,
+            error_details=error_details or [],
+        )
+        # Repassa a mensagem principal para o construtor nativo de Exception
+        super().__init__(message)
 
 # =================================================================
 # 3. VALIDAÇÃO PYDANTIC
@@ -106,9 +151,10 @@ class ValidationErrorResponse(BaseErrorResponse):
                     msg_pt = GoogleTranslator(source="auto", target="pt").translate(msg_original)
 
                     # 4. Adiciona à lista de detalhes no formato padronizado da API
+                    dado = msg_pt.replace("Value error, ", "", 1)
                     error_details.append({
                         "loc": rastro,
-                        "msg": msg_pt,
+                        "msg": ast.literal_eval(dado) if isinstance(dado, str) and dado.startswith("[") else dado,
                     })
 
                     # Marca como processado no set para controle de duplicidade
@@ -334,6 +380,7 @@ HTTP_EXCEPTION_MAP: Dict[Type[HTTPException], Type[HTTPErrorResponse]] = {
 # 7. EXPORTAÇÃO DO MÓDULO
 # =================================================================
 __all__ = [
+    "AppError",
     "BaseErrorResponse",
     "ValidationErrorResponse",
     "ExceptionErrorResponse",

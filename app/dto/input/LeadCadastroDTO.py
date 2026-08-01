@@ -28,6 +28,7 @@ from ..globals import (
     Produto,
     TelefoneItem,
     Universidade,
+    Senha
 )
 
 
@@ -112,7 +113,7 @@ class CriarPreCadastroLead(LeadPreCadastroInput):
     model_config = ConfigDict(extra="forbid")
 
     # Credencial/Senha criada pelo lead para autenticação no sistema (obrigatória no cadastro)
-    senha: str = Field(
+    senha: Senha = Field(
         description="Senha de acesso do lead",
         json_schema_extra={
             "example": "teste123"
