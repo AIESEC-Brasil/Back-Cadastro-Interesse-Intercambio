@@ -73,7 +73,7 @@ class Senha:
         )
         # Trava de segurança: valida se a entrada recebida é de fato um tipo textual
         if not isinstance(value, str):
-            raise ValueError("Tipo de dado inválido para senha. Deve ser uma string.")
+            raise ValueError("Dados Inválidos: Tipo de dado inválido para senha. Deve ser uma string.")
 
         # Delega o fluxo de verificação de regras para o utilitário do projeto e retorna a string
         return validar_senha(value)

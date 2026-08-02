@@ -63,6 +63,9 @@ class LeadPreCadastroInput(BaseModel):
         json_schema_extra={
             "example": "João"  # Exemplo exibido na documentação interativa (Swagger/OpenAPI)
         },
+        min_length=3,
+        max_length=100,
+        pattern=r"^[A-Za-zÀ-ÿ\s]+$"
     )
 
     # Sobrenome completo do lead (obrigatório)
@@ -71,6 +74,9 @@ class LeadPreCadastroInput(BaseModel):
         json_schema_extra={
             "example": "Silva"
         },
+        min_length=3,
+        max_length=100,
+        pattern=r"^[A-Za-zÀ-ÿ\s]+$"
     )
 
     # Objeto contendo o dia, mês e ano de nascimento do lead (validado pelo schema DataNascimento)
@@ -114,10 +120,12 @@ class CriarPreCadastroLead(LeadPreCadastroInput):
 
     # Credencial/Senha criada pelo lead para autenticação no sistema (obrigatória no cadastro)
     senha: Senha = Field(
-        description="Senha de acesso do lead",
+        description="Senha de acesso do lead no expa",
         json_schema_extra={
             "example": "teste123"
         },
+        min_length=8,
+        max_length=128
     )
 
 

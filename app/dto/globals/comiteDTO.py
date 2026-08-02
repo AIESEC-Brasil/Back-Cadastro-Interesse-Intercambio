@@ -18,6 +18,7 @@ from pydantic import (
     ConfigDict,       # Objeto de configuração para definir comportamentos do modelo (ex: proibir campos extras).
     Field,            # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
     model_validator,  # Decorador para aplicar regras de validação no nível do modelo completo (múltiplos campos).
+    PositiveInt       # Tipa e valida se é inteiro e positivo
 )
 
 
@@ -102,7 +103,7 @@ class Comite(BaseModel):
     )
 
     # Código ID numérico único do comitê local cadastrado no Podio
-    id: int = Field(
+    id: PositiveInt = Field(
         description="ID interno numérico da entidade",
         json_schema_extra={"example": 32},
     )

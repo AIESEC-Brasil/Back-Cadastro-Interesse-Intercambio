@@ -118,7 +118,7 @@ def validar_senha(senha: str) -> str:
 
     # Trava global: Interrompe imediatamente se a entrada falhar simultaneamente em TODAS as regras
     if not any([tem_minimo, tem_minuscula, tem_maiuscula, tem_numero, tem_especial]):
-        raise ValueError("A senha enviada não atende a nenhuma das condições de segurança exigidas.")
+        raise ValueError("Dados Inválidos: A senha enviada não atende a nenhuma das condições de segurança exigidas.")
 
     # =================================================================
     # 2. CHECAGEM DE CARACTERES PROIBIDOS E DE CONTROLE
@@ -126,7 +126,7 @@ def validar_senha(senha: str) -> str:
     # Varre a string avaliando o código ASCII (ord) de cada caractere.
     # Caracteres com valor abaixo de 32 são considerados invisíveis ou de controle (ex: \0, \n, \t).
     if any(ord(char) < 32 for char in senha):
-        error_details.append("A senha contém caracteres invisíveis ou de controle não permitidos.")
+        error_details.append("Dados Inválidos: A senha contém caracteres invisíveis ou de controle não permitidos.")
 
     # Converte a senha para um 'set' (conjunto único) e realiza a intersecção matemática
     # com o conjunto de caracteres_proibidos para identificar invasões de caracteres indesejados.
@@ -134,34 +134,34 @@ def validar_senha(senha: str) -> str:
     if proibidos_encontrados:
         # Formata os caracteres encontrados entre aspas simples para clareza na resposta ao usuário
         fmt_proibidos = ", ".join(f"'{c}'" for c in proibidos_encontrados)
-        error_details.append(f"A senha contém caracteres não permitidos: {fmt_proibidos}.")
+        error_details.append(f"Dados Inválidos: A senha contém caracteres não permitidos: {fmt_proibidos}.")
 
     # =================================================================
     # 3. TRAVAS INDIVIDUAIS DE REQUISITOS DE COMPLEXIDADE
     # =================================================================
     # Verifica o comprimento mínimo da senha
     if len(senha) < 8:
-        error_details.append("A senha deve conter no mínimo 8 caracteres.")
+        error_details.append("Dados Inválidos: A senha deve conter no mínimo 8 caracteres.")
 
     # Garante a ausência de espaços em branco (espaços normais ' ')
     if " " in senha:
-        error_details.append("A senha não pode conter espaços em branco.")
+        error_details.append("Dados Inválidos: A senha não pode conter espaços em branco.")
 
     # Exige a presença de pelo menos um caractere alfabético minúsculo
     if not tem_minuscula:
-        error_details.append("A senha deve conter pelo menos uma letra minúscula.")
+        error_details.append("Dados Inválidos: A senha deve conter pelo menos uma letra minúscula.")
 
     # Exige a presença de pelo menos um caractere alfabético maiúsculo
     if not tem_maiuscula:
-        error_details.append("A senha deve conter pelo menos uma letra maiúscula.")
+        error_details.append("Dados Inválidos: A senha deve conter pelo menos uma letra maiúscula.")
 
     # Exige a presença de pelo menos um caractere numérico (0-9)
     if not tem_numero:
-        error_details.append("A senha deve conter pelo menos um número.")
+        error_details.append("Dados Inválidos: A senha deve conter pelo menos um número.")
 
     # Exige a presença de pelo menos um caractere especial do conjunto permitido
     if not tem_especial:
-        error_details.append("A senha deve conter pelo menos um caractere especial (@$!%*?&).")
+        error_details.append("Dados Inválidos: A senha deve conter pelo menos um caractere especial (@$!%*?&).")
 
     # =================================================================
     # 4. DISPARO DAS FALHAS E RETORNO
