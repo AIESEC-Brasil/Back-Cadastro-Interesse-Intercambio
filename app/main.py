@@ -141,7 +141,7 @@ def create_app() -> OpenAPI:
         app.register_api(new_lead_ogx)
         app.register_api(divisao_mercado)
         app.register_api(api)
-        app.register_error_handler(AppError, handle_app_error)
+        app.register_error_handler(AppError, handle_app_error) # congela o codigo se ver a class AppErro
 
         # Middleware executado após a conclusão da resposta (auditoria e métricas)
         app.after_request(register_url)
