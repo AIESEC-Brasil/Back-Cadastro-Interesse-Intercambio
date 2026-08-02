@@ -22,6 +22,7 @@ from ..dto import (
     LeadPreCadastroOutput,
     VerificadorConflitos,
 )
+# modulo de classes de abstração
 from ..classe import LeadPodio
 
 # =================================================================
