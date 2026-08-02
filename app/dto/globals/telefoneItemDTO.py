@@ -59,7 +59,7 @@ class TelefoneItem(BaseModel):
         de expressão regular do padrão celular nacional brasileiro.
 
         Args:
-            numero (Any): O dado cru enviado no campo de número do telefone.
+            numero (str): O dado cru enviado no campo de número do telefone.
 
         Returns:
             str: O número telefônico higienizado contendo apenas dígitos numéricos válidos.

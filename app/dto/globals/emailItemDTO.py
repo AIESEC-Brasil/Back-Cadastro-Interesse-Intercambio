@@ -90,7 +90,7 @@ class EmailItem(BaseModel):
         do Pydantic faça o processamento nativo do `EmailStr`.
 
         Args:
-            email (Any): O valor do e-mail capturado na forma original em que foi transmitido.
+            email (str): O valor do e-mail capturado na forma original em que foi transmitido.
 
         Returns:
             str: String limpa se passar nos filtros regex customizados.
