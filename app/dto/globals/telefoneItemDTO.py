@@ -75,13 +75,13 @@ class TelefoneItem(BaseModel):
 
         # verifica se foi passado uma string valida
         if num_str == "":
-            raise ValueError("O telefone está em branco")
+            raise ValueError("Dados Inválidos: O telefone está em branco")
         # Consulta a função nacional de checagem para aprovar ou rejeitar o número de telefone móvel
         if validar_telefone(num_str):
             return num_str
 
         # Lança exceção de validação capturada nativamente pelo Pydantic
-        raise ValueError("O telefone não é um número válido")
+        raise ValueError("Dados Inválidos: O telefone não é um número válido")
 
 
 # =================================================================

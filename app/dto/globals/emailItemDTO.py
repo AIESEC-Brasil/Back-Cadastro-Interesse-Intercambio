@@ -106,14 +106,14 @@ class EmailItem(BaseModel):
 
         # verifica se foi passado uma string valida se não bloqueia
         if email_str == "":
-            raise ValueError("O email está em branco")
+            raise ValueError("Dados Inválidos: O email está em branco")
 
         # Aciona o motor regex auxiliar para verificar se o e-mail possui corpo e formato válidos
         if validar_email(email_str):
             return email_str
 
         # Lança exceção capturada nativamente pelo Pydantic caso falhe no regex ou este esteja em branco
-        raise ValueError("O email não é um e-mail válido")
+        raise ValueError("Dados Inválidos: O email não é um e-mail válido")
 
 
 # =================================================================

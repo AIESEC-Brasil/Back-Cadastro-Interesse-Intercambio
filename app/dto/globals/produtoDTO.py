@@ -18,6 +18,7 @@ from pydantic import (
     ConfigDict,       # Objeto de configuração de regras globais do modelo (ex: 'forbid' para proibir campos extras).
     Field,            # Função para declaração de metadados, descrições e exemplos OpenAPI/Swagger.
     model_validator,  # Decorador para execução de validações customizadas no nível do objeto completo.
+    PositiveInt       # Tipa e valida se é inteiro e positivo
 )
 
 
@@ -123,13 +124,13 @@ class Produto(BaseModel):
     )
 
     # Identificador numérico interno correspondente à opção do produto no Podio
-    id_podio: int = Field(
+    id_podio: PositiveInt = Field(
         description="ID interno do produto indexado no Podio",
         json_schema_extra={"example": 1},
     )
 
     # Identificador numérico correspondente ao programa internacional na plataforma EXPA
-    id_expa: int = Field(
+    id_expa: PositiveInt = Field(
         description="ID do programa correspondente no sistema EXPA",
         json_schema_extra={"example": 7},
     )

@@ -17,7 +17,8 @@ from pydantic import (
     BaseModel,    # Classe base para criação de modelos com validação automática
     ConfigDict,   # Configurações globais do modelo Pydantic v2 (ex: aliases)
     Field,        # Define metadados dos campos (descrições, exemplos e aliases)
-    TypeAdapter   # Permite validação e conversão de coleções complexas/listas
+    TypeAdapter,  # Permite validação e conversão de coleções complexas/listas
+    PositiveInt   # Tipa e valida se é inteiro e positivo
 )
 
 
@@ -38,7 +39,7 @@ class DivisaoMercado(BaseModel):
         model_config (ConfigDict): Configuração do Pydantic que habilita 'populate_by_name'.
     """
 
-    id: int = Field(
+    id: PositiveInt = Field(
         description="ID interno numérico da divisão de mercado",
         json_schema_extra={"example": 1}
     )
