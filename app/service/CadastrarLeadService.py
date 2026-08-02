@@ -56,7 +56,7 @@ def cadastrar_lead(
 
     # Se o lead já existir na base, recupera o ID do card e retorna status 200 OK
     if lead_existe:
-        data = lead_input.model_dump()
+        data = lead_input.model_dump(exclude_none=True)
         data["item_id"] = buscar_id_card(lead_existe)
         return data, 200
 
@@ -71,7 +71,7 @@ def cadastrar_lead(
         return conflitos.model_dump(exclude_none=True), HttpStatus.CONFLICT
 
     # Conclui o cadastro gerando os dados do novo lead (HTTP 201 CREATED)
-    data = lead_input.model_dump()
+    data = lead_input.model_dump(exclude_none=True)
     data["item_id"] = 243426
     return data, 201
 
