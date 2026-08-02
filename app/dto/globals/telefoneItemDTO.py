@@ -73,12 +73,15 @@ class TelefoneItem(BaseModel):
         # Executa limpeza removendo espaços em branco extras que costumam vir de inputs de formulários
         num_str = str(numero).strip() if numero else ""
 
+        # verifica se foi passado uma string valida
+        if num_str == "":
+            raise ValueError("O telefone está em branco")
         # Consulta a função nacional de checagem para aprovar ou rejeitar o número de telefone móvel
         if validar_telefone(num_str):
             return num_str
 
         # Lança exceção de validação capturada nativamente pelo Pydantic
-        raise ValueError("O telefone não é um número válido ou está em branco")
+        raise ValueError("O telefone não é um número válido")
 
 
 # =================================================================
