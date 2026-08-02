@@ -8,12 +8,12 @@ e criação de novos registros de leads integrados com serviços externos.
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
 import asyncio  # Execução de corrotinas assíncronas em contexto síncrono
-from typing import Dict, Tuple, Union  # Anotações de tipo estático
+
+from typing import Dict, Tuple, Union, Any  # Anotações de tipo estático
 
 from flask import Response, jsonify  # Objetos e utilitários HTTP do Flask
 
 # Importações dos DTOs e utilitários internos
-from app.clients import buscar_id_card
 from ..clients import Buscar
 from ..config import APP_ID
 from ..dto import (
@@ -22,7 +22,7 @@ from ..dto import (
     LeadPreCadastroOutput,
     VerificadorConflitos,
 )
-
+from ..classe import LeadPodio
 
 # =================================================================
 # 2. LÓGICA DE NEGÓCIO / SERVIÇO
@@ -31,11 +31,7 @@ from ..dto import (
 @validar
 def cadastrar_lead(
         lead_input: CriarPreCadastroLead,
-) -> Union[
-    Tuple[Dict[str, str], int],
-    Tuple[Response, HttpStatus],
-    Tuple[LeadPreCadastroOutput, int],
-]:
+) -> tuple[dict[Any, Any], int] | tuple[Any, HttpStatus] | tuple[tuple[dict[Any, Any], int], int]:
     """Realiza o pré-cadastro de um lead com checagem assíncrona de conflitos.
 
     Args:
@@ -49,6 +45,9 @@ def cadastrar_lead(
     # Instancia o cliente de busca de itens com o App ID global
     buscar_client = Buscar(APP_ID)
 
+    # Instancia para pegar o app_id e salvar, atualizar ou remover lead do podio
+    lead_ogx:LeadPodio = LeadPodio(APP_ID)
+
     # Executa a busca assíncrona para checar se o lead já possui cadastro completo
     lead_existe = asyncio.run(
         buscar_client.item_completo(lead_input.model_dump())
@@ -56,9 +55,7 @@ def cadastrar_lead(
 
     # Se o lead já existir na base, recupera o ID do card e retorna status 200 OK
     if lead_existe:
-        data = lead_input.model_dump(exclude_none=True)
-        data["item_id"] = buscar_id_card(lead_existe)
-        return data, 200
+        return lead_ogx.atualizar_lead(lead_existe,lead_input), 200
 
     # Inicializa o verificador de conflitos de cadastro
     verificador = VerificadorConflitos(buscar_client)
@@ -71,9 +68,7 @@ def cadastrar_lead(
         return conflitos.model_dump(exclude_none=True), HttpStatus.CONFLICT
 
     # Conclui o cadastro gerando os dados do novo lead (HTTP 201 CREATED)
-    data = lead_input.model_dump(exclude_none=True)
-    data["item_id"] = 243426
-    return data, 201
+    return lead_ogx.cadastrar_lead(lead_input), 201
 
 
 # =================================================================

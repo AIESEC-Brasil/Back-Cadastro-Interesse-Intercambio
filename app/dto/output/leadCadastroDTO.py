@@ -4,18 +4,17 @@ Este módulo define a estrutura de dados de resposta (Output DTO) retornada apó
 o processamento do pré-cadastro de um lead, estendendo o modelo de entrada e
 adicionando os dados de identificação gerados pelo Podio.
 """
-
+from types import CoroutineType
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
 from pydantic import (
     ConfigDict,  # Configurações globais do modelo Pydantic v2 (ex: permitir aliases, definir comportamento de campos extras).
-    Field,       # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
+    Field,  # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
 )
 
 # Importação do modelo base de transferência de dados de entrada de pré-cadastro
 from ..input import LeadPreCadastroInput
-
 
 # =================================================================
 # 2. MODELOS DE DADOS DE SAÍDA (OUTPUT SCHEMAS)

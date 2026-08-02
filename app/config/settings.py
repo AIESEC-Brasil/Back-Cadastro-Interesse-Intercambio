@@ -66,7 +66,7 @@ CACHE_TTL: int = int(get_env_or_fail("CACHE_TTL"))
 # Credenciais de autenticação na API do Podio
 CLIENT_ID: str = get_env_or_fail("CLIENT_ID")
 CLIENT_SECRET: str = get_env_or_fail("CLIENT_SECRET")
-APP_ID: str = get_env_or_fail("APP_ID")
+APP_ID: int = int(get_env_or_fail("APP_ID"))
 APP_TOKEN: str = get_env_or_fail("APP_TOKEN")
 
 # Token de autenticação da API global da AIESEC (EXPA / GIS)
