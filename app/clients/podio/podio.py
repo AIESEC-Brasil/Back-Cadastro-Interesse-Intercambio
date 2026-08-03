@@ -8,11 +8,11 @@ e operações essenciais de metadados e manipulação de itens/cards do Podio.
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
 from typing import Any, Dict, Tuple  # Anotação formal de tipos estáticos
-
+from datetime import datetime, timedelta # Módulo nativo para manipulação e cálculos de datas e horários
 from app.cache import cache  # Sistema de cache em memória para armazenar tokens
 from app.utils import agora  # Helper para captura de timestamp atual
 from app.utils import resolve_response  # Resolver assíncrono de respostas HTTP
-
+from app.dto import HttpStatus # modulo enum para status http
 from ..http_request import HttpClient  # Instância do cliente HTTP assíncrono base
 
 # =================================================================
@@ -31,39 +31,71 @@ async def get_access_token(
         item: Dict[str, Any],
         path: str = "/oauth/token",
 ) -> Tuple[int, Dict[str, Any]]:
-    """Obtém tokens de acesso e refresh do Podio via 'App Authentication'.
+    """Obtém ou renova tokens do Podio apenas se necessário ou forçado.
 
     Args:
-        item (Dict[str, Any]): Dicionário contendo CLIENT_ID, CLIENT_SECRET,
-            APP_ID e APP_TOKEN.
+        item (Dict[str, Any]): Dicionário contendo credenciais e tokens.
         path (str, optional): Endpoint de autenticação OAuth2.
 
     Returns:
-        Tuple[int, Dict[str, Any]]: Status HTTP e payload com access_token,
-            refresh_token e tempo de expiração.
-
-    Raises:
-        ValueError: Se as credenciais forem inválidas ou recusadas.
-        RuntimeError: Se ocorrer falha na estrutura dos dados ou no envio.
+        Tuple[int, Dict[str, Any]]: Status HTTP e dados do token atualizado ou em cache.
     """
-    # Monta o payload no formato x-www-form-urlencoded exigido pelo Podio
-    payload = {
-        "grant_type": "app",
-        "client_id": item["CLIENT_ID"],
-        "client_secret": item["CLIENT_SECRET"],
-        "app_id": item["APP_ID"],
-        "app_token": item["APP_TOKEN"],
-    }
+    # 1. Recupera valores em cache aceitando tipos string/None para evitar avisos do linter
+    created_at_raw: str | None = item.get("CREATED_AT")
+    raw_expires_in: int | timedelta | None = item.get("EXPIRES_IN")
+    access_token: str | None = item.get("ACCESS_TOKEN")
+
+    # 2. Valida se o token em cache ainda está dentro do período de validade
+    if created_at_raw and raw_expires_in and access_token:
+        # Converte a string armazenada para um objeto datetime para permitir operações matemáticas
+        created_at = datetime.fromisoformat(created_at_raw)
+
+        # Garante que expires_in seja um objeto timedelta (mesmo que venha como int do Podio/Cache)
+        expires_in = (
+            raw_expires_in
+            if isinstance(raw_expires_in, timedelta)
+            else timedelta(seconds=int(raw_expires_in))
+        )
+
+        # Converte a margem de segurança (60 segundos) para um objeto timedelta
+        margem_seguranca = timedelta(seconds=60)
+
+        # Calcula o tempo decorrido entre a criação e o momento atual
+        tempo_decorrido = agora() - created_at
+        # Compara se o tempo decorrido é menor que o limite de expiração (com margem de segurança)
+        if tempo_decorrido < (expires_in - margem_seguranca):
+            return HttpStatus.OK, {
+                "access_token": access_token,
+                "expires_in": expires_in,
+                "refresh_token": item.get("REFRESH_TOKEN"),
+                "created_at": created_at_raw,
+            }
+
+    # 3. Prepara o payload caso o token precise ser gerado/renovado no Podio
+    if item.get("REFRESH_TOKEN"):
+        # Prioridade: renova via refresh_token
+        payload = {
+            "grant_type": "refresh_token",
+            "client_id": item["CLIENT_ID"],
+            "client_secret": item["CLIENT_SECRET"],
+            "refresh_token": item["REFRESH_TOKEN"],
+        }
+    else:
+        # Fallback: autentica via app (primeira autenticação)
+        payload = {
+            "grant_type": "app",
+            "client_id": item["CLIENT_ID"],
+            "client_secret": item["CLIENT_SECRET"],
+            "app_id": item["APP_ID"],
+            "app_token": item["APP_TOKEN"],
+        }
 
     try:
-        # Dispara a requisição POST assíncrona
+        # Dispara a requisição POST assíncrona para a API do Podio
         response = http.post(path=path, payload=payload, as_form=True)
-
-        # Resolve a coroutine e obtém o tuple (status, data)
         status, data = await resolve_response(response)
-
-        # Trata falhas de autenticação (credenciais incorretas ou inválidas)
-        if status != 200:
+        # Trata possíveis erros retornados pelo Podio
+        if status != HttpStatus.OK:
             msg_erro = data.get(
                 "error_description", "Erro desconhecido no Podio."
             )
@@ -71,12 +103,12 @@ async def get_access_token(
                 f"Parada Crítica: Falha na Autenticação ({status}) - {msg_erro}"
             )
 
-        # Estrutura tratada para armazenamento no Cache do sistema
+        # Retorna o novo token recebido e atualiza a data de criação
         return status, {
             "access_token": data["access_token"],
-            "expires_in": data["expires_in"],
-            "refresh_token": data["refresh_token"],
-            "created_at": agora(),  # Timestamp local para auditoria
+            "expires_in": int(data["expires_in"]),
+            "refresh_token": data["refresh_token"],  # Novo refresh token gerado
+            "created_at": agora().isoformat(),      # Salva como string ISO para persistência
         }
 
     except KeyError as e:
