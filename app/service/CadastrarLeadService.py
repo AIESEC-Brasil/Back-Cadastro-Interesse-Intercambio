@@ -54,9 +54,9 @@ def cadastrar_lead(
         buscar_client.item_completo(lead_input.model_dump())
     )
 
-    # Se o lead já existir na base, recupera o ID do card e retorna status 200 OK
+    # Se o lead já existir na base, atualiza e retorna status 200 OK
     if lead_existe:
-        return lead_ogx.atualizar_lead(lead_existe,lead_input), 200
+        return lead_ogx.atualizar_lead(lead_existe,lead_input), HttpStatus.OK
 
     # Inicializa o verificador de conflitos de cadastro
     verificador = VerificadorConflitos(buscar_client)
@@ -69,7 +69,7 @@ def cadastrar_lead(
         return conflitos.model_dump(exclude_none=True), HttpStatus.CONFLICT
 
     # Conclui o cadastro gerando os dados do novo lead (HTTP 201 CREATED)
-    return lead_ogx.cadastrar_lead(lead_input), 201
+    return lead_ogx.cadastrar_lead(lead_input), HttpStatus.CREATED
 
 
 # =================================================================

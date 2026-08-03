@@ -74,6 +74,8 @@ FIELDS_PERMITIDOS = {
     "tag-origem-2",
     "tag-meio-2-2",
     "status",
+    "email",
+    "telefone"
 }
 
 
@@ -109,7 +111,7 @@ class CacheManager:
             baixando: str,
             fetch: Optional[Callable[[], Any]] = None,
             resync: bool = False,
-            ttl: int = CACHE_TTL,
+            ttl: int = CACHE_TTL - 3600,
     ) -> Tuple[Any, int]:
         """Recupera um dado do cache ou executa a função de busca (Cache-Aside).
 
@@ -118,7 +120,7 @@ class CacheManager:
             baixando (str): Descrição legível usada exclusivamente nos logs do sistema.
             fetch (Optional[Callable]): Função ou Corotina a ser invocada caso ocorra CACHE MISS.
             resync (bool): Se True, ignora o cache existente e força uma nova busca na API externa.
-            ttl (int): Tempo limite de validade do dado armazenado (em segundos).
+            ttl (int): Tempo limite de validade do dado armazenado (em segundos) por padrão pe valor de ambiente com folga de 1 h.
 
         Returns:
             Tuple[Any, int]: Uma tupla contendo o objeto de resposta Flask (JSON) e o Status HTTP.
@@ -146,7 +148,6 @@ class CacheManager:
         # Se a chave existe na memória e a flag 'resync' NÃO foi ativada:
         if key in self.store and not resync:
             item = self.store[key]
-
             # Subtrai o timestamp atual pelo timestamp de criação do item.
             # Se a diferença for menor que o TTL estipulado, o dado ainda é válido!
             if now - item["timestamp"] < ttl:
@@ -264,18 +265,23 @@ class CacheManager:
 
                     # Mantém no resultado apenas os campos cujos IDs estejam na lista branca (FIELDS_PERMITIDOS)
                     if field_data.get("external_id") in FIELDS_PERMITIDOS:
-                        # Extrai a lista de opções ativas configuradas no campo
-                        opts = (
-                            field_data.get("config", {})
-                            .get("settings", {})
-                            .get("options", [])
-                        )
+                        # 1. Navega com segurança no dicionário para evitar erros caso 'config' ou 'settings' sejam None
+                        config = field_data.get("config") or {}
+                        settings = config.get("settings") or {}
 
-                        # Adiciona à nova lista filtrada
+                        # 2. Busca primeiro a chave "options". Se ela não existir ou estiver vazia,
+                        # busca a chave "possible_types". Caso nenhuma exista, usa uma lista vazia []
+                        opts = settings.get("options") or settings.get("possible_types") or []
+
+                        # 3. Adiciona os dados processados na lista 'new_fields'
                         new_fields.append({
                             "external_id": field_data["external_id"],
                             "options": [
-                                o for o in opts if o.get("status") == "active"
+                                o for o in opts
+                                # Mantém o item se:
+                                # A) Ele NÃO for dicionário (ex: strings de 'possible_types', aceita diretamente)
+                                # B) Ele for dicionário e tiver status "active" ou None (itens de 'options')
+                                if not isinstance(o, dict) or o.get("status") in ("active", None)
                             ],
                         })
 
@@ -290,7 +296,6 @@ class CacheManager:
                 "data": data,
                 "timestamp": now,
             }
-
         # Emite mensagem de sucesso no log de execução do servidor
         logger.info(
             f"AIESEC Security | Sincronização de '{baixando}' concluída com sucesso!"

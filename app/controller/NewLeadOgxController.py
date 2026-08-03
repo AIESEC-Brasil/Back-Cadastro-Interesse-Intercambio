@@ -57,7 +57,7 @@ def buscar_metadados() -> Metadados:
         key="metadados_card-ogx",
         fetch=lambda: metadados(
             chave="ogx-token-podio",
-            APP_ID=APP_ID,
+            app_id=APP_ID,
         ),
         baixando="Metadados de Novos lead B2C",
     )
