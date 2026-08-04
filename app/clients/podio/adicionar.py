@@ -1,4 +1,5 @@
 # Importação de tipo de anotação de tipo genérico do Python
+from types import CoroutineType
 from typing import Any
 
 # Importação das funções utilitárias para manipular dados específicos do Podio (extrair ID e buscar token)
@@ -10,14 +11,13 @@ from ..http_request import HttpClient
 # Importação da função utilitária para desempacotar e formatar as respostas das requisições HTTP
 from app.utils import resolve_response
 
-from app.helper import payload_pre_cadastro_podio
-
 # Cliente base pré-configurado com a URL base do Podio e o prefixo da rota de aplicativos
 http = HttpClient(base_url="https://api.podio.com", prefix="/item/app")
 
 
 @validar
-async def adicionar_lead(chave: str, payload: Any, app_id: int) -> tuple[dict, int]:
+async def adicionar_lead(chave: str, payload: Any, app_id: int, response_dto: Any) -> CoroutineType[
+    Any, Any, tuple[int, Any]]:
     """Cria um card de lead no Podio.
 
     Dispara a requisição de inserção para o Podio utilizando o token em cache.
@@ -28,6 +28,7 @@ async def adicionar_lead(chave: str, payload: Any, app_id: int) -> tuple[dict, i
         chave (str): Chave identificadora do serviço/configuração (ex: 'new-lead-ogx').
         payload (Any): Dicionário contendo os dados do formulário/lead a ser criado.
         app_id (int): ID do aplicativo no Podio onde o item será inserido.
+        response_dto (Any) : Payload do dto usado para transferencia
 
     Returns:
         tuple[dict, int]: Tupla contendo o payload atualizado (com 'item_id') e o status HTTP.
@@ -44,11 +45,10 @@ async def adicionar_lead(chave: str, payload: Any, app_id: int) -> tuple[dict, i
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    # Constrói a estrutura do payload formatada para o Podio
-    payload_podio = payload_pre_cadastro_podio(payload)
+
     # === PRIMEIRA TENTATIVA ===
     # Envia o payload para a API do Podio no app específico
-    response = http.post(path=f"/{app_id}", payload=payload_podio, headers=headers)
+    response = http.post(path=f"/{app_id}", payload=payload, headers=headers)
     status, data = await resolve_response(response)
 
     # === FALLBACK: TRATAMENTO PARA TOKEN EXPIRADO (STATUS 4xx) ===
@@ -79,10 +79,9 @@ async def adicionar_lead(chave: str, payload: Any, app_id: int) -> tuple[dict, i
         raise ValueError(f"Falha ao adicionar lead no Podio ({status}): {data}")
 
     # Associa o ID do card gerado/retornado pelo Podio ao dicionário do payload
-    data["item_id"] = buscar_id_card(data)
-
+    response_dto["item_id"] = buscar_id_card(data)
     # Retorna o payload processado e o status final da resposta HTTP
-    return data
+    return response_dto
 
 
 __all__ = ["adicionar_lead"]

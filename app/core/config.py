@@ -9,10 +9,6 @@ com base em constantes importadas de app.config.settings.
 # =================================================================
 import locale  # Manipulação de configurações regionais e de idioma
 from typing import Any, Dict  # Suporte para anotações de tipagem estática
-from ..repository import (  # Métodos de consulta ao banco de dados/repositório
-    buscar_todas_universidades,
-    buscar_todos_cl,
-)
 from ..cache import cache  # Mecanismo de persistência temporária/cache
 from ..clients import get_access_token  # Client para handshake de OAuth2
 from ..clients import metadados  # Client para metadados de campos do Podio
@@ -77,6 +73,10 @@ async def pre_carregamento_metadados() -> None:
     Estrutura as credenciais para cada integração e executa o carregamento
     assíncrono do token de acesso do Podio e dos metadados das aplicações.
     """
+    from ..repository import (  # Métodos de consulta ao banco de dados/repositório
+        buscar_todas_universidades,
+        buscar_todos_cl,
+    )
     # Mapeamento de configurações e credenciais por fluxo/integração
     config_map: Dict[str, Dict[str, Any]] = {
         "new-lead-ogx": {
@@ -120,7 +120,7 @@ async def pre_carregamento_metadados() -> None:
     key="divisao-mercado-universidades",
     fetch=lambda: buscar_todas_universidades(),
     baixando="Metadados da divisão de mercado por Universidades",
-)
+    )
 
 
 # =================================================================

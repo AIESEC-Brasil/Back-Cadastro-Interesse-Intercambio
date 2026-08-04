@@ -8,12 +8,13 @@ from typing import Any
 # Importa PositiveInt do Pydantic para garantir que identificadores numéricos sejam estritamente inteiros positivos (> 0)
 from pydantic import PositiveInt
 
+from app.helper import payload_pre_cadastro_podio
+
 # Importa os modelos de DTO (Data Transfer Objects) de entrada e saída para validação estrutural do lead
 from ..dto import LeadPreCadastroInput, LeadPreCadastroOutput,CriarPreCadastroLead
 
 # Importa as funções de comunicação externa com a API do Podio para adicionar, atualizar e remover registros
 from ..clients import adicionar_lead, atualizar_lead, remover_lead
-
 
 class LeadPodio:
     """Classe de serviço responsável por gerenciar operações de Leads no Podio.
@@ -40,7 +41,7 @@ class LeadPodio:
     @validar
     def cadastrar_lead(
             self, lead: CriarPreCadastroLead
-    ) -> tuple[dict[Any, Any], int]:
+    ) -> CoroutineType[Any, Any, tuple[int, Any]]:
         """Realiza o cadastro de um novo lead de forma assíncrona na plataforma Podio.
 
         Utiliza os dados validados do payload de entrada e o `app_id` configurado
@@ -55,9 +56,12 @@ class LeadPodio:
                 ao ser resolvida, retorna uma tupla contendo o dicionário com a
                 resposta dos dados do Podio e o respectivo código de status HTTP.
         """
+        # Constrói a estrutura do payload formatada para o Podio
+        payload_podio = payload_pre_cadastro_podio(lead)
         return asyncio.run(adicionar_lead(
             chave="ogx-token-podio",
-            payload=lead.model_dump(exclude_none=True),
+            payload=payload_podio,
+            response_dto=lead.model_dump(exclude_none=True),
             app_id=self.app_id,
         ))
 
