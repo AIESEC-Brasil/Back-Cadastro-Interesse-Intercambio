@@ -3,7 +3,7 @@ from typing import Any
 from .podio import buscar_token,buscar_id_card
 from ..http_request import HttpClient
 from app.utils import resolve_response
-from app.middlewares.registrando_token_rota import CONFIG_MAP
+
 # Cliente base para autenticação e chamadas gerais
 http = HttpClient(base_url="https://api.podio.com",prefix="/item/app")
 
