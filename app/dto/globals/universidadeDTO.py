@@ -14,6 +14,7 @@ from pydantic import (
     BaseModel,   # Classe base para criação de modelos de dados com validação automática.
     ConfigDict,  # Objeto de configuração para definir comportamentos do modelo (ex: permitir aliases, proibir campos extras).
     Field,       # Utilizado para definir metadados dos campos, como descrições, aliases e exemplos para o JSON Schema.
+    PositiveInt,      # Tipa e valida se o número é um inteiro positivo (> 0).
 )
 
 
@@ -34,15 +35,13 @@ class Universidade(BaseModel):
     """
 
     # Identificador único da universidade no banco de dados (Opcional)
-    id: Optional[int] = Field(
-        default=None,
+    id: PositiveInt = Field(
         description="Id da Universidade no Banco de Dados",
         json_schema_extra={"example": 1},
     )
 
     # Nome completo da universidade no banco de dados (Opcional)
-    nome: Optional[str] = Field(
-        default=None,
+    nome: str = Field(
         description="Nome da Universidade no Banco de Dados",
         json_schema_extra={"example": "Universidade Federal de Pernambuco"},
     )
