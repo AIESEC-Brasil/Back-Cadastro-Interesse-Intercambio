@@ -19,7 +19,7 @@ from .lista_autorizados import require_ip_whitelist
 from .registrando_endpoint import register_url
 
 # 4. Integração com Terceiros: Garante o Token de Acesso ao Podio otimizado via cache
-from .registrando_token_rota import gerar_token_podio_rota,_fetch_token
+from .registrando_token_rota import gerar_token_podio_rota
 
 
 # =================================================================
@@ -33,5 +33,4 @@ __all__ = [
     "gerar_token_podio_rota",
     "register_url",
     "require_ip_whitelist",
-    "_fetch_token",
 ]
