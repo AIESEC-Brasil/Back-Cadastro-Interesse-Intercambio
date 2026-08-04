@@ -25,10 +25,13 @@ from ..globals import (
     Comite,
     DataNascimento,
     EmailItem,
+    Meio,
+    Origem,
     Produto,
+    Senha,
+    Tag,
     TelefoneItem,
     Universidade,
-    Senha
 )
 
 
@@ -52,6 +55,9 @@ class LeadPreCadastroInput(BaseModel):
         produto (Produto): Produto/programa de interesse selecionado pelo lead.
         comite (Comite): Comitê local responsável pelo atendimento do lead.
         autorizacao (Autorizacao): Consentimentos e autorizações de termos do lead.
+        origem (Origem): Origem/canal pelo qual o lead conheceu a AIESEC.
+        meio (Optional[Meio]): Meio específico de contato/captação (opcional). Padrão: None.
+        tag (Optional[List[Tag]]): Lista de tags de campanhas ou eventos associados (opcional). Padrão: None.
     """
 
     # Configuração global do modelo: ignora campos extras não declarados no payload
@@ -103,6 +109,21 @@ class LeadPreCadastroInput(BaseModel):
     # Termos de aceite e consentimentos legais fornecidos pelo lead (validados pelo schema Autorizacao)
     autorizacao: Autorizacao
 
+    # Origem primária pela qual o lead conheceu a AIESEC (validada pelo schema Origem)
+    origem: Origem
+
+    # Meio secundário ou canal específico de contato do lead (opcional; assume None se omitido)
+    meio: Optional[Meio] = Field(
+        default=None,
+        description="Meio de contato pelo qual o lead conheceu a AIESEC (opcional)",
+    )
+
+    # Coleção de tags de eventos ou campanhas de atração (opcional; assume None se omitido)
+    tag: Optional[List[Tag]] = Field(
+        default=None,
+        description="Lista de tags de evento ou campanha utilizadas na atração (opcional)",
+    )
+
 
 class CriarPreCadastroLead(LeadPreCadastroInput):
     """Modelo estendido para criação de pré-cadastro de Lead contendo credenciais.
@@ -112,7 +133,7 @@ class CriarPreCadastroLead(LeadPreCadastroInput):
     onde qualquer campo não especificado no payload resultará em erro de validação.
 
     Attributes:
-        senha (str): Senha de acesso escolhida pelo usuário para autenticação.
+        senha (Senha): Senha de acesso escolhida pelo usuário para autenticação no EXPA.
     """
 
     # Configuração estrita: proíbe explicitamente qualquer campo extra não especificado
@@ -120,7 +141,7 @@ class CriarPreCadastroLead(LeadPreCadastroInput):
 
     # Credencial/Senha criada pelo lead para autenticação no sistema (obrigatória no cadastro)
     senha: Senha = Field(
-        description="Senha de acesso do lead no expa",
+        description="Senha de acesso do lead no EXPA",
         json_schema_extra={
             "example": "teste123"
         },

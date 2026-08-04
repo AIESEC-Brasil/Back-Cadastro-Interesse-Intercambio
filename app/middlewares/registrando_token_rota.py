@@ -56,6 +56,47 @@ logger = logging.getLogger(__name__)
 # 3. DECORADOR DE AUTENTICAÇÃO E CHECAGEM DE TOKEN
 # =================================================================
 
+async def _fetch_token() -> Dict[str, Any]:
+    """Obtém o token de acesso do Podio e isola o payload de dados da resposta.
+
+    Esta corotina atua como uma função callback interna (fetcher) para a estratégia
+    de Cache-Aside. Ela invoca o serviço de autenticação `get_access_token` e
+    assegura a normalização do retorno, extraindo unicamente o dicionário com os
+    dados do token (access_token, refresh_token, expires_in, etc.), descartando
+    quaisquer metadados de resposta HTTP (ex: tuplas com status codes ou objetos HttpStatus).
+
+    Adicionalmente, sanitiza qualquer atributo temporal do tipo `timedelta` convertendo-o
+    para inteiro (segundos), garantindo compatibilidade com serializações JSON.
+
+    Returns:
+        Dict[str, Any]: Dicionário contendo os dados sanitizados de autenticação do Podio.
+            Retorna um dicionário vazio `{}` caso a resposta não contenha uma estrutura válida.
+
+    Note:
+        A sanitização previne erros de serialização no cache (como
+        `TypeError: Object of type timedelta is not JSON serializable`) e falhas de
+        atributo (`AttributeError`) ao consumir o cache posteriormente.
+    """
+    resultado = await get_access_token(CONFIG_MAP["new-lead-ogx"]["credenciais"])
+
+    payload: Dict[str, Any] = {}
+
+    # 1. Isola o dicionário se get_access_token retornar uma tupla (ex: (HttpStatus, payload) ou (200, payload))
+    if isinstance(resultado, tuple):
+        for item in resultado:
+            if isinstance(item, dict):
+                payload = item
+                break
+
+    # 2. Sanitiza o payload convertendo eventuais campos timedelta em segundos (int)
+    if payload:
+        payload = payload.copy()  # Evita mutar o dicionário original inesperadamente
+        for chave, valor in payload.items():
+            if isinstance(valor, timedelta):
+                payload[chave] = int(valor.total_seconds())
+
+    return payload
+
 def gerar_token_podio_rota(
         service: str,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -96,47 +137,6 @@ def gerar_token_podio_rota(
                     )
 
                 logger.info(f"AIESEC Auth | Validando token para: {service}")
-
-                async def _fetch_token() -> Dict[str, Any]:
-                    """Obtém o token de acesso do Podio e isola o payload de dados da resposta.
-
-                    Esta corotina atua como uma função callback interna (fetcher) para a estratégia
-                    de Cache-Aside. Ela invoca o serviço de autenticação `get_access_token` e
-                    assegura a normalização do retorno, extraindo unicamente o dicionário com os
-                    dados do token (access_token, refresh_token, expires_in, etc.), descartando
-                    quaisquer metadados de resposta HTTP (ex: tuplas com status codes ou objetos HttpStatus).
-
-                    Adicionalmente, sanitiza qualquer atributo temporal do tipo `timedelta` convertendo-o
-                    para inteiro (segundos), garantindo compatibilidade com serializações JSON.
-
-                    Returns:
-                        Dict[str, Any]: Dicionário contendo os dados sanitizados de autenticação do Podio.
-                            Retorna um dicionário vazio `{}` caso a resposta não contenha uma estrutura válida.
-
-                    Note:
-                        A sanitização previne erros de serialização no cache (como
-                        `TypeError: Object of type timedelta is not JSON serializable`) e falhas de
-                        atributo (`AttributeError`) ao consumir o cache posteriormente.
-                    """
-                    resultado = await get_access_token(config["credenciais"])
-
-                    payload: Dict[str, Any] = {}
-
-                    # 1. Isola o dicionário se get_access_token retornar uma tupla (ex: (HttpStatus, payload) ou (200, payload))
-                    if isinstance(resultado, tuple):
-                        for item in resultado:
-                            if isinstance(item, dict):
-                                payload = item
-                                break
-
-                    # 2. Sanitiza o payload convertendo eventuais campos timedelta em segundos (int)
-                    if payload:
-                        payload = payload.copy()  # Evita mutar o dicionário original inesperadamente
-                        for chave, valor in payload.items():
-                            if isinstance(valor, timedelta):
-                                payload[chave] = int(valor.total_seconds())
-
-                    return payload
 
                 # --- ESTRATÉGIA CACHE-ASIDE (RESOLUÇÃO SÍNCRONA) ---
                 # Como o gerenciador de cache opera sobre corotinas assíncronas (async def),

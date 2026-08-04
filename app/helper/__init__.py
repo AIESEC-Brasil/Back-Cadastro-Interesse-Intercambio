@@ -13,7 +13,7 @@ apresentação e integração com serviços externos (ex: Podio API).
 from . import formatar, validates
 
 # Importações explícitas dos componentes para viabilizar acesso direto
-from .formatar import payload_podio
+from .formatar import *
 from .validates import tem_mais_de_31_anos
 
 # =================================================================

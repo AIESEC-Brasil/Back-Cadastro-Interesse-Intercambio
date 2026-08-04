@@ -36,17 +36,29 @@ from .telefoneItemDTO import TelefoneItem
 from . import comiteDTO
 from .comiteDTO import Comite
 
+# Importa o DTO de Produto e seu módulo
+from . import produtoDTO
+from .produtoDTO import Produto
+
+# Importa o DTO de Meio de Contato e seu módulo
+from . import meioDTO
+from .meioDTO import *
+
+# Importa o DTO de Origem e seu módulo
+from . import origemDTO
+from .origemDTO import *
+
 # Importa o validador de Data de Nascimento e seu módulo
 from . import dataNascimentoDTO
 from .dataNascimentoDTO import DataNascimento
 
-# Importa o DTO/Enum de Produto e seu módulo
-from . import produtoDTO
-from .produtoDTO import Produto
-
-#Importa o DTO de Senha e seu moduto
+# Importa o DTO de Senha e seu módulo
 from . import senhaDTO
 from .senhaDTO import *
+
+# Importa o DTO de Tag e seu módulo
+from . import tagDTO
+from .tagDTO import *
 
 # =================================================================
 # 2. EXPORTAÇÃO CONSOLIDADA DO PACOTE
@@ -62,6 +74,9 @@ __all__ = list(
     + telefoneItemDTO.__all__
     + comiteDTO.__all__
     + produtoDTO.__all__
+    + meioDTO.__all__
+    + origemDTO.__all__
     + dataNascimentoDTO.__all__
     + senhaDTO.__all__
+    + tagDTO.__all__
 )
