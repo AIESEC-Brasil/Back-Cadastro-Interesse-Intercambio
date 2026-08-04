@@ -9,7 +9,10 @@ com base em constantes importadas de app.config.settings.
 # =================================================================
 import locale  # Manipulação de configurações regionais e de idioma
 from typing import Any, Dict  # Suporte para anotações de tipagem estática
-
+from ..repository import (  # Métodos de consulta ao banco de dados/repositório
+    buscar_todas_universidades,
+    buscar_todos_cl,
+)
 from ..cache import cache  # Mecanismo de persistência temporária/cache
 from ..clients import get_access_token  # Client para handshake de OAuth2
 from ..clients import metadados  # Client para metadados de campos do Podio
@@ -106,6 +109,18 @@ async def pre_carregamento_metadados() -> None:
         ),
         baixando="Metadados de Novos lead B2C",
     )
+
+    await cache.get_or_set(
+        key="divisao-mercado-escritorios",
+        fetch=lambda: buscar_todos_cl(),
+        baixando="Metadados da divisão de mercado por escritorio",
+    )
+
+    await cache.get_or_set(
+    key="divisao-mercado-universidades",
+    fetch=lambda: buscar_todas_universidades(),
+    baixando="Metadados da divisão de mercado por Universidades",
+)
 
 
 # =================================================================
