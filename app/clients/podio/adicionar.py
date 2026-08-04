@@ -3,7 +3,7 @@ from typing import Any
 from .podio import buscar_token,buscar_id_card
 from ..http_request import HttpClient
 from app.utils import resolve_response
-
+from app.middlewares.registrando_token_rota import CONFIG_MAP
 # Cliente base para autenticação e chamadas gerais
 http = HttpClient(base_url="https://api.podio.com",prefix="/item/app")
 
@@ -13,14 +13,32 @@ async def adicionar_lead(chave: str, payload: Any, app_id: int) -> tuple[dict, i
     Cria um card no Podio.
     Retorna o corpo da resposta e o 'app_item_id' (ID sequencial amigável).
     """
-    """headers = {
-        "Authorization": f"Bearer {buscar_token(chave)}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    # Payload deve ser um dicionário com a chave "fields" (conforme DTO de Output)
-    response = http.post(path=f"/{app_id}", payload=payload, headers=headers)
-    status, data = await resolve_response(response)"""
+    """
+    try:
+        headers = {
+                "Authorization": f"Bearer {buscar_token(chave)}",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        # Payload deve ser um dicionário com a chave "fields" (conforme DTO de Output)
+        response = http.post(path=f"/{app_id}", payload=payload, headers=headers)
+        status, data = await resolve_response(response)
+    except Exception:
+        async_to_sync(cache.get_or_set)(
+                    key=config["key"],
+                    fetch=_fetch_token,
+                    baixando=f"Chave de Acesso ao Podio ({service})",
+                    ttl=900,  # Tempo de duração do cache do access token (15 min)
+                )
+        headers = {
+                "Authorization": f"Bearer {buscar_token(chave)}",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        # Payload deve ser um dicionário com a chave "fields" (conforme DTO de Output)
+        response = http.post(path=f"/{app_id}", payload=payload, headers=headers)
+        status, data = await resolve_response(response)
+    """
     payload["item_id"] = 243426
     return payload
 

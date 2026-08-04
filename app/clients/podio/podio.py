@@ -40,6 +40,7 @@ async def get_access_token(
     Returns:
         Tuple[int, Dict[str, Any]]: Status HTTP e dados do token atualizado ou em cache.
     """
+    """
     # 1. Recupera valores em cache aceitando tipos string/None para evitar avisos do linter
     created_at_raw: str | None = item.get("CREATED_AT")
     raw_expires_in: int | timedelta | None = item.get("EXPIRES_IN")
@@ -69,7 +70,7 @@ async def get_access_token(
                 "expires_in": expires_in,
                 "refresh_token": item.get("REFRESH_TOKEN"),
                 "created_at": created_at_raw,
-            }
+            }"""
 
     # 3. Prepara o payload caso o token precise ser gerado/renovado no Podio
     if item.get("REFRESH_TOKEN"):
