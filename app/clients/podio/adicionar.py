@@ -123,7 +123,6 @@ async def adicionar_lead(
     # Garante que a requisição no Podio foi concluída com sucesso
     if not 200 <= status <= 399:
         raise ValueError(f"Falha ao adicionar lead no Podio ({status}): {data}")
-    print(payload)
     # === STEP 3: PREPARAÇÃO E RETORNO DA RESPOSTA FINAL ===
     # Atribui o ID extraído do Podio à chave 'id' exigida pelo DTO de saída (LeadPreCadastroOutput)
     response_dto["item_id"] = buscar_id_card(data)
