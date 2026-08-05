@@ -9,7 +9,7 @@ API do Podio (chaves dentro do nó 'fields').
 # =================================================================
 from typing import Any, Dict  # Utilitários de tipagem para dicionários flexíveis
 from datetime import date, datetime
-from ..dto import LeadPreCadastroInput,CategoriaContato, DataNascimento # modulos de dto
+from ..dto import LeadPreCadastroInput,CategoriaContato, DataNascimento,CriarPreCadastroLead # modulos de dto
 
 # =================================================================
 # 2. FORMATADORES DE INTEGRAÇÃO COM A API DO PODIO
@@ -48,8 +48,43 @@ def payload_pre_cadastro_podio(data: LeadPreCadastroInput) -> dict[
     if data.tag: payload["tags"] = data.tag if isinstance(data.tag,list) else [data.tag.__str__()]
     return payload
 
+def payload_expa(data: CriarPreCadastroLead) -> Dict[str, Any]:
+    """Formata e constrói o payload necessário para a integração com a API do EXPA.
+
+    Esta função extrai e transforma os dados do DTO de pré-cadastro do lead,
+    preparando a estrutura de dicionário aceita para a criação de conta no EXPA.
+
+    Args:
+        data (CriarPreCadastroLead): Objeto DTO contendo as informações validadas
+            do formulário de pré-cadastro.
+
+    Returns:
+        Dict[str, Any]: Dicionário contendo os dados formatados para envio ao EXPA.
+
+    Details:
+        - Os campos `nome` e `sobrenome` são formatados em Title Case (`.title()`).
+        - O campo `nomeCL` é sanitizado para remover variações de prefixos do nome do comitê.
+        - Os campos `telefone` e `email` utilizam `next()` com fallback para evitar erros
+          em caso de listas de contato vazias.
+    """
+    payload = {
+        "nome": data.nome.__str__().title(),
+        "sobrenome": data.sobrenome.__str__().title(),
+        "senha": data.senha.__str__(),
+        "dataNascimento": data.dataNascimento.__str__(),
+        "programa": data.produto.id_expa.__int__(),
+        "nomeCL": data.comite.nome.__str__()
+        .replace("AIESEC em São Paulo Unidade", "")
+        .replace("AIESEC em", "")
+        .replace("AIESEC no", "")
+        .strip(),
+        "telefone": next((t.numero.__str__() for t in data.telefone), ""),
+        "email": next((e.email.__str__() for e in data.email), ""),
+    }
+    return payload
+
 
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
-__all__ = ["payload_pre_cadastro_podio"]
+__all__ = ["payload_pre_cadastro_podio","payload_expa"]

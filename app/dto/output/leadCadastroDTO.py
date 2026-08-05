@@ -12,7 +12,6 @@ from pydantic import (
     ConfigDict,  # Configurações globais do modelo Pydantic v2 (ex: permitir aliases, definir comportamento de campos extras).
     Field,  # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
 )
-
 # Importação do modelo base de transferência de dados de entrada de pré-cadastro
 from ..input import LeadPreCadastroInput
 
@@ -40,8 +39,7 @@ class LeadPreCadastroOutput(LeadPreCadastroInput):
         json_schema_extra={"example": "325664"},
     )
 
-
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
-__all__ = ["LeadPreCadastroOutput"]
+__all__ = ["LeadPreCadastroOutput","LeadOuErroResponse"]

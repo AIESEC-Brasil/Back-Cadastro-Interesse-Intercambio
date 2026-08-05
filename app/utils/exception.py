@@ -39,7 +39,8 @@ def handle_validation_error(e: Exception):
 def handle_app_error(error: AppError):
     """Retorna o erro no formato pydantic"""
     dto = error.dto # pegar o erro no formato da class base do dto
-    return dto.model_dump(), dto.status_code.value # converte para um dict
+    status_code = getattr(dto.status_code, "value", dto.status_code)
+    return dto.model_dump(), status_code # converte para um dict
 
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO

@@ -58,7 +58,7 @@ DOMINIOS_PERMITIDOS: List[str] = [
 DB_CONNECT: str = get_env_or_fail("DB_CONNECT")
 
 # Identificador do script/Google Apps Script para integrações legadas
-ID_APPSCRIPT_EXPA: str = get_env_or_fail("ID_APPSCRIPT_EXPA")
+APPSCRIPT_EXPA: str = get_env_or_fail("APPSCRIPT_EXPA")
 
 # Tempo de vida padrão para itens gravados em cache (em segundos)
 CACHE_TTL: int = int(get_env_or_fail("CACHE_TTL"))
@@ -88,5 +88,5 @@ __all__ = [
     "APP_ID",  # ID do aplicativo alvo no Podio
     "APP_TOKEN",  # Token do aplicativo alvo no Podio
     "TOKEN_EXPA",  # Token de autenticação da plataforma EXPA (GIS)
-    "ID_APPSCRIPT_EXPA",  # ID de integração com Google Apps Script
+    "APPSCRIPT_EXPA",  # ID de integração com Google Apps Script
 ]

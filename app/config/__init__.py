@@ -23,7 +23,7 @@ from .settings import (
     CLIENT_SECRET,
     DB_CONNECT,
     DOMINIOS_PERMITIDOS,
-    ID_APPSCRIPT_EXPA,
+    APPSCRIPT_EXPA,
     TOKEN_EXPA,
 )
 
