@@ -10,7 +10,6 @@ Gerencia metadados estruturais do Podio e o fluxo de inscrição/pré-cadastro.
 import logging  # Sistema de log para rastreamento de operações e erros
 
 from asgiref.sync import async_to_sync  # Adaptador para execução síncrona de corotinas
-
 from ..cache import cache  # Gerenciador de cache da aplicação
 from ..clients import metadados  # Cliente HTTP para metadados da API do Podio
 from ..config import APP_ID  # ID do aplicativo Podio para Leads OGX
@@ -19,7 +18,9 @@ from ..dto import (  # DTOs de validação e serialização OpenAPI3/Pydantic
     CriarPreCadastroLead,
     LeadPreCadastroOutput,
     Metadados,
+    ErroGenerico,
 )
+
 from ..middlewares import gerar_token_podio_rota  # Interceptador de autenticação de rota
 from ..router import Router  # Classe estendida de roteamento OpenAPI3
 from ..service import cadastrar_lead  # Regra de negócio para criação de leads
@@ -33,7 +34,6 @@ new_lead_ogx = Router(name="novos_leads_ogx", url_prefix="/new-lead-ogx")
 
 # Instancia o logger específico deste módulo
 logger = logging.getLogger(__name__)
-
 
 # =================================================================
 # 3. ENDPOINTS E MANIPULADORES DE REQUISIÇÃO
@@ -74,6 +74,7 @@ def buscar_metadados() -> Metadados:
         201: LeadPreCadastroOutput,
         200: LeadPreCadastroOutput,
         409: ConflitosLeadOutput,
+        400: ErroGenerico
     },
 )
 @gerar_token_podio_rota(service="new-lead-ogx")

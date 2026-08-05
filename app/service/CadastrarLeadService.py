@@ -69,7 +69,7 @@ def cadastrar_lead(
         return conflitos.model_dump(exclude_none=True), HttpStatus.CONFLICT
 
     # Conclui o cadastro gerando os dados do novo lead (HTTP 201 CREATED)
-    return lead_ogx.cadastrar_lead(lead_input), HttpStatus.CREATED
+    return lead_ogx.cadastrar_lead(lead_input)
 
 
 # =================================================================

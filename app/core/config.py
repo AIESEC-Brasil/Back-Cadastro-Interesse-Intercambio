@@ -20,6 +20,8 @@ from ..config import (  # Constantes brutas importadas da configuração central
     CLIENT_SECRET,
     DB_CONNECT,
     DOMINIOS_PERMITIDOS,
+    APPSCRIPT_EXPA,
+    TOKEN_EXPA
 )
 
 # =================================================================
@@ -133,6 +135,8 @@ __all__ = [
     "IS_DEV",  # Booleano que indica se o ambiente é de Desenvolvimento
     "IS_TEST",  # Booleano que indica se o ambiente é de Teste/Homologação
     "DB_CONNECT",  # String de conexão/URI com o banco de dados
+    "APPSCRIPT_EXPA", # Url do appscript pro expa
+    "TOKEN_EXPA", # token de acesso
     "configurar_idioma",  # Função utilitária para definir locale da aplicação para PT-BR
     "pre_carregamento_metadados",  # Rotina assíncrona para aquecimento e cache de dados do Podio
 ]
