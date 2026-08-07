@@ -31,6 +31,9 @@ from .conflitoDTO import (
     VerificadorConflitos,
 )
 
+# Modelo de tipo generico
+from .genericoDTO import *
+
 # =================================================================
 # 2. EXPORTAÇÃO CONSOLIDADA DO PACOTE
 # =================================================================
@@ -47,4 +50,5 @@ __all__ = [
     "LeadPreCadastroOutput",
     "ConflitosLeadOutput",
     "VerificadorConflitos",
+    "RetornoGenerico"
 ]

@@ -27,7 +27,7 @@ from .core import (
 from .manager import migration  # Função orquestradora de migrações no banco de dados
 from .middlewares import register_url, verificar_origem  # Middlewares de auditoria e interceptação
 from .model import db as model_db  # Garantia de registro dos modelos ORM para detecção no Flask-Migrate
-from .utils import handle_validation_error,handle_app_error  # Handler customizado para erros de validação OpenAPI3
+from .utils import handle_validation_error,handle_app_error,converter_resposta_dinamica  # Handler customizado para erros de validação OpenAPI3
 from .dto import AppError
 
 # =================================================================
@@ -67,6 +67,7 @@ def create_app() -> OpenAPI:
             validate_response=True,  # Valida se o formato do JSON retornado bate com a documentação
             validation_error_status=422,  # Código HTTP retornado em falhas de esquema no payload
             validation_error_callback=handle_validation_error,  # Callback customizado para formatar erros de validação
+            validate_response_callback=converter_resposta_dinamica # callback cutomizado para validar e personalizar o return pelo declaração
         )
 
         # =========================================================

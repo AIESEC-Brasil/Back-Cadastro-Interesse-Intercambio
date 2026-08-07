@@ -1,20 +1,36 @@
+"""Módulo de abstração e gerenciamento de operações de Leads no Podio."""
+
+# =================================================================
+# 1. IMPORTAÇÕES E DEPENDÊNCIAS
+# =================================================================
 import asyncio  # Execução de corrotinas assíncronas em contexto síncrono
+import logging  # Módulo nativo de logging para rastreamento e diagnósticos
+from types import CoroutineType  # Importa o tipo CoroutineType para tipagem de funções assíncronas
+from typing import Any  # Importa Any para tipagens dinâmicas e flexíveis
 
-# Importa o tipo CoroutineType do módulo nativo types para tipagem de funções assíncronas
-from types import CoroutineType
-# Importa Any do módulo typing para permitir tipagens dinâmicas e flexíveis
-from typing import Any
-
-# Importa PositiveInt do Pydantic para garantir que identificadores numéricos sejam estritamente inteiros positivos (> 0)
+# Importa PositiveInt do Pydantic para garantir que identificadores numéricos sejam inteiros positivos
 from pydantic import PositiveInt
 
-from app.helper import payload_pre_cadastro_podio,payload_expa
+from app.helper import payload_expa, payload_pre_cadastro_podio
 
-# Importa os modelos de DTO (Data Transfer Objects) de entrada e saída para validação estrutural do lead
-from ..dto import LeadPreCadastroInput, LeadPreCadastroOutput,CriarPreCadastroLead,HttpStatus
-
-# Importa as funções de comunicação externa com a API do Podio para adicionar, atualizar e remover registros
+# Importa as funções de comunicação externa com a API do Podio
 from ..clients import adicionar_lead, atualizar_lead, remover_lead
+
+# Importa os modelos de DTO de entrada e saída para validação estrutural do lead
+from ..dto import (
+    CriarPreCadastroLead,
+    HttpStatus,
+    LeadPreCadastroInput,
+    LeadPreCadastroOutput,
+)
+
+# Instancia o logger específico deste módulo
+logger = logging.getLogger(__name__)
+
+
+# =================================================================
+# 2. CLASSE DE SERVIÇO / ADAPTADOR PODIO
+# =================================================================
 
 class LeadPodio:
     """Classe de serviço responsável por gerenciar operações de Leads no Podio.
@@ -37,6 +53,7 @@ class LeadPodio:
                 operações de inserção serão direcionadas. Padrão é 0.
         """
         self.app_id = app_id
+        logger.debug("Instância de LeadPodio inicializada com app_id: %s", self.app_id)
 
     @validar
     def cadastrar_lead(
@@ -48,14 +65,17 @@ class LeadPodio:
         na instância para efetuar a requisição de inserção externa.
 
         Args:
-            lead (LeadPreCadastroInput): Objeto contendo os dados estruturados e
+            lead (CriarPreCadastroLead): Objeto contendo os dados estruturados e
                 validados do pré-cadastro do lead.
 
         Returns:
-            CoroutineType[Any, Any, tuple[dict[Any, Any], int]]: Uma corrotina que,
-                ao ser resolvida, retorna uma tupla contendo o dicionário com a
-                resposta dos dados do Podio e o respectivo código de status HTTP.
+            tuple[Any, HttpStatus] | dict[str, Any]: Estrutura com os dados processados
+                e o código de status HTTP correspondente.
         """
+        logger.debug(
+            "LeadPodio.cadastrar_lead acionado. Disparando asyncio.run(adicionar_lead) para app_id=%s...",
+            self.app_id
+        )
         return asyncio.run(adicionar_lead(
             chave="ogx-token-podio",
             payload=payload_pre_cadastro_podio(lead),
@@ -74,18 +94,18 @@ class LeadPodio:
         Args:
             lead_existe (dict[str, Any]): Dicionário contendo os dados atuais do
                 registro recuperado previamente do sistema/Podio.
-            lead (LeadPreCadastroInput): Objeto de entrada contendo as novas
+            lead (CriarPreCadastroLead): Objeto de entrada contendo as novas
                 informações validadas para atualização.
 
         Returns:
-            LeadPreCadastroOutput: Objeto de saída estruturado contendo os dados
-                consolidados da atualização.
+            dict[Any, Any]: Dicionário contendo os dados consolidados da atualização.
         """
+        logger.debug("LeadPodio.atualizar_lead acionado. Disparando asyncio.run(atualizar_lead)...")
         return asyncio.run(atualizar_lead(
             chave="ogx-token-podio",
             payload=lead.model_dump(exclude_none=True),
             data_response=lead_existe
-    ))
+        ))
 
     @staticmethod
     @validar
@@ -104,6 +124,13 @@ class LeadPodio:
             LeadPreCadastroOutput: Objeto estruturado de saída confirmando os
                 dados associados ao processo de remoção.
         """
+        logger.warning(
+            "LeadPodio.remover_lead foi chamado, mas a integração com a API remota ainda é um stub."
+        )
         return lead
 
+
+# =================================================================
+# 3. EXPORTAÇÃO DO MÓDULO
+# =================================================================
 __all__ = ["LeadPodio"]

@@ -14,13 +14,14 @@ Agrupa funcionalidades de:
 # =================================================================
 # 1. IMPORTAÇÕES AGREGADAS DOS SUBMÓDULOS
 # =================================================================
-from . import data, exception, formatar, gerador_sql, resolve, validates
+from . import data, exception, formatar, gerador_sql, resolve, validates, converte
 from .data import *
 from .exception import *
 from .formatar import *
 from .gerador_sql import *
 from .resolve import *
 from .validates import *
+from .converte import *
 
 # =================================================================
 # 2. EXPORTAÇÃO CONSOLIDADA VIA __all__
@@ -34,4 +35,5 @@ __all__ = (
         + resolve.__all__
         + exception.__all__
         + gerador_sql.__all__
+        + converte.__all__
 )
