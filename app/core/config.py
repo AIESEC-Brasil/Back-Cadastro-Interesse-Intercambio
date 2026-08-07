@@ -7,6 +7,7 @@ com base em constantes importadas de app.config.settings.
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
+import asyncio  # Módulo nativo para execução concorrente de corrotinas (estilo Promise.all)
 import locale  # Manipulação de configurações regionais e de idioma
 from typing import Any, Dict  # Suporte para anotações de tipagem estática
 from ..cache import cache  # Mecanismo de persistência temporária/cache
@@ -73,7 +74,9 @@ async def pre_carregamento_metadados() -> None:
     """Pré-carrega tokens de autenticação e metadados de apps no cache.
 
     Estrutura as credenciais para cada integração e executa o carregamento
-    assíncrono do token de acesso do Podio e dos metadados das aplicações.
+    assíncrono do token de acesso do Podio. Em seguida, utiliza `asyncio.gather`
+    (equivalente ao `Promise.all`) para carregar em paralelo os metadados dos
+    cards OGX, a divisão de mercado por escritórios e por universidades.
     """
     from ..repository import (  # Métodos de consulta ao banco de dados/repositório
         buscar_todas_universidades,
@@ -102,26 +105,29 @@ async def pre_carregamento_metadados() -> None:
         baixando="Chave de Acesso ao Podio ('new-lead-ogx')",
     )
 
-    # Busca no cache ou recupera/armazena os metadados do aplicativo Podio
-    await cache.get_or_set(
-        key="metadados_card-ogx",
-        fetch=lambda: metadados(
-            chave=ogx_config["key"],
-            app_id=APP_ID,
+    # Execução assíncrona concorrente (equivalente ao Promise.all do JS)
+    await asyncio.gather(
+        # Busca no cache ou recupera/armazena os metadados do aplicativo Podio
+        cache.get_or_set(
+            key="metadados_card-ogx",
+            fetch=lambda: metadados(
+                chave=ogx_config["key"],
+                app_id=APP_ID,
+            ),
+            baixando="Metadados de Novos lead B2C",
         ),
-        baixando="Metadados de Novos lead B2C",
-    )
-
-    await cache.get_or_set(
-        key="divisao-mercado-escritorios",
-        fetch=lambda: buscar_todos_cl(),
-        baixando="Metadados da divisão de mercado por escritorio",
-    )
-
-    await cache.get_or_set(
-    key="divisao-mercado-universidades",
-    fetch=lambda: buscar_todas_universidades(),
-    baixando="Metadados da divisão de mercado por Universidades",
+        # Busca no cache ou recupera/armazena os metadados da divisão de mercado dos cl
+        cache.get_or_set(
+            key="divisao-mercado-escritorios",
+            fetch=lambda: buscar_todos_cl(),
+            baixando="Metadados da divisão de mercado por Escritório",
+        ),
+        # Busca no cache ou recupera/armazena os metadados da divisão de mercado das universidades
+        cache.get_or_set(
+            key="divisao-mercado-universidades",
+            fetch=lambda: buscar_todas_universidades(),
+            baixando="Metadados da divisão de mercado por Universidades",
+        ),
     )
 
 
@@ -135,8 +141,8 @@ __all__ = [
     "IS_DEV",  # Booleano que indica se o ambiente é de Desenvolvimento
     "IS_TEST",  # Booleano que indica se o ambiente é de Teste/Homologação
     "DB_CONNECT",  # String de conexão/URI com o banco de dados
-    "APPSCRIPT_EXPA", # Url do appscript pro expa
-    "TOKEN_EXPA", # token de acesso
+    "APPSCRIPT_EXPA",  # Url do appscript pro expa
+    "TOKEN_EXPA",  # token de acesso
     "configurar_idioma",  # Função utilitária para definir locale da aplicação para PT-BR
     "pre_carregamento_metadados",  # Rotina assíncrona para aquecimento e cache de dados do Podio
 ]

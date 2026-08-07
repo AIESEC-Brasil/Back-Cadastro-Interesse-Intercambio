@@ -8,17 +8,17 @@ Gerencia metadados estruturais do Podio e o fluxo de inscrição/pré-cadastro.
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
 import logging  # Sistema de log para rastreamento de operações e erros
-
+from typing import Union
 from asgiref.sync import async_to_sync  # Adaptador para execução síncrona de corotinas
 from ..cache import cache  # Gerenciador de cache da aplicação
 from ..clients import metadados  # Cliente HTTP para metadados da API do Podio
 from ..config import APP_ID  # ID do aplicativo Podio para Leads OGX
 from ..dto import (  # DTOs de validação e serialização OpenAPI3/Pydantic
-    ConflitosLeadOutput,
     CriarPreCadastroLead,
+    ConflitosLeadOutput,
     LeadPreCadastroOutput,
     Metadados,
-    ErroGenerico,
+    RetornoGenerico,
 )
 
 from ..middlewares import gerar_token_podio_rota  # Interceptador de autenticação de rota
@@ -70,11 +70,11 @@ def buscar_metadados() -> Metadados:
 
 @new_lead_ogx.post(
     "/cadastro",
-    responses={
+    responses = {
         201: LeadPreCadastroOutput,
-        200: LeadPreCadastroOutput,
-        409: ConflitosLeadOutput,
-        400: ErroGenerico
+        200: RetornoGenerico[dict],
+        409: RetornoGenerico[Union[ConflitosLeadOutput,dict]],
+        400: RetornoGenerico[dict],
     },
 )
 @gerar_token_podio_rota(service="new-lead-ogx")

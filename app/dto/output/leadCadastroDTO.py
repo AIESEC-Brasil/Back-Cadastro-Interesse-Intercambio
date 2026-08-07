@@ -42,4 +42,4 @@ class LeadPreCadastroOutput(LeadPreCadastroInput):
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
-__all__ = ["LeadPreCadastroOutput","LeadOuErroResponse"]
+__all__ = ["LeadPreCadastroOutput"]

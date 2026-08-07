@@ -18,6 +18,7 @@ from typing import (
 from pydantic import (
     BaseModel,  # Classe base do Pydantic para criação, validação e estruturação automática de modelos
     Field,      # Função utilizada para mapear metadados dos atributos (descrição, exemplos, aliases)
+    ConfigDict
 )
 
 
@@ -61,7 +62,7 @@ class ConflitosLeadOutput(BaseModel):
         emails (Optional[List[ConflitoEmail]]): Lista de e-mails duplicados, ou None.
         telefone (Optional[List[ConflitoTelefone]]): Lista de telefones duplicados, ou None.
     """
-
+    model_config = ConfigDict(extra="forbid")
     # Coleção de e-mails que apresentaram conflito durante a busca
     emails: Optional[List[ConflitoEmail]] = Field(
         default=None,
@@ -136,7 +137,7 @@ class VerificadorConflitos:
         return conflitos
 
     @validar
-    def executar(self, lead_input: Any) -> Optional[ConflitosLeadOutput]:
+    def executar(self, lead_input: Any) -> dict[str, list[ConflitoEmail] | None | list[ConflitoTelefone]] | None:
         """Executa a verificação completa de e-mails e telefones de um lead.
 
         Extrai as coleções de e-mail e telefone do objeto de entrada, roda o loop
@@ -159,10 +160,10 @@ class VerificadorConflitos:
 
         # Se houver qualquer conflito (de e-mail ou telefone), instancia e retorna o modelo
         if emails_conflito or telefones_conflito:
-            return ConflitosLeadOutput(
-                emails=emails_conflito or None,
-                telefone=telefones_conflito or None,
-            )
+            return {
+                    "emails":emails_conflito or None,
+                    "telefone":telefones_conflito or None,
+                }
 
         # Se nenhum conflito for identificado, retorna None (Lead está limpo)
         return None

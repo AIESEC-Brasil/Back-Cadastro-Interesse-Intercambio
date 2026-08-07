@@ -36,8 +36,7 @@ from werkzeug.exceptions import HTTPException  # Exceções HTTP nativas do ecos
 
 from ..output import HttpStatus  # Importa o enumerador customizado de códigos HTTP da aplicação
 
-# Definição do TypeVar para permitir qualquer tipo genérico no parâmetro 'dados'
-T = TypeVar('T')
+
 
 # =================================================================
 # 2. BASE ERROR MODEL
@@ -204,42 +203,6 @@ class ExceptionErrorResponse(BaseErrorResponse):
                 "status_code": HttpStatus.INTERNAL_SERVER_ERROR,
             })
         super().__init__(**kwargs)
-
-class ErroGenerico(BaseModel, Generic[T]):
-    """Envelope genérico para padronização de estruturas de resposta ou erro na API.
-
-    Esta classe utiliza *Generics* do Python e Pydantic para permitir que o campo
-    `dados` receba qualquer tipo de estrutura (como `dict`, `str`, `list` ou outro
-    DTO do Pydantic), mantendo a validação e a geração de schemas no Swagger/OpenAPI.
-
-    Attributes:
-        sucesso (bool): Indicador booleano do status da operação. Padrão é `True`.
-        dados (Optional[T]): Conteúdo flexível contendo os dados do payload ou
-            detalhes do erro. Padrão é `None`.
-
-    Example:
-        >>> # Uso com Dicionário (dict)
-        >>> resposta_dict = ErroGenerico[dict](
-        ...     sucesso=False,
-        ...     dados={"campo": "email", "mensagem": "Formato inválido"}
-        ... )
-        >>> print(resposta_dict.model_dump())
-        {'sucesso': False, 'dados': {'campo': 'email', 'mensagem': 'Formato inválido'}}
-
-        >>> # Uso no flask-openapi3 (Responses da Rota)
-        >>> @api.post("/exemplo", responses={400: ErroGenerico[dict]})
-        ... def minha_rota():
-        ...     pass
-    """
-
-    sucesso: bool = Field(
-        default=True,
-        description="Indica se a requisição foi processada com sucesso."
-    )
-    dados: Optional[T] = Field(
-        default=None,
-        description="Payload genérico contendo dados complementares ou detalhes do erro."
-    )
 
 
 # Subclasses de exceções nativas do Python para mapeamento dinâmico
@@ -442,5 +405,4 @@ __all__ = [
     "PydanticValidationError",
     "PYTHON_EXCEPTION_MAP",
     "HTTP_EXCEPTION_MAP",
-    "ErroGenerico",
 ]
