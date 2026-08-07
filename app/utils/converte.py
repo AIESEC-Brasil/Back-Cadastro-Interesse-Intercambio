@@ -88,20 +88,23 @@ def _testar_union_um_a_um(valor: Any, tipo_annotation: Any) -> Any:
     # 1. ETAPA 1: Tenta validação estrita contra os DTOs Pydantic registrados na Union
     if isinstance(valor, dict) and valor:
         for model_cls in modelos_pydantic:
-            try:
-                instancia = model_cls.model_validate(valor)
-                dados = instancia.model_dump(exclude_none=True)
+            # 💡 Usa getattr para acessar model_validate sem disparar o alerta do PyCharm
+            validador = getattr(model_cls, "model_validate", None)
+            if callable(validador):
+                try:
+                    instancia = model_cls.model_validate(valor)
+                    dados = instancia.model_dump(exclude_none=True)
 
-                # 💡 REGRA ANTI-PERDA DE DADOS:
-                # Se o DTO aproveitou ao menos uma chave do dicionário original,
-                # aceita a conversão. Se 'dados' ficou vazio ({}), significa que
-                # o Pydantic descartou todas as chaves via 'extra="ignore"', logo o
-                # payload não pertencia a este DTO.
-                if dados:
-                    return dados
-            except ValidationError:
-                # Falha de campo obrigatório ou tipo incorreto; passa para o próximo DTO
-                continue
+                    # 💡 REGRA ANTI-PERDA DE DADOS:
+                    # Se o DTO aproveitou ao menos uma chave do dicionário original,
+                    # aceita a conversão. Se 'dados' ficou vazio ({}), significa que
+                    # o Pydantic descartou todas as chaves via 'extra="ignore"', logo o
+                    # payload não pertencia a este DTO.
+                    if dados:
+                        return dados
+                except ValidationError:
+                    # Falha de campo obrigatório ou tipo incorreto; passa para o próximo DTO
+                    continue
 
     # 2. ETAPA 2: Fallback para tipos genéricos não estruturados (ex: dict)
     for tipo in outros_tipos:
@@ -193,7 +196,7 @@ def converter_resposta_dinamica(
             return jsonify(payload), status_code
 
         # 9. Para schemas que não utilizam o padrão de envelope, faz a validação padrão
-        instancia_validada = model_cls.model_validate(payload)
+        instancia_validada = actual_cls.model_validate(payload)
         return jsonify(instancia_validada.model_dump(exclude_none=True)), status_code
 
     return response
