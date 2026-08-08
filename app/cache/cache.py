@@ -73,7 +73,6 @@ FIELDS_PERMITIDOS = {
     "aiesec-mais-proxima",
     "tag-origem-2",
     "tag-meio-2-2",
-    "status",
     "email",
     "telefone"
 }

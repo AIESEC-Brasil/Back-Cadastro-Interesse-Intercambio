@@ -12,6 +12,7 @@ e tipar as entradas de dados no fluxo do Processo Seletivo (PSEL).
 from .LeadCadastroDTO import (
     CriarPreCadastroLead,
     LeadPreCadastroInput,
+    QualificacaoLead
 )
 
 # =================================================================
@@ -24,4 +25,5 @@ from .LeadCadastroDTO import (
 __all__ = [
     "LeadPreCadastroInput",
     "CriarPreCadastroLead",
+    "QualificacaoLead"
 ]
