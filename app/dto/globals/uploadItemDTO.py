@@ -25,12 +25,10 @@ from pydantic import (
 # 2. CONSTANTES E CONFIGURAÇÕES GLOBAIS
 # =================================================================
 
-# Constante global que define o limite máximo do arquivo: 10 Megabytes (10 * 1024 * 1024 bytes)
+# Constante global que define o limite máximo do arquivo: 5 Megabytes (5 * 1024 * 1024 bytes)
 # 1 MB = 1024 * 1024 bytes
-# 2 MB = 2 * 1024 * 1024 bytes
-# ......
-# 10 MB = 10 * 1024 * 1024 bytes
-TAMANHO_MAXIMO_10MB = 10 * 1024 * 1024
+# 5 MB = 5 * 1024 * 1024 bytes
+TAMANHO_MAXIMO_5MB = 5 * 1024 * 1024
 
 
 # =================================================================
@@ -65,8 +63,8 @@ class UploadItem(BaseModel):
     # 2. Campo para o conteúdo do arquivo em Base64 (O Pydantic converte automaticamente a string para bytes)
     base64: Base64Bytes = Field(
         ...,  # Campo obrigatório
-        max_length=TAMANHO_MAXIMO_10MB,  # Limite máximo de tamanho do arquivo em bytes após ser decodificado
-        description="String formatada em Base64 do arquivo. O Pydantic valida e converte para bytes brutos.",
+        max_length=TAMANHO_MAXIMO_5MB,  # Limite máximo de tamanho do arquivo em bytes após ser decodificado (5 MB)
+        description="String formatada em Base64 do arquivo. O Pydantic valida, garante o limite de 5 MB e converte para bytes.",
         json_schema_extra={"example": "JVBERi0xLjQKJ..."}  # Exemplo de string Base64 iniciando com a codificação do cabeçalho PDF (%PDF)
     )
 
