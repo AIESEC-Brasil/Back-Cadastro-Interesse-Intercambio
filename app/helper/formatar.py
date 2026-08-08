@@ -29,7 +29,6 @@ def payload_pre_cadastro_podio(data: LeadPreCadastroInput) -> dict[
     """
     payload = {
     "fields": {
-        "di-ep-id-2": str(121),
         "title": data.nome.__str__().title(),
         "sobrenome-2": data.sobrenome.__str__().title(),
         "email": [{"type":e.tipo.value.__str__(),"value":e.email.__str__()} for e in data.email],
