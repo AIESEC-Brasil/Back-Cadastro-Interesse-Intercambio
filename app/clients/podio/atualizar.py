@@ -77,7 +77,7 @@ async def atualizar_lead(
     # Extrai o ID global do item no Podio a partir da resposta anterior
     item_id = buscar_id_card(data_response)
 
-    logger.info("Iniciando atualização do item no Podio (item_id: %s)...", item_id)
+    logger.info("Iniciando atualização do item no Podio...")
 
     # Monta os cabeçalhos HTTP necessários para autenticação na API do Podio
     headers = {
@@ -120,11 +120,11 @@ async def atualizar_lead(
         # Converte o status (int) para o Enum HttpStatus
         return data, HttpStatus(status)
 
-    logger.info("Item atualizado com sucesso no Podio (HTTP 204).")
+    logger.info("Item atualizado com sucesso no Podio.")
 
     # Anexa o item_id ao payload para rastreabilidade e retorno
     response_dto["item_id"] = item_id
-    return response_dto
+    return response_dto, HttpStatus.OK
 
 
 # =================================================================

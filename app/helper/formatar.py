@@ -3,7 +3,7 @@ Helpers de formatação específicos da camada de apresentação/integração.
 
 Atualmente contém utilitários para empacotar e transformar dados de DTOs
 no formato esperado pelas APIs REST do Podio (chaves dentro do nó 'fields')
-e da plataforma EXPA.
+e da plataforma EXPA, além de estruturas de payload para upload e anexo de arquivos.
 """
 
 # =================================================================
@@ -19,6 +19,7 @@ from ..dto import (
     DataNascimento,
     LeadPreCadastroInput,
     LeadPreCadastroOutput,
+    QualificacaoLead
 )
 
 
@@ -56,9 +57,12 @@ def payload_pre_cadastro_podio(data: LeadPreCadastroInput) -> dict[
     }
 
     # Atribuições condicionais de campos opcionais
-    if data.universidade: payload["fields"]["universidade"] = data.universidade.nome.__str__()
-    if data.meio: payload["fields"]["tag-meio-2-2"] = data.meio.id.__int__()
-    if data.tag: payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
+    if data.universidade:
+        payload["fields"]["universidade"] = data.universidade.nome.__str__()
+    if data.meio:
+        payload["fields"]["tag-meio-2-2"] = data.meio.id.__int__()
+    if data.tag:
+        payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
 
     return payload
 
@@ -124,10 +128,55 @@ def payload_atualizar_existe(data: LeadPreCadastroInput) -> Dict[str, Any]:
     }
 
     # Atribuições condicionais de campos opcionais
-    if data.universidade: payload["fields"]["universidade"] = data.universidade.nome.__str__()
-    if data.tag: payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
+    if data.universidade:
+        payload["fields"]["universidade"] = data.universidade.nome.__str__()
+    if data.tag:
+        payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
 
     return payload
+
+
+def payload_qualificacao_lead(data: QualificacaoLead) -> Dict[str, Any]:
+    """Constrói o payload contendo as informações adicionais de qualificação do lead no Podio.
+
+    Args:
+        data (QualificacaoLead): Objeto DTO com os dados de qualificação do lead.
+
+    Returns:
+        Dict[str, Any]: Dicionário com 'fields' preenchido de acordo com os atributos fornecidos.
+    """
+    payload = {
+        "fields": {}
+    }
+    payload_fields = payload["fields"]
+
+    if data.curso:
+        payload_fields["qual-seu-curso"] = data.curso.__str__().title()
+    if data.idiomas:
+        payload_fields["possui-outro-idioma"] = [i.id for i in data.idiomas]
+    if data.semestreCurso:
+        payload_fields["qual-sua-area-de-atuacao"] = data.semestreCurso.id.__int__()
+    if data.areaAtuacao:
+        payload_fields["qual-sua-area-de-atuacao"] = data.areaAtuacao.id.__int__()
+    if data.nivelAtuacao:
+        payload_fields["qual-seu-nivel-de-atuacao"] = data.nivelAtuacao.id.__int__()
+
+    return payload
+
+
+def payload_anexar_arquivo_podio(data: QualificacaoLead) -> Dict[str, Any]:
+    """Constrói o payload JSON necessário para vincular/anexar um arquivo já carregado a um item do Podio.
+
+    Args:
+        data (QualificacaoLead): Pegando o Identificador (ref_id) do item no Podio onde o arquivo será anexado.
+
+    Returns:
+        Dict[str, Any]: Estrutura do payload contendo 'ref_type' ("item") e 'ref_id'.
+    """
+    return {
+        "ref_type": "item",
+        "ref_id": data.item_id
+    }
 
 
 # =================================================================
@@ -137,4 +186,6 @@ __all__ = [
     "payload_pre_cadastro_podio",
     "payload_expa",
     "payload_atualizar_existe",
+    "payload_qualificacao_lead",
+    "payload_anexar_arquivo_podio",
 ]
