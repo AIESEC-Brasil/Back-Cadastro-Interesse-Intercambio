@@ -1,51 +1,67 @@
-"""Helpers de formatação específicos da camada de apresentação/integração.
+"""
+Helpers de formatação específicos da camada de apresentação/integração.
 
-Atualmente contém utilitário para empacotar dados no formato esperado pela
-API do Podio (chaves dentro do nó 'fields').
+Atualmente contém utilitários para empacotar e transformar dados de DTOs
+no formato esperado pelas APIs REST do Podio (chaves dentro do nó 'fields')
+e da plataforma EXPA.
 """
 
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
-from typing import Any, Dict  # Utilitários de tipagem para dicionários flexíveis
 from datetime import date, datetime
-from ..dto import LeadPreCadastroInput,CategoriaContato, DataNascimento,CriarPreCadastroLead # modulos de dto
+from typing import Any, Dict  # Utilitários de tipagem para dicionários flexíveis
+
+# Módulos de DTOs para validação e estruturação dos dados
+from ..dto import (
+    CategoriaContato,
+    CriarPreCadastroLead,
+    DataNascimento,
+    LeadPreCadastroInput,
+    LeadPreCadastroOutput,
+)
+
 
 # =================================================================
-# 2. FORMATADORES DE INTEGRAÇÃO COM A API DO PODIO
+# 2. FORMATADORES DE INTEGRAÇÃO COM A API DO PODIO E EXPA
 # =================================================================
 
 def payload_pre_cadastro_podio(data: LeadPreCadastroInput) -> dict[
     str, dict[str | Any, int | str | list[dict[str, CategoriaContato | str]] | DataNascimento | Any] | list[Any]]:
-    """Constrói o payload padrão esperado pela API REST do Podio.
+    """Constrói o payload padrão esperado pela API REST do Podio para pré-cadastro.
 
-    Encapsula o dicionário de campos dentro da chave raiz 'fields'.
+    Encapsula o dicionário de campos dentro da chave raiz 'fields' e formata
+    os dados de contato, produtos, comitê e autorizações.
 
     Args:
-        data (Dict[str, Any]): Dicionário contendo os ID/mapeamentos de campos do Podio.
+        data (LeadPreCadastroInput): Objeto DTO contendo os dados validados do pré-cadastro.
 
     Returns:
-        Dict[str, Dict[str, Any]]: Estrutura formatada no padrão {"fields": data}.
+        dict: Estrutura formatada no padrão esperado pelo Podio contendo 'fields' e 'tags'.
     """
     payload = {
-    "fields": {
-        "title": data.nome.__str__().title(),
-        "sobrenome-2": data.sobrenome.__str__().title(),
-        "email": [{"type":e.tipo.value.__str__(),"value":e.email.__str__()} for e in data.email],
-        "telefone": [{"type":t.tipo.value.__str__(),"value":t.numero.__str__()} for t in data.telefone],
-        "data-de-nascimento-2": data.dataNascimento.__str__(),
-        "produto": data.produto.id_podio.__int__(),
-        "aiesec-mais-proxima": data.comite.id.__int__(),
-        "tag-origem-2": data.origem.id.__int__(),
-        "status-expa": 1,
-        "eu-concordo-com-a-coleta-e-uso-dos-meus-dados-conforme-": data.autorizacao.__int__()
-    },
-    "tags": []
+        "fields": {
+            "title": data.nome.__str__().title(),
+            "sobrenome-2": data.sobrenome.__str__().title(),
+            "email": [{"type": e.tipo.value.__str__(), "value": e.email.__str__()} for e in data.email],
+            "telefone": [{"type": t.tipo.value.__str__(), "value": t.numero.__str__()} for t in data.telefone],
+            "data-de-nascimento-2": data.dataNascimento.__str__(),
+            "produto": data.produto.id_podio.__int__(),
+            "aiesec-mais-proxima": data.comite.id.__int__(),
+            "tag-origem-2": data.origem.id.__int__(),
+            "status-expa": 1,
+            "eu-concordo-com-a-coleta-e-uso-dos-meus-dados-conforme-": data.autorizacao.__int__()
+        },
+        "tags": []
     }
+
+    # Atribuições condicionais de campos opcionais
     if data.universidade: payload["fields"]["universidade"] = data.universidade.nome.__str__()
-    if data.meio: payload["fields"]["universidade"] = data.meio.id.__int__()
-    if data.tag: payload["tags"] = data.tag if isinstance(data.tag,list) else [data.tag.__str__()]
+    if data.meio: payload["fields"]["tag-meio-2-2"] = data.meio.id.__int__()
+    if data.tag: payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
+
     return payload
+
 
 def payload_expa(data: CriarPreCadastroLead) -> Dict[str, Any]:
     """Formata e constrói o payload necessário para a integração com a API do EXPA.
@@ -83,7 +99,42 @@ def payload_expa(data: CriarPreCadastroLead) -> Dict[str, Any]:
     return payload
 
 
+def payload_atualizar_existe(data: LeadPreCadastroInput) -> Dict[str, Any]:
+    """Constrói o payload para atualização de um lead já existente na plataforma Podio.
+
+    Mapeia e atualiza os dados de contato (e-mail e telefone), programa de interesse,
+    comitê local responsável e status do EXPA no nó 'fields', além de tratar campos opcionais.
+
+    Args:
+        data (LeadPreCadastroOutput): Objeto DTO contendo os dados do lead existente
+            a serem atualizados.
+
+    Returns:
+        Dict[str, Any]: Estrutura formatada com a chave 'fields' e 'tags' pronta para o Podio.
+    """
+    payload: Dict[str, Any] = {
+        "fields": {
+            "email": [{"type": e.tipo.value.__str__(), "value": e.email.__str__()} for e in data.email],
+            "telefone": [{"type": t.tipo.value.__str__(), "value": t.numero.__str__()} for t in data.telefone],
+            "produto": data.produto.id_podio.__int__(),
+            "aiesec-mais-proxima": data.comite.id.__int__(),
+            "status": 1
+        },
+        "tags": []
+    }
+
+    # Atribuições condicionais de campos opcionais
+    if data.universidade: payload["fields"]["universidade"] = data.universidade.nome.__str__()
+    if data.tag: payload["tags"] = data.tag if isinstance(data.tag, list) else [data.tag.__str__()]
+
+    return payload
+
+
 # =================================================================
-# 3. EXPORTAÇÃO DO MÓDULO
+# 3. EXPORTAÇÃO CONSOLIDADA DO MÓDULO
 # =================================================================
-__all__ = ["payload_pre_cadastro_podio","payload_expa"]
+__all__ = [
+    "payload_pre_cadastro_podio",
+    "payload_expa",
+    "payload_atualizar_existe",
+]

@@ -111,7 +111,7 @@ class Buscar:
         }
 
         # Dispara a requisição POST para a API do Podio
-        response = http.post(url, payload=payload, headers=headers)
+        response = await http.post(url, payload=payload, headers=headers)
 
         try:
             # Resolve a resposta assíncrona desestruturando a tupla (status_code, response_data)

@@ -22,7 +22,7 @@ from ..http_request import HttpClient
 from .podio import buscar_id_card, buscar_token
 
 # Importação dos DTOs e tipos de retorno
-from app.dto import HttpStatus, LeadPreCadastroOutput, RetornoGenerico
+from app.dto import HttpStatus
 
 # Instancia o logger específico deste módulo
 logger = logging.getLogger(__name__)
@@ -85,11 +85,9 @@ async def adicionar_lead(
             # Converte o status_code (int) para o Enum HttpStatus
             return data_expa, HttpStatus(status_code)
 
-        person_id = data_expa.get("person_id")
-        logger.info("Lead cadastrado no EXPA com sucesso! person_id")
-
         # Insere o EP ID do EXPA dentro da estrutura de campos do Podio
-        payload["fields"]["di-ep-id-2"] = person_id
+        payload["fields"]["di-ep-id-2"] = data_expa.get("person_id","N/A")
+        logger.info("Lead cadastrado no EXPA com sucesso!")
 
     except Exception as err:
         logger.error("Erro inesperado durante comunicação com a API do EXPA: %s", err, exc_info=True)

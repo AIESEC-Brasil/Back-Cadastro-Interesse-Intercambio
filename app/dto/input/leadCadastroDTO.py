@@ -11,14 +11,12 @@ receber, validar e documentar os payloads de pré-cadastro e qualificação de l
 
 # Módulos nativos do Python para suporte a anotações de tipos
 from typing import (
-    Any,        # Tipo flexível para aceitar qualquer payload de dados brutos do Podio.
     List,       # Hint de tipo para representar listas/arrays de elementos.
     Optional,   # Hint de tipo para indicar campos opcionais que podem receber None.
 )
 
-# Importações do Pydantic (versão 2) utilizadas na construção e validação da estrutura de dados:
+# Importações do Pydantic (versão 2) utilizadas na construção e validação da estrutura de dados
 from pydantic import (
-    BaseModel,   # Classe base do Pydantic para criação de modelos/containers de dados.
     ConfigDict,  # Objeto de configuração para definir comportamentos do modelo.
     Field,       # Utilizado para definir metadados dos campos, descrições, aliases e exemplos.
 )
@@ -26,22 +24,15 @@ from pydantic import (
 # Importação dos DTOs e tipos globais customizados da aplicação
 from ..globals import (
     AreaAtuacao,
-    Autorizacao,
-    Comite,
-    DataNascimento,
-    EmailItem,
     Idioma,
-    Meio,
     NivelAtuacao,
-    Origem,
-    Produto,
     SemestreCurso,
     Senha,
-    Tag,
-    TelefoneItem,
-    Universidade,
     UploadItem,
 )
+
+# Importação da classe base do pré-cadastro de leads
+from ..base import LeadPreCadastroBase as LeadPreCadastroInput
 
 # Importação do modelo de output do pré-cadastro do lead
 from ..output import LeadPreCadastroOutput
@@ -51,98 +42,11 @@ from ..output import LeadPreCadastroOutput
 # 2. ESTRUTURA DOS MODELOS (SCHEMAS / DTOs)
 # =================================================================
 
-class LeadPreCadastroInput(BaseModel):
-    """
-    Modelo de dados Pydantic para validação e documentação do pré-cadastro de Leads.
-
-    Esta classe define a estrutura base esperada para o payload de pré-cadastro,
-    incluindo metadados e exemplos para a geração automatizada de JSON Schema (OpenAPI).
-
-    Attributes:
-        nome (str): Primeiro nome do lead.
-        sobrenome (str): Sobrenome completo do lead.
-        dataNascimento (DataNascimento): Objeto com os dados de nascimento validados.
-        telefone (List[TelefoneItem]): Lista de telefones de contato do lead.
-        email (List[EmailItem]): Lista de e-mails de contato do lead.
-        universidade (Optional[Universidade]): Instituição de ensino vinculada (opcional). Padrão: None.
-        produto (Produto): Produto/programa de interesse selecionado pelo lead.
-        comite (Comite): Comitê local responsável pelo atendimento do lead.
-        autorizacao (Autorizacao): Consentimentos e autorizações de termos do lead.
-        origem (Origem): Origem/canal pelo qual o lead conheceu a AIESEC.
-        meio (Optional[Meio]): Meio específico de contato/captação (opcional). Padrão: None.
-        tag (Optional[List[Tag]]): Lista de tags de campanhas ou eventos associados (opcional). Padrão: None.
-    """
-
-    # Configuração global do modelo: ignora campos extras não declarados no payload
-    model_config = ConfigDict(extra="ignore")
-
-    # Primeiro nome do lead (obrigatório)
-    nome: str = Field(
-        description="Nome do lead",
-        json_schema_extra={
-            "example": "João"  # Exemplo exibido na documentação interativa (Swagger/OpenAPI)
-        },
-        min_length=3,
-        max_length=100,
-        pattern=r"^[A-Za-zÀ-ÿ\s]+$"
-    )
-
-    # Sobrenome completo do lead (obrigatório)
-    sobrenome: str = Field(
-        description="Sobrenome do lead",
-        json_schema_extra={
-            "example": "Silva"
-        },
-        min_length=3,
-        max_length=100,
-        pattern=r"^[A-Za-zÀ-ÿ\s]+$"
-    )
-
-    # Objeto contendo o dia, mês e ano de nascimento do lead (validado pelo schema DataNascimento)
-    dataNascimento: DataNascimento
-
-    # Coleção de telefones informados para contato (validada pelo sub-modelo TelefoneItem)
-    telefone: List[TelefoneItem]
-
-    # Coleção de endereços de e-mail informados para contato (validada pelo sub-modelo EmailItem)
-    email: List[EmailItem]
-
-    # Instituição de ensino associada ao lead (campo totalmente opcional; assume None se omitido)
-    universidade: Optional[Universidade] = Field(
-        default=None,
-        description="Instituição de ensino vinculada ao lead (opcional)",
-    )
-
-    # Produto ou programa de interesse selecionado no fluxo (validado pelo schema Produto)
-    produto: Produto
-
-    # Comitê local/regional atribuído para o atendimento do lead (validado pelo schema Comite)
-    comite: Comite
-
-    # Termos de aceite e consentimentos legais fornecidos pelo lead (validados pelo schema Autorizacao)
-    autorizacao: Autorizacao
-
-    # Origem primária pela qual o lead conheceu a AIESEC (validada pelo schema Origem)
-    origem: Origem
-
-    # Meio secundário ou canal específico de contato do lead (opcional; assume None se omitido)
-    meio: Optional[Meio] = Field(
-        default=None,
-        description="Meio de contato pelo qual o lead conheceu a AIESEC (opcional)",
-    )
-
-    # Coleção de tags de eventos ou campanhas de atração (opcional; assume None se omitido)
-    tag: Optional[List[Tag]] = Field(
-        default=None,
-        description="Lista de tags de evento ou campanha utilizadas na atração (opcional)",
-    )
-
-
 class CriarPreCadastroLead(LeadPreCadastroInput):
     """
     Modelo estendido para criação de pré-cadastro de Lead contendo credenciais.
 
-    Herda todos osatributos e validações de `LeadPreCadastroInput` e adiciona
+    Herda todos os atributos e validações de `LeadPreCadastroInput` e adiciona
     a obrigatoriedade da senha de acesso. Aplica uma política estrita (`extra='forbid'`)
     onde qualquer campo não especificado no payload resultará em erro de validação.
 
@@ -233,5 +137,5 @@ class QualificacaoLead(LeadPreCadastroOutput):
 __all__ = [
     "LeadPreCadastroInput",
     "CriarPreCadastroLead",
-    "QualificacaoLead"
+    "QualificacaoLead",
 ]

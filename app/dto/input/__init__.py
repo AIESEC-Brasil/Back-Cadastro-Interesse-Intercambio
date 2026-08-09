@@ -9,7 +9,7 @@ e tipar as entradas de dados no fluxo do Processo Seletivo (PSEL).
 # =================================================================
 
 # Importa os DTOs de entrada para o fluxo de pré-cadastro de Leads
-from .LeadCadastroDTO import (
+from .leadCadastroDTO import (
     CriarPreCadastroLead,
     LeadPreCadastroInput,
     QualificacaoLead
