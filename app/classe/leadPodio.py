@@ -11,10 +11,20 @@ from typing import Any  # Importa Any para tipagens dinâmicas e flexíveis
 # Importa PositiveInt do Pydantic para garantir que identificadores numéricos sejam inteiros positivos
 from pydantic import PositiveInt
 
-from app.helper import payload_expa, payload_pre_cadastro_podio,payload_atualizar_existe
+from app.helper import (
+    payload_atualizar_existe,
+    payload_expa,
+    payload_pre_cadastro_podio,
+    payload_qualificacao_lead,
+)
 
 # Importa as funções de comunicação externa com a API do Podio
-from ..clients import adicionar_lead, atualizar_lead, remover_lead
+from ..clients import (
+    adicionar_lead,
+    atualizar_lead,
+    remover_lead,
+    upload_e_anexar_curriculo,
+)
 
 # Importa os modelos de DTO de entrada e saída para validação estrutural do lead
 from ..dto import (
@@ -22,6 +32,7 @@ from ..dto import (
     HttpStatus,
     LeadPreCadastroInput,
     LeadPreCadastroOutput,
+    QualificacaoLead,
 )
 
 # Instancia o logger específico deste módulo
@@ -36,8 +47,8 @@ class LeadPodio:
     """Classe de serviço responsável por gerenciar operações de Leads no Podio.
 
     Esta classe encapsula a lógica de integração com a API do Podio para cadastro,
-    atualização e remoção de registros de leads, aplicando validações estruturais
-    por meio do decorador `@validar` e tipagens estritas.
+    atualização, qualificação (com upload de arquivos) e remoção de registros de leads,
+    aplicando validações estruturais por meio do decorador `@validar` e tipagens estritas.
 
     Attributes:
         app_id (PositiveInt): Identificador numérico do aplicativo/espaço no Podio
@@ -98,7 +109,8 @@ class LeadPodio:
                 informações validadas para atualização.
 
         Returns:
-            dict[Any, Any]: Dicionário contendo os dados consolidados da atualização.
+            tuple[Any, HttpStatus] | dict[str, Any]: Dicionário/Estrutura contendo os
+                dados consolidados da atualização.
         """
         logger.debug("LeadPodio.atualizar_lead acionado. Disparando asyncio.run(atualizar_lead)...")
         return asyncio.run(atualizar_lead(
@@ -107,6 +119,53 @@ class LeadPodio:
             response_dto=lead.model_dump(exclude_none=True),
             data_response=lead_existe
         ))
+
+    @staticmethod
+    @validar
+    def qualificar_lead(
+            lead: QualificacaoLead
+    ) -> tuple[Any, HttpStatus] | dict[str, Any]:
+        """Executa o processo de qualificação complementar do lead no Podio.
+
+        Realiza a atualização dos campos acadêmicos/profissionais e, caso um arquivo de
+        currículo tenha sido fornecido em `lead.curriculo`, dispara o upload e anexo do PDF.
+
+        Args:
+            lead (QualificacaoLead): DTO de qualificação contendo as informações complementares
+                do lead e opcionalmente o arquivo PDF em Base64.
+
+        Returns:
+            tuple[Any, HttpStatus] | dict[str, Any]: Estrutura com os dados consolidados e
+                o status HTTP correspondente à operação.
+        """
+        logger.debug("LeadPodio.qualificar_lead acionado. Atualizando campos de qualificação...")
+
+        # 1. Atualização dos campos de qualificação no card do Podio
+        data_response = {"item_id": lead.item_id}
+        resultado_atualizacao, status = asyncio.run(atualizar_lead(
+            chave="ogx-token-podio",
+            payload=payload_qualificacao_lead(lead),
+            response_dto=lead.model_dump(exclude_none=True),
+            data_response=lead.model_dump(exclude_none=True)
+        ))
+
+        # Se a atualização falhar, interrompe e retorna a resposta de erro
+        if not 200 <= status.value <= 399:
+            logger.error("Falha ao qualificar os campos do lead no Podio (Status: %s).", status)
+            return resultado_atualizacao, status
+
+        # 2. Upload e anexo do currículo em PDF (se houver currículo no DTO)
+        if lead.curriculo:
+            logger.debug("Currículo identificado. Disparando upload_e_anexar_curriculo...")
+            response_dto = resultado_atualizacao if isinstance(resultado_atualizacao, dict) else lead.model_dump(exclude_none=True)
+
+            return asyncio.run(upload_e_anexar_curriculo(
+                chave="ogx-token-podio",
+                data=lead,
+                response_dto=response_dto
+            ))
+
+        return resultado_atualizacao, status
 
     @staticmethod
     @validar

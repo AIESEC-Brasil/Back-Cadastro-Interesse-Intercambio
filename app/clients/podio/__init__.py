@@ -17,6 +17,7 @@ from .buscar import *
 from .remover import *
 from .adicionar import *
 from .atualizar import *
+from .upload import *
 
 # =================================================================
 # Exportação Consolidada
@@ -32,5 +33,6 @@ __all__ = (
     buscar.__all__+
     adicionar.__all__+
     atualizar.__all__+
-    remover.__all__
+    remover.__all__ +
+    upload.__all__
 )

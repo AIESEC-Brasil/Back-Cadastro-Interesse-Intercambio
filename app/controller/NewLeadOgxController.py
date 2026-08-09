@@ -8,6 +8,7 @@ Gerencia metadados estruturais do Podio e o fluxo de inscrição/pré-cadastro.
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
 import logging  # Sistema de log para rastreamento de operações e erros
+import asyncio
 from typing import Union
 from asgiref.sync import async_to_sync  # Adaptador para execução síncrona de corotinas
 from ..cache import cache  # Gerenciador de cache da aplicação
@@ -18,12 +19,13 @@ from ..dto import (  # DTOs de validação e serialização OpenAPI3/Pydantic
     ConflitosLeadOutput,
     LeadPreCadastroOutput,
     Metadados,
-    RetornoGenerico
+    RetornoGenerico,
+    QualificacaoLead
 )
 
 from ..middlewares import gerar_token_podio_rota  # Interceptador de autenticação de rota
 from ..router import Router  # Classe estendida de roteamento OpenAPI3
-from ..service import cadastrar_lead  # Regra de negócio para criação de leads
+from ..service import cadastrar_lead,qualificar_lead  # Regra de negócio para criação de leads
 
 # =================================================================
 # 2. CONFIGURAÇÃO DO ROTEADOR E LOGGER
@@ -91,6 +93,28 @@ def criar_inscricao(body: CriarPreCadastroLead):
 
     # Delega o processamento da regra de negócio para a camada de serviço
     return cadastrar_lead(body)
+
+@new_lead_ogx.put(
+    "/cadastro",
+    responses = {
+        200: RetornoGenerico[Union[QualificacaoLead,dict]],
+        400: RetornoGenerico[Union[dict,str]],
+    },
+)
+@gerar_token_podio_rota(service="new-lead-ogx")
+def qualificacao_lead(body: QualificacaoLead):
+    """Endpoint para recepção e processamento de novos leads de intercâmbio.
+
+    Args:
+        body (CriarPreCadastroLead): DTO validado contendo os dados do candidato.
+
+    Returns:
+        Response: Objeto de resposta processado pela camada de serviço.
+    """
+    logger.info("AIESEC OGX | Iniciando processo de atualização das qualificação do lead...")
+
+    # Delega o processamento da regra de negócio para a camada de serviço
+    return qualificar_lead(body)
 
 
 # =================================================================

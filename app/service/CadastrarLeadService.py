@@ -1,7 +1,9 @@
-"""Serviço de cadastro e pré-registro de leads.
+"""
+Serviço de cadastro, pré-registro e qualificação de leads.
 
-Este módulo orquestra a checagem de duplicidade, verificação de conflitos
-e a criação ou atualização de novos registros de leads integrados com a API do Podio.
+Este módulo orquestra a checagem de duplicidade, verificação de conflitos,
+criação, atualização e qualificação complementar (com upload de arquivos)
+de registros de leads integrados com a API do Podio.
 """
 
 # =================================================================
@@ -25,6 +27,7 @@ from ..dto import (
     ConflitosLeadOutput,
     CriarPreCadastroLead,
     HttpStatus,
+    QualificacaoLead,
     RetornoGenerico,
     VerificadorConflitos,
 )
@@ -81,7 +84,7 @@ def cadastrar_lead(
         logger.info("Lead já cadastrado encontrado na base. Executando atualização de dados...")
         resultado_atualizacao = lead_ogx.atualizar_lead(lead_existe, lead_input)
         logger.info("Lead atualizado com sucesso (HTTP 200 OK).")
-        return resultado_atualizacao, HttpStatus.OK
+        return resultado_atualizacao
 
     # Inicializa o serviço de verificação de inconsistências e duplicidades
     logger.info("Lead não localizado. Iniciando checagem de conflitos e inconsistências...")
@@ -102,7 +105,38 @@ def cadastrar_lead(
     return lead_ogx.cadastrar_lead(lead_input)
 
 
+@validar
+def qualificar_lead(
+        lead_input: QualificacaoLead,
+) -> tuple[dict[Any, Any], HttpStatus] | tuple[Any, HttpStatus] | dict[str, Any]:
+    """Realiza a qualificação complementar de um lead existente no Podio.
+
+    Atualiza o card do lead com os dados acadêmicos/profissionais e, caso um
+    currículo (PDF em Base64) tenha sido enviado, executa o upload e o anexo do arquivo.
+
+    Args:
+        lead_input (QualificacaoLead): DTO contendo os dados de qualificação
+            e opcionalmente o arquivo de currículo.
+
+    Returns:
+        tuple[dict[Any, Any], HttpStatus] | tuple[Any, HttpStatus] | dict[str, Any]:
+            Uma tupla contendo o payload de resposta atualizado e o status HTTP correspondente:
+            - (dict, HttpStatus.OK): Qualificação e anexo processados com sucesso.
+            - (dict, HttpStatus.BAD_REQUEST): Falha na validação ou parâmetros do lead.
+    """
+    logger.info("Iniciando fluxo de qualificação complementar para o lead.")
+
+    # Instancia o serviço responsável por operações de gravação e atualização no Podio
+    lead_ogx: LeadPodio = LeadPodio(APP_ID)
+
+    # Executa a atualização dos dados e o upload/anexo do currículo no Podio
+    return lead_ogx.qualificar_lead(lead_input)
+
+
 # =================================================================
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
-__all__ = ["cadastrar_lead"]
+__all__ = [
+    "cadastrar_lead",
+    "qualificar_lead",
+]
