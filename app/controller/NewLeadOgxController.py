@@ -18,7 +18,7 @@ from ..dto import (  # DTOs de validação e serialização OpenAPI3/Pydantic
     ConflitosLeadOutput,
     LeadPreCadastroOutput,
     Metadados,
-    RetornoGenerico,
+    RetornoGenerico
 )
 
 from ..middlewares import gerar_token_podio_rota  # Interceptador de autenticação de rota
@@ -71,10 +71,10 @@ def buscar_metadados() -> Metadados:
 @new_lead_ogx.post(
     "/cadastro",
     responses = {
-        201: LeadPreCadastroOutput,
-        200: RetornoGenerico[dict],
+        201: RetornoGenerico[LeadPreCadastroOutput],
+        200: RetornoGenerico[Union[LeadPreCadastroOutput,dict]],
         409: RetornoGenerico[Union[ConflitosLeadOutput,dict]],
-        400: RetornoGenerico[dict],
+        400: RetornoGenerico[Union[dict,str]],
     },
 )
 @gerar_token_podio_rota(service="new-lead-ogx")

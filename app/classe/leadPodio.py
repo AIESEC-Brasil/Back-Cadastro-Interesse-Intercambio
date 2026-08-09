@@ -11,7 +11,7 @@ from typing import Any  # Importa Any para tipagens dinâmicas e flexíveis
 # Importa PositiveInt do Pydantic para garantir que identificadores numéricos sejam inteiros positivos
 from pydantic import PositiveInt
 
-from app.helper import payload_expa, payload_pre_cadastro_podio
+from app.helper import payload_expa, payload_pre_cadastro_podio,payload_atualizar_existe
 
 # Importa as funções de comunicação externa com a API do Podio
 from ..clients import adicionar_lead, atualizar_lead, remover_lead
@@ -88,7 +88,7 @@ class LeadPodio:
     @validar
     def atualizar_lead(
             lead_existe: dict[str, Any], lead: CriarPreCadastroLead
-    ) -> dict[Any, Any]:
+    ) -> tuple[Any, HttpStatus] | dict[str, Any]:
         """Atualiza os dados de um lead já existente com base nas informações fornecidas.
 
         Args:
@@ -103,7 +103,8 @@ class LeadPodio:
         logger.debug("LeadPodio.atualizar_lead acionado. Disparando asyncio.run(atualizar_lead)...")
         return asyncio.run(atualizar_lead(
             chave="ogx-token-podio",
-            payload=lead.model_dump(exclude_none=True),
+            payload=payload_atualizar_existe(lead),
+            response_dto=lead.model_dump(exclude_none=True),
             data_response=lead_existe
         ))
 
