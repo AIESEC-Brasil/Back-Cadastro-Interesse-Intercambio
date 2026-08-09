@@ -18,6 +18,8 @@ from .controller import divisao_mercado, new_lead_ogx  # Roteadores especializad
 from .core import (
     AMBIENTE,                          # String identificadora do ambiente de execução (ex: prod, dev)
     DB_CONNECT,                        # String de conexão com o banco de dados relacional
+    DB_POOL_PRE_PING,                  # <--- Validação de conexões ociosas
+    DB_POOL_RECYCLE,                   # <--- Intervalo de reciclagem do pool
     compress,                          # Instância global do otimizador de compressão de respostas
     db,                                # Instância do SQLAlchemy ORM
     ma,                                # Instância do Marshmallow para serialização
@@ -27,7 +29,7 @@ from .core import (
 from .manager import migration  # Função orquestradora de migrações no banco de dados
 from .middlewares import register_url, verificar_origem  # Middlewares de auditoria e interceptação
 from .model import db as model_db  # Garantia de registro dos modelos ORM para detecção no Flask-Migrate
-from .utils import handle_validation_error,handle_app_error,converter_resposta_dinamica  # Handler customizado para erros de validação OpenAPI3
+from .utils import handle_validation_error, handle_app_error, converter_resposta_dinamica  # Handler customizado para erros
 from .dto import AppError
 
 # =================================================================
@@ -41,7 +43,7 @@ def create_app() -> OpenAPI:
     - Instancia o objeto OpenAPI com metadados da API e handlers de validação.
     - Configura e ativa a compressão de respostas HTTP (Gzip/Brotli).
     - Configura políticas de CORS para liberar headers e origens externas.
-    - Inicializa as extensões de persistência (SQLAlchemy, Marshmallow, Flask-Migrate).
+    - Configura e inicializa as extensões de persistência (SQLAlchemy, Marshmallow, Flask-Migrate).
     - Executa automaticamente as migrações pendentes no esquema do banco de dados.
     - Injeta middlewares de segurança (before_request) e auditoria (after_request).
     - Registra as Blueprints e roteadores de endpoints da API.
@@ -67,7 +69,7 @@ def create_app() -> OpenAPI:
             validate_response=True,  # Valida se o formato do JSON retornado bate com a documentação
             validation_error_status=422,  # Código HTTP retornado em falhas de esquema no payload
             validation_error_callback=handle_validation_error,  # Callback customizado para formatar erros de validação
-            validate_response_callback=converter_resposta_dinamica # callback cutomizado para validar e personalizar o return pelo declaração
+            validate_response_callback=converter_resposta_dinamica  # Callback customizado para validar e personalizar o retorno
         )
 
         # =========================================================
@@ -112,6 +114,12 @@ def create_app() -> OpenAPI:
         logger.info(f"Tentando conectar ao banco: {DB_CONNECT.split('@')[-1]}")
         app.config["SQLALCHEMY_DATABASE_URI"] = DB_CONNECT
 
+        # Injeta as configurações do Pool do SQLAlchemy (Pre-Ping e Recycle)
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": DB_POOL_PRE_PING,
+            "pool_recycle": DB_POOL_RECYCLE,
+        }
+
         # Inicializa o ORM SQLAlchemy com as configurações da aplicação
         db.init_app(app)
 
@@ -142,7 +150,7 @@ def create_app() -> OpenAPI:
         app.register_api(new_lead_ogx)
         app.register_api(divisao_mercado)
         app.register_api(api)
-        app.register_error_handler(AppError, handle_app_error) # congela o codigo se ver a class AppErro
+        app.register_error_handler(AppError, handle_app_error)  # Intercepta erros da classe AppError
 
         # Middleware executado após a conclusão da resposta (auditoria e métricas)
         app.after_request(register_url)
