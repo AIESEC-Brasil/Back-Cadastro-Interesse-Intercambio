@@ -21,6 +21,7 @@ from ..http_request import HttpClient  # Instância do cliente HTTP assíncrono 
 
 # Cliente HTTP dedicado para a API do Podio
 http = HttpClient(base_url="https://api.podio.com")
+http2 = http.clone(prefix='/comment/item')
 
 
 # =================================================================
@@ -171,6 +172,25 @@ def buscar_id_card(data: Dict[str, Any]) -> Any:
     return data.get("item_id")
 
 
+async def enviar_comentario(item_id: int, texto: str) -> Tuple[int, Dict[str, Any]]:
+    """Envia um comentário para um item/card específico no Podio.
+
+    Args:
+        item_id (int): ID numérico do item no Podio.
+        texto (str): Conteúdo do comentário a ser enviado.
+
+    Returns:
+        Tuple[int, Dict[str, Any]]: Status HTTP e resposta da requisição.
+    """
+    headers = {
+        "Authorization": f"Bearer {buscar_token('ogx-token-podio')}",
+        "Content-Type": "application/json",
+    }
+    response = http2.post(path=f"/{item_id}", payload={"value": texto}, headers=headers)
+    status, data = await resolve_response(response)
+    return status, data
+
+
 # =================================================================
 # 6. EXPORTAÇÃO PÚBLICA (INTERFACE DO MÓDULO)
 # =================================================================
@@ -180,4 +200,5 @@ __all__ = [
     "buscar_token",  # Recupera o token atrelado à chave no cache
     "metadados",  # Obtém a estrutura e campos de um aplicativo
     "buscar_id_card",  # Extrai o ID único de um item/card
+    "enviar_comentario",  # Envia um comentário para um item no Podio
 ]
