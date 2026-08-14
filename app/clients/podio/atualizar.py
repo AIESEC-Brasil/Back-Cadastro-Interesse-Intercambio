@@ -23,7 +23,7 @@ from app.dto import HttpStatus
 from ..http_request import HttpClient
 
 # Importação das funções utilitárias do Podio
-from .podio import buscar_id_card, buscar_token
+from .podio import buscar_id_card, buscar_token, enviar_comentario
 
 # Instancia o logger específico deste módulo
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ async def atualizar_lead(
 
     # Anexa o item_id ao payload para rastreabilidade e retorno
     response_dto["item_id"] = item_id
+    await enviar_comentario(item_id, "Lead se reinscreveu no Site da Aiesec no Brasil")
     return response_dto, HttpStatus.OK
 
 

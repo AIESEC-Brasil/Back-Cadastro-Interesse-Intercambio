@@ -19,7 +19,7 @@ from app.utils import resolve_response
 from ..http_request import HttpClient
 
 # Importação das funções utilitárias do Podio
-from .podio import buscar_id_card, buscar_token
+from .podio import buscar_id_card, buscar_token, enviar_comentario
 
 # Importação dos DTOs e tipos de retorno
 from app.dto import HttpStatus
@@ -142,6 +142,7 @@ async def adicionar_lead(
     logger.info("Extraído item_id do Podio: %s. Finalizando requisição (HTTP 201 CREATED).", item_id)
 
     response_dto["item_id"] = item_id
+    await enviar_comentario(item_id,"Lead se Inscreveu de forma orgânica no Site da Aiesec no Brasil")
 
     return response_dto, HttpStatus.CREATED
 

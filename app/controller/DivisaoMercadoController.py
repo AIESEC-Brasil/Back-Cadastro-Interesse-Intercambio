@@ -15,6 +15,7 @@ from ..cache import cache  # Gerenciador de cache para otimizar chamadas
 from ..dto import (  # DTOs de validação e estruturação OpenAPI3/Pydantic
     DivisaoMercadoCl,
     DivisaoMercadoUniversidades,
+    RetornoGenerico
 )
 from ..repository import (  # Métodos de consulta ao banco de dados/repositório
     buscar_todas_universidades,
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 # 3. ENDPOINTS E MANIPULADORES DE REQUISIÇÃO
 # =================================================================
 
-@divisao_mercado.get("/escritorios", responses={200: DivisaoMercadoCl})
+@divisao_mercado.get("/escritorios", responses={200: RetornoGenerico[DivisaoMercadoCl]})
 def buscar_escritorios() -> DivisaoMercadoCl:
     """Retorna os dados da divisão de mercado por escritórios locais (CLs).
 
@@ -67,7 +68,7 @@ def buscar_escritorios() -> DivisaoMercadoCl:
 
 
 @divisao_mercado.get(
-    "/universidades", responses={200: DivisaoMercadoUniversidades}
+    "/universidades", responses={200: RetornoGenerico[DivisaoMercadoUniversidades]}
 )
 def buscar_universidades() -> DivisaoMercadoUniversidades:
     """Retorna os dados da divisão de mercado agrupados por universidades.
