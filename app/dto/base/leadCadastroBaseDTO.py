@@ -18,9 +18,10 @@ from typing import (
 
 # Importações do Pydantic (versão 2) utilizadas na construção e validação da estrutura de dados
 from pydantic import (
-    BaseModel,   # Classe base do Pydantic para criação de modelos/containers de dados.
-    ConfigDict,  # Objeto de configuração para definir comportamentos do modelo.
-    Field,       # Utilizado para definir metadados dos campos, descrições, aliases e exemplos.
+    BaseModel,       # Classe base do Pydantic para criação de modelos/containers de dados.
+    ConfigDict,      # Objeto de configuração para definir comportamentos do modelo.
+    Field,           # Utilizado para definir metadados dos campos, descrições, aliases e exemplos.
+    model_validator, # Validador de modelo do Pydantic v2.
 )
 
 # Importação dos DTOs e tipos globais customizados da aplicação
@@ -49,19 +50,11 @@ class LeadPreCadastroBase(BaseModel):
     Esta classe define a estrutura base esperada para o payload de pré-cadastro,
     incluindo metadados e exemplos para a geração automatizada de JSON Schema (OpenAPI).
 
-    Attributes:
-        nome (str): Primeiro nome do lead.
-        sobrenome (str): Sobrenome completo do lead.
-        dataNascimento (DataNascimento): Objeto com os dados de nascimento validados.
-        telefone (List[TelefoneItem]): Lista de telefones de contato do lead.
-        email (List[EmailItem]): Lista de e-mails de contato do lead.
-        universidade (Optional[Universidade]): Instituição de ensino vinculada (opcional). Padrão: None.
-        produto (Produto): Produto/programa de interesse selecionado pelo lead.
-        comite (Comite): Comitê local responsável pelo atendimento do lead.
-        autorizacao (Autorizacao): Consentimentos e autorizações de termos do lead.
-        origem (Origem): Origem/canal pelo qual o lead conheceu a AIESEC.
-        meio (Optional[Meio]): Meio específico de contato/captação (opcional). Padrão: None.
-        tag (Optional[List[Tag]]): Lista de tags de campanhas ou eventos associados (opcional). Padrão: None.
+    Regras de negócio:
+        - Deve existir pelo menos um dos campos:
+            * universidade
+            * comite
+        - Ambos também podem ser enviados simultaneamente.
     """
 
     # Configuração global do modelo: ignora campos extras não declarados no payload
@@ -71,7 +64,7 @@ class LeadPreCadastroBase(BaseModel):
     nome: str = Field(
         description="Nome do lead",
         json_schema_extra={
-            "example": "João"  # Exemplo exibido na documentação interativa (Swagger/OpenAPI)
+            "example": "João"
         },
         min_length=3,
         max_length=100,
@@ -89,44 +82,68 @@ class LeadPreCadastroBase(BaseModel):
         pattern=r"^[A-Za-zÀ-ÿ\s]+$",
     )
 
-    # Objeto contendo o dia, mês e ano de nascimento do lead (validado pelo schema DataNascimento)
+    # Objeto contendo o dia, mês e ano de nascimento do lead
     dataNascimento: DataNascimento
 
-    # Coleção de telefones informados para contato (validada pelo sub-modelo TelefoneItem)
+    # Coleção de telefones informados para contato
     telefone: List[TelefoneItem]
 
-    # Coleção de endereços de e-mail informados para contato (validada pelo sub-modelo EmailItem)
+    # Coleção de endereços de e-mail informados para contato
     email: List[EmailItem]
 
-    # Instituição de ensino associada ao lead (campo totalmente opcional; assume None se omitido)
+    # Instituição de ensino associada ao lead
     universidade: Optional[Universidade] = Field(
         default=None,
         description="Instituição de ensino vinculada ao lead (opcional)",
     )
 
-    # Produto ou programa de interesse selecionado no fluxo (validado pelo schema Produto)
+    # Produto ou programa de interesse selecionado no fluxo
     produto: Produto
 
-    # Comitê local/regional atribuído para o atendimento do lead (validado pelo schema Comite)
-    comite: Comite
+    # Comitê local/regional atribuído para o atendimento do lead
+    comite: Optional[Comite] = Field(
+        default=None,
+        description="Comitê responsável pelo atendimento do lead (opcional)",
+    )
 
-    # Termos de aceite e consentimentos legais fornecidos pelo lead (validados pelo schema Autorizacao)
+    # Termos de aceite e consentimentos legais fornecidos pelo lead
     autorizacao: Autorizacao
 
-    # Origem primária pela qual o lead conheceu a AIESEC (validada pelo schema Origem)
+    # Origem primária pela qual o lead conheceu a AIESEC
     origem: Origem
 
-    # Meio secundário ou canal específico de contato do lead (opcional; assume None se omitido)
+    # Meio secundário ou canal específico de contato do lead
     meio: Optional[Meio] = Field(
         default=None,
         description="Meio de contato pelo qual o lead conheceu a AIESEC (opcional)",
     )
 
-    # Coleção de tags de eventos ou campanhas de atração (opcional; assume None se omitido)
+    # Coleção de tags de eventos ou campanhas de atração
     tag: Optional[List[Tag]] = Field(
         default=None,
         description="Lista de tags de evento ou campanha utilizadas na atração (opcional)",
     )
+
+    # =============================================================
+    # VALIDAÇÕES DE NEGÓCIO
+    # =============================================================
+
+    @model_validator(mode="after")
+    def validar_universidade_ou_comite(self):
+        """
+        Garante que pelo menos um dos campos abaixo seja informado:
+            - universidade
+            - comite
+
+        Ambos podem ser enviados simultaneamente.
+        """
+
+        if self.universidade is None and self.comite is None:
+            raise ValueError(
+                "É obrigatório informar ao menos um dos campos: universidade ou comite."
+            )
+
+        return self
 
 
 # =================================================================

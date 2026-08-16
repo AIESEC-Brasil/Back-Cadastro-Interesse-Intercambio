@@ -74,7 +74,8 @@ FIELDS_PERMITIDOS = {
     "tag-origem-2",
     "tag-meio-2-2",
     "email",
-    "telefone"
+    "telefone",
+    "eu-concordo-com-a-coleta-e-uso-dos-meus-dados-conforme-"
 }
 
 
@@ -282,6 +283,7 @@ class CacheManager:
                                 # B) Ele for dicionário e tiver status "active" ou None (itens de 'options')
                                 if not isinstance(o, dict) or o.get("status") in ("active", None)
                             ],
+                           "description":config.get("description"),
                         })
 
                 # Sobrescreve a variável 'data' apenas com a lista higienizada de campos
