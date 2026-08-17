@@ -124,9 +124,6 @@ def payload_expa(data: CriarPreCadastroLead) -> Dict[str, Any]:
     """Formata e constrói o payload para a API do EXPA buscando o CL pela universidade ou comitê."""
     from app.cache import cache
 
-    # Valor padrão caso não encontre universidade, comitê ou mapeamento
-    nome_cl_formatado = str(data.comite.nome)
-
     if data.universidade:
         universidade_encontrada = next(
             (
