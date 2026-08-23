@@ -11,6 +11,8 @@ e da plataforma EXPA, além de estruturas de payload para upload e anexo de arqu
 # =================================================================
 from typing import Any, Dict
 
+from ..utils import formatar_texto
+
 # Módulos de DTOs para validação e estruturação dos dados
 from ..dto import (
     CategoriaContato,
@@ -270,7 +272,7 @@ def payload_qualificacao_lead(data: QualificacaoLead) -> Dict[str, Any]:
     payload_fields = payload["fields"]
 
     if data.curso:
-        payload_fields["qual-seu-curso"] = str(data.curso).title()
+        payload_fields["qual-seu-curso"] = formatar_texto(str(data.curso))
     if data.idiomas:
         payload_fields["possui-outro-idioma"] = [i.id for i in data.idiomas]
     if data.semestreCurso:
