@@ -146,7 +146,8 @@ class LeadPodio:
             chave="ogx-token-podio",
             payload=payload_qualificacao_lead(lead),
             response_dto=lead.model_dump(exclude_none=True),
-            data_response=lead.model_dump(exclude_none=True)
+            data_response=lead.model_dump(exclude_none=True),
+            atualizar="qualificação"
         ))
 
         # Se a atualização falhar, interrompe e retorna a resposta de erro
