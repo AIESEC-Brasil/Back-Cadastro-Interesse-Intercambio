@@ -126,7 +126,7 @@ async def atualizar_lead(
 
     # Anexa o item_id ao payload para rastreabilidade e retorno
     response_dto["item_id"] = item_id
-    if atualizar == 'registro'
+    if atualizar == 'registro':
         await enviar_comentario(item_id, "Lead se reinscreveu no Site da Aiesec no Brasil")
     elif atualizar == 'qualificação' and data_response:
         await enviar_comentario(item_id, "Lead preencheu as qualificações")
