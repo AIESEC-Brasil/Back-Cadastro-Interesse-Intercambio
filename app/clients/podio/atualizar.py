@@ -128,7 +128,7 @@ async def atualizar_lead(
     response_dto["item_id"] = item_id
     if atualizar == 'registro':
         await enviar_comentario(item_id, "Lead se reinscreveu no Site da Aiesec no Brasil")
-    elif atualizar == 'qualificação' and len(data_response) > 0:
+    elif atualizar == 'qualificação' and any(not valor for chave,valor in data_response.items() if chave != 'item_id'):
         await enviar_comentario(item_id, "Lead preencheu as qualificações")
     return response_dto, HttpStatus.OK
 
