@@ -98,7 +98,7 @@ class LeadPodio:
     @staticmethod
     @validar
     def atualizar_lead(
-            lead_existe: dict[str, Any], lead: CriarPreCadastroLead
+            lead_existe: dict[str, Any], lead: CriarPreCadastroLead | QualificacaoLead
     ) -> tuple[Any, HttpStatus] | dict[str, Any]:
         """Atualiza os dados de um lead já existente com base nas informações fornecidas.
 

@@ -17,8 +17,10 @@ from typing import (
 
 # Importações do Pydantic (versão 2) utilizadas na construção e validação da estrutura de dados
 from pydantic import (
+    BaseModel,   # Classe base do Pydantic para criação de modelos/containers de dados.
     ConfigDict,  # Objeto de configuração para definir comportamentos do modelo.
     Field,       # Utilizado para definir metadados dos campos, descrições, aliases e exemplos.
+    PositiveInt
 )
 
 # Importação dos DTOs e tipos globais customizados da aplicação
@@ -33,9 +35,6 @@ from ..globals import (
 
 # Importação da classe base do pré-cadastro de leads
 from ..base import LeadPreCadastroBase as LeadPreCadastroInput
-
-# Importação do modelo de output do pré-cadastro do lead
-from ..output import LeadPreCadastroOutput
 
 
 # =================================================================
@@ -68,7 +67,7 @@ class CriarPreCadastroLead(LeadPreCadastroInput):
     )
 
 
-class QualificacaoLead(LeadPreCadastroOutput):
+class QualificacaoLead(BaseModel):
     """
     Modelo de dados Pydantic para qualificação complementar do Lead.
 
@@ -87,6 +86,13 @@ class QualificacaoLead(LeadPreCadastroOutput):
 
     # Configuração global do modelo: ignora campos extras não declarados no payload
     model_config = ConfigDict(extra="ignore")
+
+    # Identificador único numérico (ID do item/card) retornado pela API do Podio
+    item_id: PositiveInt = Field(
+        ...,
+        description="O id do card do Lead no podio",
+        json_schema_extra={"example": "325664"},
+    )
 
     # Nome descritivo do curso (opcional; assume None se omitido)
     curso: Optional[str] = Field(
