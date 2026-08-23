@@ -48,6 +48,7 @@ async def atualizar_lead(
         response_dto: Dict[str, Any],
         data_response: Dict[str, Any],
         service: str = "new-lead-ogx",
+        atualizar:str = "registro"
 ) -> tuple[Any, HttpStatus] | dict[str, Any]:
     """
     Atualiza os dados de um card (Lead) existente na plataforma do Podio.
@@ -62,6 +63,7 @@ async def atualizar_lead(
         response_dto (Dict[str, Any]): Dicionário base derivado do DTO de entrada.
         data_response (Dict[str, Any]): Dicionário com a resposta da criação prévia contendo o `item_id`.
         service (str, optional): Nome do serviço mapeado no CONFIG_MAP para renovação do token. Padrão: "new-lead-ogx".
+        atualizar(str): Tipo de atualização se é um lead se reescrevendo ou é da pagina de qualificação
 
     Returns:
         Dict[str, Any]: O payload atualizado e enriquecido com o 'item_id'.
@@ -124,7 +126,10 @@ async def atualizar_lead(
 
     # Anexa o item_id ao payload para rastreabilidade e retorno
     response_dto["item_id"] = item_id
-    await enviar_comentario(item_id, "Lead se reinscreveu no Site da Aiesec no Brasil")
+    if atualizar == 'registro'
+        await enviar_comentario(item_id, "Lead se reinscreveu no Site da Aiesec no Brasil")
+    elif atualizar == 'qualificação' and data_response:
+        await enviar_comentario(item_id, "Lead preencheu as qualificações")
     return response_dto, HttpStatus.OK
 
 
