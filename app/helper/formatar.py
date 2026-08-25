@@ -276,7 +276,7 @@ def payload_qualificacao_lead(data: QualificacaoLead) -> Dict[str, Any]:
     if data.idiomas:
         payload_fields["possui-outro-idioma"] = [i.id for i in data.idiomas]
     if data.semestreCurso:
-        payload_fields["qual-seu-semestre"] = int(data.semestreCurso.id)
+        payload_fields["qual-semestre-do-curso"] = int(data.semestreCurso.id)
     if data.areaAtuacao:
         payload_fields["qual-sua-area-de-atuacao"] = int(data.areaAtuacao.id)
     if data.nivelAtuacao:
