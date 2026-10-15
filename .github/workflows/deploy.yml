@@ -15,6 +15,24 @@ jobs:
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Identificar arquivos alterados
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE_SHA="$(git rev-parse "${GITHUB_SHA}^" 2>/dev/null || true)"
+          else
+            BASE_SHA="$PUSH_BEFORE"
+          fi
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          else
+            git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          fi
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -42,6 +60,7 @@ jobs:
           PYTHONANYWHERE_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
+          CHANGED_FILES_PATH: ${{ runner.temp }}/changed-files.txt
         run: |
           python - <<'PY'
           import os
@@ -96,7 +115,7 @@ jobs:
               if remote_path in CREATED_DIRS:
                   return
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
-              response = config["session"].post(url, timeout=400)
+              response = config["session"].post(url, timeout=60)
               if response.status_code not in (200, 201, 204, 400, 409):
                   raise SystemExit(
                       f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
@@ -116,7 +135,7 @@ jobs:
                           response = config["session"].post(
                               url,
                               files={"content": (Path(remote_path).name, stream)},
-                              timeout=400,
+                              timeout=60,
                           )
                       if response.status_code in (200, 201):
                           time.sleep(2)
@@ -142,11 +161,18 @@ jobs:
               return False
 
           def upload_project(config):
-              """Monta o .env.dev dos secrets e envia somente os caminhos permitidos."""
+              """Monta o .env.dev e envia somente arquivos alterados e permitidos."""
               project_dir = config["project_dir"]
               if not project_dir.is_dir():
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
                   return False
+
+              changed_file = Path(required_env("CHANGED_FILES_PATH"))
+              changed_paths = {
+                  item.decode("utf-8")
+                  for item in changed_file.read_bytes().split(b"\0")
+                  if item
+              }
 
               print(f"Pasta local: {project_dir}")
               print(f"Destino no servidor: {config['remote_dir']}\n")
@@ -157,8 +183,10 @@ jobs:
                   for name, value in config["app_env"].items():
                       set_key(str(env_file), name, value, quote_mode="always")
 
-                  files = [(env_file, ".env.dev")]
+                  files = []
                   for filename in sorted(ALLOWED_FILES - {".env.dev"}):
+                      if filename not in changed_paths:
+                          continue
                       path = project_dir / filename
                       if path.is_file():
                           files.append((path, filename))
@@ -171,13 +199,21 @@ jobs:
                           dirs[:] = sorted(d for d in dirs if d not in IGNORED_SUBDIRS)
                           for filename in sorted(filenames):
                               path = Path(root) / filename
-                              if path.suffix not in {".pyc", ".pyo"}:
-                                  relative = path.relative_to(project_dir).as_posix()
+                              relative = path.relative_to(project_dir).as_posix()
+                              if (
+                                  path.suffix not in {".pyc", ".pyo"}
+                                  and relative in changed_paths
+                              ):
                                   files.append((path, relative))
+
+                  # O .env.dev é montado a partir dos secrets em toda publicação
+                  # que tenha ao menos um arquivo do projeto alterado.
+                  if files:
+                      files.append((env_file, ".env.dev"))
 
                   files.sort(key=lambda item: item[1])
                   if not files:
-                      print("Nenhum arquivo corresponde à lista de deploy")
+                      print("Nenhum arquivo permitido foi alterado; deploy ignorado.")
                       return False
 
                   ensure_remote_dir(config, config["remote_dir"])
@@ -202,7 +238,7 @@ jobs:
                   f"/webapps/{quote(config['domain'], safe='')}/reload/",
               )
               print("\nRecarregando a aplicação Web no PythonAnywhere...")
-              response = config["session"].post(url, timeout=400)
+              response = config["session"].post(url, timeout=60)
               if response.status_code != 200:
                   raise SystemExit(f"Erro ao recarregar a webapp: HTTP {response.status_code}")
               print("Aplicação Web recarregada com sucesso!")
