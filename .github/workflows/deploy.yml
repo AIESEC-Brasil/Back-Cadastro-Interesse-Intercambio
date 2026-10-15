@@ -24,7 +24,7 @@ jobs:
       - name: Instalar dependência do deploy
         run: python -m pip install requests python-dotenv
 
-      - name: Gerar .env.dev temporário com secrets
+      - name: Enviar arquivos e recarregar a webapp
         env:
           AMBIENTE: ${{ secrets.AMBIENTE }}
           CACHE_TTL: ${{ secrets.CACHE_TTL }}
@@ -39,33 +39,13 @@ jobs:
           APP_TOKEN: ${{ secrets.APP_TOKEN }}
           TOKEN_EXPA: ${{ secrets.TOKEN_EXPA }}
           APPSCRIPT_EXPA: ${{ secrets.APPSCRIPT_EXPA }}
-        run: |
-          python - <<'PY'
-          import os
-          from dotenv import set_key
-
-          names = (
-              "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
-              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
-              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
-          )
-          missing = [name for name in names if not os.environ.get(name)]
-          if missing:
-              raise SystemExit("Configure these Back repository Actions secrets: " + ", ".join(missing))
-          for name in names:
-              set_key(".env.dev", name, os.environ[name], quote_mode="always")
-          PY
-
-      - name: Enviar os arquivos definidos e recarregar a webapp
-        env:
           PYTHONANYWHERE_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
-          DB_CONNECT: ${{ secrets.DB_CONNECT }}
-          DOMINIOS_PERMITIDOS: ${{ secrets.DOMINIOS_PERMITIDOS }}
         run: |
           python - <<'PY'
           import os
+          import tempfile
           import time
           from pathlib import Path
           from urllib.parse import quote
@@ -76,91 +56,123 @@ jobs:
           def required_env(name):
               value = os.environ.get(name)
               if not value:
-                  raise SystemExit(f"Missing Actions secret: {name}")
+                  raise SystemExit(f"Configure o Actions secret obrigatório: {name}")
               return value
 
+          # As configurações do app vêm dos Actions secrets. O .env.dev é criado
+          # somente no runner e enviado ao servidor junto com os arquivos do projeto.
+          app_env_names = (
+              "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
+              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
+              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
+          )
+          app_env = {name: required_env(name) for name in app_env_names}
           username = required_env("PYTHONANYWHERE_USERNAME")
           api_token = required_env("PYTHONANYWHERE_API_TOKEN")
           domain = required_env("PYTHONANYWHERE_DOMAIN")
-          overrides = {
-              "DB_CONNECT": required_env("DB_CONNECT"),
-              "DOMINIOS_PERMITIDOS": required_env("DOMINIOS_PERMITIDOS"),
-          }
 
           project_dir = Path.cwd()
           remote_dir = f"/home/{username}/Back-Cadastro-Interesse-Intercambio"
           allowed_dirs = {"app", "doc"}
-          allowed_files = {".env.dev", "requirements.txt", "server.py"}
+          allowed_files = {
+              ".env.dev", ".env.test", ".env.example", "requirements.txt", "server.py",
+          }
           ignored_dirs = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
-          headers = {"Authorization": f"Token {api_token}"}
           session = requests.Session()
-          session.headers.update(headers)
+          session.headers.update({"Authorization": f"Token {api_token}"})
+          api_user = quote(username, safe="")
+          created_dirs = set()
 
-          env_file = project_dir / ".env.dev"
-          if not env_file.is_file():
-              raise SystemExit("Temporary .env.dev was not generated")
-          for key, value in overrides.items():
-              set_key(str(env_file), key, value, quote_mode="always")
+          def api_url(path):
+              return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
 
-          files = []
-          for name in sorted(allowed_files):
-              path = project_dir / name
-              if path.is_file():
-                  files.append(path)
-          for dirname in sorted(allowed_dirs):
-              base = project_dir / dirname
-              if not base.is_dir():
-                  continue
-              for root, dirs, filenames in os.walk(base):
-                  dirs[:] = sorted(d for d in dirs if d not in ignored_dirs)
-                  for filename in sorted(filenames):
-                      path = Path(root) / filename
-                      if path.suffix not in {".pyc", ".pyo"}:
-                          files.append(path)
-
-          files.sort(key=lambda path: path.relative_to(project_dir).as_posix())
-          if not files:
-              raise SystemExit("No files matched the deployment allowlist")
-
-          for index, path in enumerate(files, start=1):
-              relative_path = path.relative_to(project_dir).as_posix()
-              remote_path = f"{remote_dir}/{relative_path}"
-              encoded_path = quote(remote_path, safe="/")
-              url = f"https://www.pythonanywhere.com/api/v0/user/{quote(username, safe='')}/files/path{encoded_path}"
-              uploaded = False
-              for attempt in range(3):
-                  try:
-                      with path.open("rb") as stream:
-                          response = session.post(
-                              url,
-                              files={"content": (path.name, stream)},
-                              timeout=60,
-                          )
-                      if response.status_code in (200, 201):
-                          uploaded = True
-                          break
-                      if response.status_code == 429 and attempt < 2:
-                          time.sleep(int(response.headers.get("Retry-After", "10")))
-                          continue
-                      if response.status_code >= 500 and attempt < 2:
-                          time.sleep(2 ** attempt)
-                          continue
-                      raise SystemExit(f"Upload failed for {relative_path}: HTTP {response.status_code}")
-                  except requests.RequestException as error:
-                      if attempt == 2:
-                          raise SystemExit(f"Upload failed for {relative_path}: {type(error).__name__}")
-                      time.sleep(2 ** attempt)
-              if not uploaded:
-                  raise SystemExit(f"Upload failed for {relative_path}")
-              print(f"Uploaded {index}/{len(files)}: {relative_path}")
+          def ensure_remote_dir(remote_path):
+              if remote_path in created_dirs:
+                  return
+              url = api_url(f"/files/path{quote(remote_path, safe='/')}")
+              response = session.post(url, timeout=60)
+              if response.status_code not in (200, 201, 204, 400, 409):
+                  raise SystemExit(
+                      f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
+                  )
+              created_dirs.add(remote_path)
               time.sleep(2)
 
-          reload_url = (
-              "https://www.pythonanywhere.com/api/v0/user/"
-              f"{quote(username, safe='')}/webapps/{quote(domain, safe='')}/reload/"
-          )
-          response = session.post(reload_url, timeout=60)
-          if response.status_code != 200:
-              raise SystemExit(f"Webapp reload failed: HTTP {response.status_code}")
-          print("PythonAnywhere webapp reloaded successfully")
+          with tempfile.TemporaryDirectory() as temp_dir:
+              env_file = Path(temp_dir) / ".env.dev"
+              for name, value in app_env.items():
+                  set_key(str(env_file), name, value, quote_mode="always")
+
+              files = [(env_file, ".env.dev")]
+              for filename in sorted(allowed_files - {".env.dev"}):
+                  path = project_dir / filename
+                  if path.is_file():
+                      files.append((path, filename))
+
+              for dirname in sorted(allowed_dirs):
+                  base = project_dir / dirname
+                  if not base.is_dir():
+                      continue
+                  for root, dirs, filenames in os.walk(base):
+                      dirs[:] = sorted(d for d in dirs if d not in ignored_dirs)
+                      for filename in sorted(filenames):
+                          path = Path(root) / filename
+                          if path.suffix not in {".pyc", ".pyo"}:
+                              relative = path.relative_to(project_dir).as_posix()
+                              files.append((path, relative))
+
+              files.sort(key=lambda item: item[1])
+              if not files:
+                  raise SystemExit("Nenhum arquivo corresponde à lista de deploy")
+
+              ensure_remote_dir(remote_dir)
+              for index, (path, relative_path) in enumerate(files, start=1):
+                  remote_path = f"{remote_dir}/{relative_path}"
+                  ensure_remote_dir(str(Path(remote_path).parent).replace("\\", "/"))
+                  url = api_url(f"/files/path{quote(remote_path, safe='/')}")
+                  uploaded = False
+
+                  for attempt in range(3):
+                      try:
+                          with path.open("rb") as stream:
+                              response = session.post(
+                                  url,
+                                  files={"content": (Path(relative_path).name, stream)},
+                                  timeout=60,
+                              )
+                          if response.status_code in (200, 201):
+                              uploaded = True
+                              break
+                          if response.status_code == 429 and attempt < 2:
+                              try:
+                                  wait = int(response.headers.get("Retry-After", "10"))
+                              except ValueError:
+                                  wait = 10
+                              time.sleep(max(wait, 1))
+                              continue
+                          if response.status_code >= 500 and attempt < 2:
+                              time.sleep(2 ** attempt)
+                              continue
+                          raise SystemExit(
+                              f"Falha ao enviar {relative_path}: HTTP {response.status_code}"
+                          )
+                      except requests.RequestException as error:
+                          if attempt == 2:
+                              raise SystemExit(
+                                  f"Falha ao enviar {relative_path}: {type(error).__name__}"
+                              )
+                          time.sleep(2 ** attempt)
+
+                  if not uploaded:
+                      raise SystemExit(f"Falha ao enviar {relative_path}")
+                  print(f"Enviado {index}/{len(files)}: {relative_path}")
+                  time.sleep(2)
+
+              reload_url = api_url(
+                  f"/webapps/{quote(domain, safe='')}/reload/"
+              )
+              response = session.post(reload_url, timeout=60)
+              if response.status_code != 200:
+                  raise SystemExit(f"Falha ao recarregar a webapp: HTTP {response.status_code}")
+              print("Aplicação PythonAnywhere recarregada com sucesso")
           PY
