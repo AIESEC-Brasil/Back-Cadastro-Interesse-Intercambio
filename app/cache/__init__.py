@@ -1,7 +1,9 @@
-"""Pacote de Cache em Memória - AIESEC Security.
+"""
+Pacote de Cache em Memória - AIESEC Security.
 
 Gerenciador de armazenamento volátil em RAM com timestamps ajustados ao fuso
 horário local. Inclui a classe CacheManager e expõe a instância global 'cache'.
+
 """
 
 # =================================================================
