@@ -288,7 +288,7 @@ jobs:
           import requests
 
           payload = {
-              "status": "sucess",
+              "status": "success",
               "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
               "autor": os.environ["ACTOR"],
