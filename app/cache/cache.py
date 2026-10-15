@@ -11,6 +11,7 @@ bloqueios do Event Loop em ambientes web assíncronos ou multi-thread (Flask/Gun
 
 """
 
+
 # ==============================================================================
 # 1. IMPORTAÇÕES DA BIBLIOTECA PADRÃO E DE TERCEIROS
 # ==============================================================================
