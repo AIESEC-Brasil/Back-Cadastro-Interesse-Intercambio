@@ -273,7 +273,6 @@ jobs:
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
-          EMAIL_RESPONSAVEL: "seu-email@dominio.com"
           REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
@@ -289,6 +288,7 @@ jobs:
           import requests
 
           payload = {
+              "status":"sucess",
               "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
               "autor": os.environ["ACTOR"],
@@ -309,12 +309,11 @@ jobs:
         if: failure() && steps.deploy.outcome == 'failure'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
-          EMAIL_RESPONSAVEL: "seu-email@dominio.com"
           REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          ACTOR: ${{ github.actor }}
+          ACTOR: ${{ github.actor}}
           DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
         run: |
           python - <<'PY'

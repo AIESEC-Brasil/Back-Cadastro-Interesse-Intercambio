@@ -3,6 +3,7 @@
 Ponto central de acesso para as variáveis de ambiente e constantes
 validadas no submódulo 'settings'. Facilita o acesso limpo via
 `from app.config import AMBIENTE`.
+
 """
 
 # =================================================================
