@@ -288,7 +288,7 @@ jobs:
           import requests
 
           payload = {
-              "status":"sucess",
+              "status": "sucess",
               "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
               "autor": os.environ["ACTOR"],
@@ -301,8 +301,13 @@ jobs:
               ).strftime("%Y-%m-%d %H:%M:%S %Z"),
           }
 
-          response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
-          response.raise_for_status()
+          try:
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
+              print(f"Resposta do Apps Script: HTTP {response.status_code}")
+          except requests.RequestException as error:
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
       - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
@@ -312,7 +317,7 @@ jobs:
           REF: ${{ github.ref }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          ACTOR: ${{ github.actor}}
+          ACTOR: ${{ github.actor }}
           DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
         run: |
           python - <<'PY'
@@ -335,6 +340,11 @@ jobs:
               ).strftime("%Y-%m-%d %H:%M:%S %Z"),
           }
 
-          response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
-          response.raise_for_status()
+          try:
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
+              print(f"Resposta do Apps Script: HTTP {response.status_code}")
+          except requests.RequestException as error:
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY

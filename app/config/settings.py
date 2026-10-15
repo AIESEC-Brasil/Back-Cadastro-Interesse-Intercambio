@@ -22,7 +22,8 @@ from typing import List, Optional  # Anotações de tipo para coleções e valor
 # =================================================================
 
 def get_env_or_fail(var_name: str, default: Optional[str] = None) -> str:
-    """Recupera e valida uma variável de ambiente obrigatória ou retorna o valor padrão.
+    """
+    Recupera e valida uma variável de ambiente obrigatória ou retorna o valor padrão.
 
     Busca a chave informada no ambiente do S.O. e remove espaços em
     branco nas extremidades. Caso a variável esteja ausente ou vazia,
