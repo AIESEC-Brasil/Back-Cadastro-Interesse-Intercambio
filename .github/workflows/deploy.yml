@@ -53,126 +53,162 @@ jobs:
           import requests
           from dotenv import set_key
 
+          # Os secrets do GitHub são usados para montar o .env.dev no runner.
+          APP_ENV_NAMES = (
+              "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
+              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
+              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
+          )
+          ALLOWED_DIRS = {"app", "doc"}
+          ALLOWED_FILES = {
+              ".env.dev", ".env.test", ".env.example", "requirements.txt", "server.py",
+          }
+          IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
+          CREATED_DIRS = set()
+
           def required_env(name):
               value = os.environ.get(name)
               if not value:
                   raise SystemExit(f"Configure o Actions secret obrigatório: {name}")
               return value
 
-          # As configurações do app vêm dos Actions secrets. O .env.dev é criado
-          # somente no runner e enviado ao servidor junto com os arquivos do projeto.
-          app_env_names = (
-              "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
-              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
-              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
-          )
-          app_env = {name: required_env(name) for name in app_env_names}
-          username = required_env("PYTHONANYWHERE_USERNAME")
-          api_token = required_env("PYTHONANYWHERE_API_TOKEN")
-          domain = required_env("PYTHONANYWHERE_DOMAIN")
+          def load_config():
+              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
+              username = required_env("PYTHONANYWHERE_USERNAME")
+              session = requests.Session()
+              session.headers.update({
+                  "Authorization": f"Token {required_env('PYTHONANYWHERE_API_TOKEN')}"
+              })
+              return {
+                  "username": username,
+                  "domain": required_env("PYTHONANYWHERE_DOMAIN"),
+                  "project_dir": Path.cwd(),
+                  "remote_dir": f"/home/{username}/Back-Cadastro-Interesse-Intercambio",
+                  "app_env": {name: required_env(name) for name in APP_ENV_NAMES},
+                  "session": session,
+              }
 
-          project_dir = Path.cwd()
-          remote_dir = f"/home/{username}/Back-Cadastro-Interesse-Intercambio"
-          allowed_dirs = {"app", "doc"}
-          allowed_files = {
-              ".env.dev", ".env.test", ".env.example", "requirements.txt", "server.py",
-          }
-          ignored_dirs = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
-          session = requests.Session()
-          session.headers.update({"Authorization": f"Token {api_token}"})
-          api_user = quote(username, safe="")
-          created_dirs = set()
-
-          def api_url(path):
+          def api_url(config, path):
+              api_user = quote(config["username"], safe="")
               return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
 
-          def ensure_remote_dir(remote_path):
-              if remote_path in created_dirs:
+          def ensure_remote_dir(config, remote_path):
+              if remote_path in CREATED_DIRS:
                   return
-              url = api_url(f"/files/path{quote(remote_path, safe='/')}")
-              response = session.post(url, timeout=60)
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
+              response = config["session"].post(url, timeout=60)
               if response.status_code not in (200, 201, 204, 400, 409):
                   raise SystemExit(
                       f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
                   )
-              created_dirs.add(remote_path)
+              CREATED_DIRS.add(remote_path)
               time.sleep(2)
 
-          with tempfile.TemporaryDirectory() as temp_dir:
-              env_file = Path(temp_dir) / ".env.dev"
-              for name, value in app_env.items():
-                  set_key(str(env_file), name, value, quote_mode="always")
+          def upload_file(config, local_path, remote_path, max_retries=3):
+              """Envia um arquivo local ao servidor com retentativas."""
+              remote_parent = str(Path(remote_path).parent).replace("\\", "/")
+              ensure_remote_dir(config, remote_parent)
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
 
-              files = [(env_file, ".env.dev")]
-              for filename in sorted(allowed_files - {".env.dev"}):
-                  path = project_dir / filename
-                  if path.is_file():
-                      files.append((path, filename))
-
-              for dirname in sorted(allowed_dirs):
-                  base = project_dir / dirname
-                  if not base.is_dir():
-                      continue
-                  for root, dirs, filenames in os.walk(base):
-                      dirs[:] = sorted(d for d in dirs if d not in ignored_dirs)
-                      for filename in sorted(filenames):
-                          path = Path(root) / filename
-                          if path.suffix not in {".pyc", ".pyo"}:
-                              relative = path.relative_to(project_dir).as_posix()
-                              files.append((path, relative))
-
-              files.sort(key=lambda item: item[1])
-              if not files:
-                  raise SystemExit("Nenhum arquivo corresponde à lista de deploy")
-
-              ensure_remote_dir(remote_dir)
-              for index, (path, relative_path) in enumerate(files, start=1):
-                  remote_path = f"{remote_dir}/{relative_path}"
-                  ensure_remote_dir(str(Path(remote_path).parent).replace("\\", "/"))
-                  url = api_url(f"/files/path{quote(remote_path, safe='/')}")
-                  uploaded = False
-
-                  for attempt in range(3):
-                      try:
-                          with path.open("rb") as stream:
-                              response = session.post(
-                                  url,
-                                  files={"content": (Path(relative_path).name, stream)},
-                                  timeout=60,
-                              )
-                          if response.status_code in (200, 201):
-                              uploaded = True
-                              break
-                          if response.status_code == 429 and attempt < 2:
-                              try:
-                                  wait = int(response.headers.get("Retry-After", "10"))
-                              except ValueError:
-                                  wait = 10
-                              time.sleep(max(wait, 1))
-                              continue
-                          if response.status_code >= 500 and attempt < 2:
-                              time.sleep(2 ** attempt)
-                              continue
-                          raise SystemExit(
-                              f"Falha ao enviar {relative_path}: HTTP {response.status_code}"
+              for attempt in range(max_retries):
+                  try:
+                      with local_path.open("rb") as stream:
+                          response = config["session"].post(
+                              url,
+                              files={"content": (Path(remote_path).name, stream)},
+                              timeout=60,
                           )
-                      except requests.RequestException as error:
-                          if attempt == 2:
-                              raise SystemExit(
-                                  f"Falha ao enviar {relative_path}: {type(error).__name__}"
-                              )
+                      if response.status_code in (200, 201):
+                          time.sleep(2)
+                          return True
+                      if response.status_code == 429 and attempt < max_retries - 1:
+                          try:
+                              wait = int(response.headers.get("Retry-After", "10"))
+                          except ValueError:
+                              wait = 10
+                          time.sleep(max(wait, 1))
+                          continue
+                      if response.status_code >= 500 and attempt < max_retries - 1:
                           time.sleep(2 ** attempt)
+                          continue
+                      print(f"ERRO [{response.status_code}] ao enviar {Path(remote_path).name}")
+                      return False
+                  except requests.RequestException as error:
+                      if attempt == max_retries - 1:
+                          print(f"ERRO [{type(error).__name__}] ao enviar {Path(remote_path).name}")
+                          return False
+                      time.sleep(2 ** attempt)
 
-                  if not uploaded:
-                      raise SystemExit(f"Falha ao enviar {relative_path}")
-                  print(f"Enviado {index}/{len(files)}: {relative_path}")
-                  time.sleep(2)
+              return False
 
-              reload_url = api_url(
-                  f"/webapps/{quote(domain, safe='')}/reload/"
+          def upload_project(config):
+              """Monta o .env.dev dos secrets e envia somente os caminhos permitidos."""
+              project_dir = config["project_dir"]
+              if not project_dir.is_dir():
+                  print(f"Erro local: pasta '{project_dir}' não encontrada")
+                  return False
+
+              print(f"Pasta local: {project_dir}")
+              print(f"Destino no servidor: {config['remote_dir']}\n")
+              CREATED_DIRS.clear()
+
+              with tempfile.TemporaryDirectory() as temp_dir:
+                  env_file = Path(temp_dir) / ".env.dev"
+                  for name, value in config["app_env"].items():
+                      set_key(str(env_file), name, value, quote_mode="always")
+
+                  files = [(env_file, ".env.dev")]
+                  for filename in sorted(ALLOWED_FILES - {".env.dev"}):
+                      path = project_dir / filename
+                      if path.is_file():
+                          files.append((path, filename))
+
+                  for dirname in sorted(ALLOWED_DIRS):
+                      base = project_dir / dirname
+                      if not base.is_dir():
+                          continue
+                      for root, dirs, filenames in os.walk(base):
+                          dirs[:] = sorted(d for d in dirs if d not in IGNORED_SUBDIRS)
+                          for filename in sorted(filenames):
+                              path = Path(root) / filename
+                              if path.suffix not in {".pyc", ".pyo"}:
+                                  relative = path.relative_to(project_dir).as_posix()
+                                  files.append((path, relative))
+
+                  files.sort(key=lambda item: item[1])
+                  if not files:
+                      print("Nenhum arquivo corresponde à lista de deploy")
+                      return False
+
+                  ensure_remote_dir(config, config["remote_dir"])
+                  total_uploaded = 0
+                  for path, relative_path in files:
+                      remote_path = f"{config['remote_dir']}/{relative_path}"
+                      print(f"Enviando: {relative_path} ...", end=" ", flush=True)
+                      if upload_file(config, path, remote_path):
+                          print("OK")
+                          total_uploaded += 1
+                      else:
+                          print()
+                          return False
+
+              print(f"\nConcluído! Total de {total_uploaded} arquivos enviados.")
+              return True
+
+          def reload_webapp(config):
+              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
+              url = api_url(
+                  config,
+                  f"/webapps/{quote(config['domain'], safe='')}/reload/",
               )
-              response = session.post(reload_url, timeout=60)
+              print("\nRecarregando a aplicação Web no PythonAnywhere...")
+              response = config["session"].post(url, timeout=60)
               if response.status_code != 200:
-                  raise SystemExit(f"Falha ao recarregar a webapp: HTTP {response.status_code}")
-              print("Aplicação PythonAnywhere recarregada com sucesso")
+                  raise SystemExit(f"Erro ao recarregar a webapp: HTTP {response.status_code}")
+              print("Aplicação Web recarregada com sucesso!")
+
+          if __name__ == "__main__":
+              deploy_config = load_config()
+              if upload_project(deploy_config):
+                  reload_webapp(deploy_config)
           PY
