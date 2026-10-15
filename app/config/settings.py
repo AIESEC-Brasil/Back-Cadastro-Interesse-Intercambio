@@ -7,6 +7,7 @@ Este módulo garante a imutabilidade e segurança operacional do sistema ao:
 1. Validar a presença de variáveis obrigatórias logo na inicialização.
 2. Interromper a execução imediatamente (Fail-Fast) em caso de ausência de chaves.
 3. Converter e tratar os tipos primitivos (int, bool, list) do arquivo .env.
+
 """
 
 # =================================================================

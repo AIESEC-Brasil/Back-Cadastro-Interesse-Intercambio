@@ -295,7 +295,6 @@ jobs:
               "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
-              "email_responsavel": os.environ["EMAIL_RESPONSAVEL"],
               "detalhe_erro": os.environ["DETAIL"],
               "timestamp": datetime.datetime.now(
                   pytz.timezone("America/Sao_Paulo")
@@ -330,7 +329,6 @@ jobs:
               "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
-              "email_responsavel": os.environ["EMAIL_RESPONSAVEL"],
               "detalhe_erro": os.environ["DETAIL"],
               "timestamp": datetime.datetime.now(
                   pytz.timezone("America/Sao_Paulo")
