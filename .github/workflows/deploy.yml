@@ -277,17 +277,16 @@ jobs:
         run: |
           curl -X POST "$APPSCRIPT_URL" \
             -H "Content-Type: application/json" \
-            -d '{
-              "repositorio": "${{ github.repository }}",
-              "ref": "${{ github.ref }}",
-              "autor": "${{ github.actor }}",
-              "mensagem_commit": "${{ github.event.head_commit.message }}",
-              "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "ambiente": "Produção",
-              "email_responsavel": "'"$EMAIL_RESPONSAVEL"'",
-              "detalhe_erro": "Deploy realizado com sucesso e aplicação recarregada.",
-              "timestamp": "'$(date -u +"%Y-%m-%d %H:%M:%S UTC")'"
-            }'
+            -d "{
+              \"status\": \"success\",
+              \"repositorio\": \"${{ github.repository }}\",
+              \"ref\": \"${{ github.ref }}\",
+              \"autor\": \"${{ github.actor }}\",
+              \"mensagem_commit\": \"${{ github.event.head_commit.message }}\",
+              \"run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+              \"ambiente\": \"Produção\",
+              \"timestamp\": \"$(date -u +'%Y-%m-%d %H:%M:%S UTC')\"
+            }"
 
       - name: Notificar Falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
@@ -296,13 +295,13 @@ jobs:
         run: |
           curl -X POST "$APPSCRIPT_URL" \
             -H "Content-Type: application/json" \
-            -d '{
-              "repositorio": "${{ github.repository }}",
-              "ref": "${{ github.ref }}",
-              "autor": "${{ github.actor }}",
-              "mensagem_commit": "${{ github.event.head_commit.message }}",
-              "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "ambiente": "Produção",
-              "detalhe_erro": "A pipeline de deploy falhou na etapa de sincronização ou recarga do webapp.",
-              "timestamp": "'$(date -u +"%Y-%m-%d %H:%M:%S UTC")'"
-            }'
+            -d "{
+              \"status\": \"fail\",
+              \"repositorio\": \"${{ github.repository }}\",
+              \"ref\": \"${{ github.ref }}\",
+              \"autor\": \"${{ github.actor }}\",
+              \"mensagem_commit\": \"${{ github.event.head_commit.message }}\",
+              \"run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+              \"ambiente\": \"Produção\",
+              \"timestamp\": \"$(date -u +'%Y-%m-%d %H:%M:%S UTC')\"
+            }"
