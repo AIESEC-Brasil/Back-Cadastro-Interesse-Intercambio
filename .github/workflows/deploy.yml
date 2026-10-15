@@ -31,8 +31,14 @@ jobs:
 
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            git show -s --format='%an' "$GITHUB_SHA" > "$RUNNER_TEMP/contributors.txt"
           else
             git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            git log --format='%an' "$BASE_SHA..$GITHUB_SHA" | sort -fu | paste -sd ', ' - > "$RUNNER_TEMP/contributors.txt"
+          fi
+
+          if [ ! -s "$RUNNER_TEMP/contributors.txt" ]; then
+            git show -s --format='%an' "$GITHUB_SHA" > "$RUNNER_TEMP/contributors.txt"
           fi
 
       - name: Configurar Python
@@ -41,7 +47,7 @@ jobs:
           python-version: '3.13'
 
       - name: Instalar dependência do deploy
-        run: python -m pip install requests python-dotenv
+        run: python -m pip install requests python-dotenv pytz
 
       - name: Enviar arquivos e recarregar a webapp
         id: deploy
@@ -76,6 +82,7 @@ jobs:
           import requests
           from dotenv import set_key
 
+          # Os secrets do GitHub são usados para montar o .env.dev no runner.
           APP_ENV_NAMES = (
               "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
               "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
@@ -93,6 +100,7 @@ jobs:
               return value
 
           def load_config():
+              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
               username = required_env("PYTHONANYWHERE_USERNAME")
               session = requests.Session()
               session.headers.update({
@@ -125,6 +133,7 @@ jobs:
               time.sleep(2)
 
           def upload_file(config, local_path, remote_path, max_retries=3):
+              """Envia um arquivo local ao servidor com retentativas."""
               remote_parent = str(Path(remote_path).parent).replace("\\", "/")
               ensure_remote_dir(config, remote_parent)
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -161,6 +170,7 @@ jobs:
               return False
 
           def upload_project(config):
+              """Monta o .env.dev e envia somente arquivos alterados e permitidos."""
               project_dir = config["project_dir"]
               if not project_dir.is_dir():
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
@@ -219,6 +229,9 @@ jobs:
                               ):
                                   files.append((path, relative))
 
+                  # Os ambientes são montados a partir dos secrets em toda publicação
+                  # que tenha ao menos um arquivo do projeto alterado. O teste usa
+                  # DB_CONNECT_TEST, mantendo o mesmo nome da variável no .env.test.
                   if files:
                       files.append((env_file, ".env.dev"))
                       files.append((test_env_file, ".env.test"))
@@ -244,6 +257,7 @@ jobs:
               return True
 
           def reload_webapp(config):
+              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
               url = api_url(
                   config,
                   f"/webapps/{quote(config['domain'], safe='')}/reload/",
@@ -261,69 +275,73 @@ jobs:
                   with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                       output.write("deployed=true\n")
           PY
-
-      - name: Notificar Sucesso via Google Apps Script
+      - name: Notificar sucesso via Google Apps Script
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
-          REPO: ${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
-          ACTOR: ${{ github.actor }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DETAIL: Deploy realizado com sucesso e aplicação recarregada.
         run: |
-          python -c '
-          import os, json, urllib.request, datetime
+          AUTORES_DEPLOY="$(cat "$RUNNER_TEMP/contributors.txt")"
+          export AUTORES_DEPLOY
+          python - <<'PY'
+          import datetime
+          import os
+
+          import pytz
+          import requests
+
           payload = {
-              "status": "success",
-              "repositorio": os.environ["REPO"],
+              "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
-              "autor": os.environ["ACTOR"],
-              "mensagem_commit": os.environ.get("COMMIT_MSG", "N/A"),
+              "autor": os.environ.get("AUTORES_DEPLOY", "Autor não identificado"),
+              "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
-              "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+              "detalhe_erro": os.environ["DETAIL"],
+              "timestamp": datetime.datetime.now(
+                  pytz.timezone("America/Sao_Paulo")
+              ).strftime("%Y-%m-%d %H:%M:%S %Z"),
           }
-          req = urllib.request.Request(
-              os.environ["APPSCRIPT_URL"],
-              data=json.dumps(payload).encode("utf-8"),
-              headers={"Content-Type": "application/json"}
-          )
-          try:
-              urllib.request.urlopen(req)
-          except Exception as e:
-              print(f"Erro ao notificar sucesso: {e}")
-          '
 
-      - name: Notificar Falha via Google Apps Script
+          response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
+          response.raise_for_status()
+          PY
+      - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
-          REPO: ${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
-          ACTOR: ${{ github.actor }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
         run: |
-          python -c '
-          import os, json, urllib.request, datetime
+          AUTORES_DEPLOY="$(cat "$RUNNER_TEMP/contributors.txt")"
+          export AUTORES_DEPLOY
+          python - <<'PY'
+          import datetime
+          import os
+
+          import pytz
+          import requests
+
           payload = {
-              "status": "fail",
-              "repositorio": os.environ["REPO"],
+              "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
-              "autor": os.environ["ACTOR"],
-              "mensagem_commit": os.environ.get("COMMIT_MSG", "N/A"),
+              "autor": os.environ.get("AUTORES_DEPLOY", "Autor não identificado"),
+              "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
-              "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+              "detalhe_erro": os.environ["DETAIL"],
+              "timestamp": datetime.datetime.now(
+                  pytz.timezone("America/Sao_Paulo")
+              ).strftime("%Y-%m-%d %H:%M:%S %Z"),
           }
-          req = urllib.request.Request(
-              os.environ["APPSCRIPT_URL"],
-              data=json.dumps(payload).encode("utf-8"),
-              headers={"Content-Type": "application/json"}
-          )
-          try:
-              urllib.request.urlopen(req)
-          except Exception as e:
-              print(f"Erro ao notificar falha: {e}")
-          '
+
+          response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
+          response.raise_for_status()
+          PY
