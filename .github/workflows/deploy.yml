@@ -96,7 +96,7 @@ jobs:
               if remote_path in CREATED_DIRS:
                   return
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
-              response = config["session"].post(url, timeout=300)
+              response = config["session"].post(url, timeout=400)
               if response.status_code not in (200, 201, 204, 400, 409):
                   raise SystemExit(
                       f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
@@ -116,7 +116,7 @@ jobs:
                           response = config["session"].post(
                               url,
                               files={"content": (Path(remote_path).name, stream)},
-                              timeout=300,
+                              timeout=400,
                           )
                       if response.status_code in (200, 201):
                           time.sleep(2)
@@ -202,7 +202,7 @@ jobs:
                   f"/webapps/{quote(config['domain'], safe='')}/reload/",
               )
               print("\nRecarregando a aplicação Web no PythonAnywhere...")
-              response = config["session"].post(url, timeout=300)
+              response = config["session"].post(url, timeout=400)
               if response.status_code != 200:
                   raise SystemExit(f"Erro ao recarregar a webapp: HTTP {response.status_code}")
               print("Aplicação Web recarregada com sucesso!")
