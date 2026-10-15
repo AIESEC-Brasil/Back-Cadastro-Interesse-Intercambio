@@ -1,4 +1,6 @@
-"""Módulo de abstração e gerenciamento de operações de Leads no Podio."""
+"""
+Módulo de abstração e gerenciamento de operações de Leads no Podio.
+"""
 
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
