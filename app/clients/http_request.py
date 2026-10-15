@@ -9,7 +9,6 @@ Recursos principais:
 - Suporte a múltiplos formatos no POST: JSON, Form-UrlEncoded e Multipart (Arquivos).
 - Limpeza e fechamento gracioso de sockets TCP órfãos.
 - Controle flexível de timeout com suporte a overrides temporários.
-
 """
 
 # =================================================================
