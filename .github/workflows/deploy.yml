@@ -191,14 +191,14 @@ jobs:
                   env_file = Path(temp_dir) / ".env.dev"
                   shutil.copyfile(template_file, env_file)
                   for name, value in config["app_env"].items():
-                      set_key(str(env_file), name, value, quote_mode="always")
+                      set_key(str(env_file), name, value, quote_mode="never")
 
                   test_env_file = Path(temp_dir) / ".env.test"
                   shutil.copyfile(template_file, test_env_file)
                   test_env = dict(config["app_env"])
                   test_env["DB_CONNECT"] = config["db_connect_test"]
                   for name, value in test_env.items():
-                      set_key(str(test_env_file), name, value, quote_mode="always")
+                      set_key(str(test_env_file), name, value, quote_mode="never")
 
                   files = []
                   for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
