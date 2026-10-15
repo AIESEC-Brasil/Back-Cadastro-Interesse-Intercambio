@@ -31,14 +31,8 @@ jobs:
 
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
-            git show -s --format='%an' "$GITHUB_SHA" > "$RUNNER_TEMP/contributors.txt"
           else
             git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
-            git log --format='%an' "$BASE_SHA..$GITHUB_SHA" | sort -fu | paste -sd ', ' - > "$RUNNER_TEMP/contributors.txt"
-          fi
-
-          if [ ! -s "$RUNNER_TEMP/contributors.txt" ]; then
-            git show -s --format='%an' "$GITHUB_SHA" > "$RUNNER_TEMP/contributors.txt"
           fi
 
       - name: Configurar Python
@@ -279,14 +273,14 @@ jobs:
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
+          EMAIL_RESPONSAVEL: "seu-email@dominio.com"
           REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
           DETAIL: Deploy realizado com sucesso e aplicação recarregada.
         run: |
-          AUTORES_DEPLOY="$(cat "$RUNNER_TEMP/contributors.txt")"
-          export AUTORES_DEPLOY
           python - <<'PY'
           import datetime
           import os
@@ -297,10 +291,11 @@ jobs:
           payload = {
               "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
-              "autor": os.environ.get("AUTORES_DEPLOY", "Autor não identificado"),
+              "autor": os.environ["ACTOR"],
               "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
+              "email_responsavel": os.environ["EMAIL_RESPONSAVEL"],
               "detalhe_erro": os.environ["DETAIL"],
               "timestamp": datetime.datetime.now(
                   pytz.timezone("America/Sao_Paulo")
@@ -314,14 +309,14 @@ jobs:
         if: failure() && steps.deploy.outcome == 'failure'
         env:
           APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
+          EMAIL_RESPONSAVEL: "seu-email@dominio.com"
           REPOSITORY: ${{ github.repository }}
           REF: ${{ github.ref }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
           DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
         run: |
-          AUTORES_DEPLOY="$(cat "$RUNNER_TEMP/contributors.txt")"
-          export AUTORES_DEPLOY
           python - <<'PY'
           import datetime
           import os
@@ -332,10 +327,11 @@ jobs:
           payload = {
               "repositorio": os.environ["REPOSITORY"],
               "ref": os.environ["REF"],
-              "autor": os.environ.get("AUTORES_DEPLOY", "Autor não identificado"),
+              "autor": os.environ["ACTOR"],
               "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
               "run_url": os.environ["RUN_URL"],
               "ambiente": "Produção",
+              "email_responsavel": os.environ["EMAIL_RESPONSAVEL"],
               "detalhe_erro": os.environ["DETAIL"],
               "timestamp": datetime.datetime.now(
                   pytz.timezone("America/Sao_Paulo")
