@@ -38,6 +38,7 @@ def get_env_or_fail(var_name: str, default: Optional[str] = None) -> str:
 
     Raises:
         ValueError: Lançado se a variável não estiver definida e sem valor padrão.
+        
     """
     
     valor = os.getenv(var_name, "").strip()
