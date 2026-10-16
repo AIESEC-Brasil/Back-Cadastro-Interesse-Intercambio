@@ -1,4 +1,5 @@
-"""Módulo de Infraestrutura de Cache - AIESEC Security.
+"""
+Módulo de Infraestrutura de Cache - AIESEC Security.
 
 Este módulo implementa uma camada de gerenciamento de cache em memória RAM
 utilizando a arquitetura "Cache-Aside" (Lazy Loading) com sincronização
@@ -7,6 +8,7 @@ assíncrona não-bloqueante.
 O objetivo principal é interceptar requisições repetitivas a serviços externos
 (como a API do Podio), reduzindo o tempo de latência da aplicação e evitando
 bloqueios do Event Loop em ambientes web assíncronos ou multi-thread (Flask/Gunicorn).
+
 """
 
 # ==============================================================================

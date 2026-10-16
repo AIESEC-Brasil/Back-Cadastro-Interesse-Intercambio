@@ -1,8 +1,10 @@
-"""Pacote de Integrações Externas (Clients).
+"""
+Pacote de Integrações Externas (Clients).
 
 Consolida e expõe os clientes de comunicação para APIs de terceiros (Podio,
 HTTP Base, etc.). Utiliza a técnica de agregação centralizada para simplificar
 as importações na camada de serviços da aplicação.
+
 """
 
 # =================================================================

@@ -10,6 +10,7 @@ adicionando os dados de identificação gerados pelo Podio.
 from pydantic import (
     ConfigDict,  # Configurações globais do modelo Pydantic v2 (ex: permitir aliases, definir comportamento de campos extras).
     Field,  # Utilizado para definir metadados dos campos, descrições, aliases e exemplos para o JSON Schema.
+    PositiveInt
 )
 # Importação do modelo base de transferência de dados de entrada de pré-cadastro
 from ..base import LeadPreCadastroBase as LeadPreCadastroInput
@@ -32,7 +33,7 @@ class LeadPreCadastroOutput(LeadPreCadastroInput):
     model_config = ConfigDict(extra="forbid")
 
     # Identificador único numérico (ID do item/card) retornado pela API do Podio
-    item_id: int = Field(
+    item_id: PositiveInt = Field(
         ...,
         description="O id do card do Lead no podio",
         json_schema_extra={"example": "325664"},

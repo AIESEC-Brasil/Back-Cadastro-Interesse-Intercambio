@@ -1,0 +1,351 @@
+name: Deploy no PythonAnywhere
+run-name: "Deploy Back | ${{ github.event.head_commit.message || github.event_name }}"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publicar no PythonAnywhere
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Identificar arquivos alterados
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE_SHA="$(git rev-parse "${GITHUB_SHA}^" 2>/dev/null || true)"
+          else
+            BASE_SHA="$PUSH_BEFORE"
+          fi
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          else
+            git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          fi
+
+      - name: Configurar Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Instalar dependência do deploy
+        run: python -m pip install requests python-dotenv pytz
+
+      - name: Enviar arquivos e recarregar a webapp
+        id: deploy
+        env:
+          AMBIENTE: ${{ secrets.AMBIENTE }}
+          CACHE_TTL: ${{ secrets.CACHE_TTL }}
+          DOMINIOS_PERMITIDOS: ${{ secrets.DOMINIOS_PERMITIDOS }}
+          API_KEYS_PERMITIDAS: ${{ secrets.API_KEYS_PERMITIDAS }}
+          DB_CONNECT: ${{ secrets.DB_CONNECT }}
+          DB_CONNECT_TEST: ${{ secrets.DB_CONNECT_TEST }}
+          DB_POOL_PRE_PING: ${{ secrets.DB_POOL_PRE_PING }}
+          DB_POOL_RECYCLE: ${{ secrets.DB_POOL_RECYCLE }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
+          TOKEN_EXPA: ${{ secrets.TOKEN_EXPA }}
+          APPSCRIPT_EXPA: ${{ secrets.APPSCRIPT_EXPA }}
+          PYTHONANYWHERE_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
+          CHANGED_FILES_PATH: ${{ runner.temp }}/changed-files.txt
+        run: |
+          python - <<'PY'
+          import os
+          import shutil
+          import tempfile
+          import time
+          from pathlib import Path
+          from urllib.parse import quote
+
+          import requests
+          from dotenv import set_key
+
+          # Os secrets do GitHub são usados para montar o .env.dev no runner.
+          APP_ENV_NAMES = (
+              "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
+              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
+              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
+          )
+          ALLOWED_DIRS = {"app", "doc"}
+          ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
+          IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
+          CREATED_DIRS = set()
+
+          def required_env(name):
+              value = os.environ.get(name)
+              if not value:
+                  raise SystemExit(f"Configure o Actions secret obrigatório: {name}")
+              return value
+
+          def load_config():
+              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
+              username = required_env("PYTHONANYWHERE_USERNAME")
+              session = requests.Session()
+              session.headers.update({
+                  "Authorization": f"Token {required_env('PYTHONANYWHERE_API_TOKEN')}"
+              })
+              return {
+                  "username": username,
+                  "domain": required_env("PYTHONANYWHERE_DOMAIN"),
+                  "project_dir": Path.cwd(),
+                  "remote_dir": f"/home/{username}/Back-Cadastro-Interesse-Intercambio",
+                  "app_env": {name: required_env(name) for name in APP_ENV_NAMES},
+                  "db_connect_test": required_env("DB_CONNECT_TEST"),
+                  "session": session,
+              }
+
+          def api_url(config, path):
+              api_user = quote(config["username"], safe="")
+              return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
+
+          def ensure_remote_dir(config, remote_path):
+              if remote_path in CREATED_DIRS:
+                  return
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
+              response = config["session"].post(url, timeout=60)
+              if response.status_code not in (200, 201, 204, 400, 409):
+                  raise SystemExit(
+                      f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
+                  )
+              CREATED_DIRS.add(remote_path)
+              time.sleep(2)
+
+          def upload_file(config, local_path, remote_path, max_retries=3):
+              """Envia um arquivo local ao servidor com retentativas."""
+              remote_parent = str(Path(remote_path).parent).replace("\\", "/")
+              ensure_remote_dir(config, remote_parent)
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
+
+              for attempt in range(max_retries):
+                  try:
+                      with local_path.open("rb") as stream:
+                          response = config["session"].post(
+                              url,
+                              files={"content": (Path(remote_path).name, stream)},
+                              timeout=60,
+                          )
+                      if response.status_code in (200, 201):
+                          time.sleep(2)
+                          return True
+                      if response.status_code == 429 and attempt < max_retries - 1:
+                          try:
+                              wait = int(response.headers.get("Retry-After", "10"))
+                          except ValueError:
+                              wait = 10
+                          time.sleep(max(wait, 1))
+                          continue
+                      if response.status_code >= 500 and attempt < max_retries - 1:
+                          time.sleep(2 ** attempt)
+                          continue
+                      print(f"ERRO [{response.status_code}] ao enviar {Path(remote_path).name}")
+                      return False
+                  except requests.RequestException as error:
+                      if attempt == max_retries - 1:
+                          print(f"ERRO [{type(error).__name__}] ao enviar {Path(remote_path).name}")
+                          return False
+                      time.sleep(2 ** attempt)
+
+              return False
+
+          def upload_project(config):
+              """Monta o .env.dev e envia somente arquivos alterados e permitidos."""
+              project_dir = config["project_dir"]
+              if not project_dir.is_dir():
+                  print(f"Erro local: pasta '{project_dir}' não encontrada")
+                  return False
+
+              changed_file = Path(required_env("CHANGED_FILES_PATH"))
+              changed_paths = {
+                  item.decode("utf-8")
+                  for item in changed_file.read_bytes().split(b"\0")
+                  if item
+              }
+
+              print(f"Pasta local: {project_dir}")
+              print(f"Destino no servidor: {config['remote_dir']}\n")
+              CREATED_DIRS.clear()
+
+              with tempfile.TemporaryDirectory() as temp_dir:
+                  template_file = project_dir / ".env.example"
+                  if not template_file.is_file():
+                      raise SystemExit(
+                          "O arquivo .env.example é necessário como modelo documentado"
+                      )
+
+                  env_file = Path(temp_dir) / ".env.dev"
+                  shutil.copyfile(template_file, env_file)
+                  for name, value in config["app_env"].items():
+                      set_key(str(env_file), name, value, quote_mode="never")
+
+                  test_env_file = Path(temp_dir) / ".env.test"
+                  shutil.copyfile(template_file, test_env_file)
+                  test_env = dict(config["app_env"])
+                  test_env["DB_CONNECT"] = config["db_connect_test"]
+                  for name, value in test_env.items():
+                      set_key(str(test_env_file), name, value, quote_mode="never")
+
+                  files = []
+                  for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
+                      if filename not in changed_paths:
+                          continue
+                      path = project_dir / filename
+                      if path.is_file():
+                          files.append((path, filename))
+
+                  for dirname in sorted(ALLOWED_DIRS):
+                      base = project_dir / dirname
+                      if not base.is_dir():
+                          continue
+                      for root, dirs, filenames in os.walk(base):
+                          dirs[:] = sorted(d for d in dirs if d not in IGNORED_SUBDIRS)
+                          for filename in sorted(filenames):
+                              path = Path(root) / filename
+                              relative = path.relative_to(project_dir).as_posix()
+                              if (
+                                  path.suffix not in {".pyc", ".pyo"}
+                                  and relative in changed_paths
+                              ):
+                                  files.append((path, relative))
+
+                  # Os ambientes são montados a partir dos secrets em toda publicação
+                  # que tenha ao menos um arquivo do projeto alterado. O teste usa
+                  # DB_CONNECT_TEST, mantendo o mesmo nome da variável no .env.test.
+                  if files:
+                      files.append((env_file, ".env.dev"))
+                      files.append((test_env_file, ".env.test"))
+
+                  files.sort(key=lambda item: item[1])
+                  if not files:
+                      print("Nenhum arquivo permitido foi alterado; deploy ignorado.")
+                      return False
+
+                  ensure_remote_dir(config, config["remote_dir"])
+                  total_uploaded = 0
+                  for path, relative_path in files:
+                      remote_path = f"{config['remote_dir']}/{relative_path}"
+                      print(f"Enviando: {relative_path} ...", end=" ", flush=True)
+                      if upload_file(config, path, remote_path):
+                          print("OK")
+                          total_uploaded += 1
+                      else:
+                          print()
+                          return False
+
+              print(f"\nConcluído! Total de {total_uploaded} arquivos enviados.")
+              return True
+
+          def reload_webapp(config):
+              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
+              url = api_url(
+                  config,
+                  f"/webapps/{quote(config['domain'], safe='')}/reload/",
+              )
+              print("\nRecarregando a aplicação Web no PythonAnywhere...")
+              response = config["session"].post(url, timeout=60)
+              if response.status_code != 200:
+                  raise SystemExit(f"Erro ao recarregar a webapp: HTTP {response.status_code}")
+              print("Aplicação Web recarregada com sucesso!")
+
+          if __name__ == "__main__":
+              deploy_config = load_config()
+              if upload_project(deploy_config):
+                  reload_webapp(deploy_config)
+                  with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                      output.write("deployed=true\n")
+          PY
+      - name: Notificar sucesso via Google Apps Script
+        if: success() && steps.deploy.outputs.deployed == 'true'
+        env:
+          APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+          DETAIL: Deploy realizado com sucesso e aplicação recarregada.
+        run: |
+          python - <<'PY'
+          import datetime
+          import os
+
+          import pytz
+          import requests
+
+          payload = {
+              "status": "success",
+              "repositorio": os.environ["REPOSITORY"],
+              "ref": os.environ["REF"],
+              "autor": os.environ["ACTOR"],
+              "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
+              "run_url": os.environ["RUN_URL"],
+              "ambiente": "Produção",
+              "detalhe_erro": os.environ["DETAIL"],
+              "timestamp": datetime.datetime.now(
+                  pytz.timezone("America/Sao_Paulo")
+              ).strftime("%d/%m/%Y %H:%M:%S"),
+          }
+
+          try:
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
+              print(f"Resposta do Apps Script: HTTP {response.status_code}")
+          except requests.RequestException as error:
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
+          PY
+      - name: Notificar falha via Google Apps Script
+        if: failure() && steps.deploy.outcome == 'failure'
+        env:
+          APPSCRIPT_URL: ${{ secrets.APPSCRIPT_WEBAPP_URL }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+          DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
+        run: |
+          python - <<'PY'
+          import datetime
+          import os
+
+          import pytz
+          import requests
+
+          payload = {
+              "status": "fail",
+              "repositorio": os.environ["REPOSITORY"],
+              "ref": os.environ["REF"],
+              "autor": os.environ["ACTOR"],
+              "mensagem_commit": os.environ.get("COMMIT_MESSAGE", ""),
+              "run_url": os.environ["RUN_URL"],
+              "ambiente": "Produção",
+              "detalhe_erro": os.environ["DETAIL"],
+              "timestamp": datetime.datetime.now(
+                  pytz.timezone("America/Sao_Paulo")
+              ).strftime("%d/%m/%Y %H:%M:%S"),
+          }
+
+          try:
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
+              print(f"Resposta do Apps Script: HTTP {response.status_code}")
+          except requests.RequestException as error:
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
+          PY

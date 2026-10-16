@@ -1,4 +1,5 @@
-"""API Router - AIESEC Security Gateway.
+"""
+API Router - AIESEC Security Gateway.
 
 Módulo responsável pela agregação central das rotas da API.
 Aplica versionamento, controle de acesso via Whitelist de IP e fornece

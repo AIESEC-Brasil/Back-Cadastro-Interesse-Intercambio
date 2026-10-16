@@ -82,6 +82,7 @@ async def adicionar_lead(
                 data_expa,
             )
             status_code = data_expa.pop("status_code")
+            data_expa["erro"] = f"O E-mail {payload_expa.get('email')} já cadastrado no sistema EXPA."
             # Converte o status_code (int) para o Enum HttpStatus
             return data_expa, HttpStatus(status_code)
 

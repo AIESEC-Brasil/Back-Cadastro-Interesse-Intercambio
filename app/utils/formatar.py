@@ -19,26 +19,31 @@ import unicodedata  # Manipulação e decomposição de caracteres Unicode
 # =================================================================
 
 @validar
-def formatar_nome(nome: str) -> str:
+def formatar_texto(texto: str) -> str:
     """Remove acentos de uma string e aplica capitalização (Title Case).
 
     O processo utiliza a normalização NFD para decompor caracteres de seus
     acentos e filtra apenas os caracteres base.
 
     Args:
-        nome (str): A string original contendo o nome.
+        texto (str): A string original contendo o texto.
 
     Returns:
-        str: Nome sem acentos, com cada palavra iniciando em maiúscula.
+        str: texto com cada palavra iniciando em maiúscula e conectivos em minusculo.
     """
     # Decompõe caracteres acentuados (caractere base + acento) e descarta os diacríticos (Mn)
-    nome_sem_acentos: str = "".join(
-        c for c in unicodedata.normalize("NFD", nome)
-        if unicodedata.category(c) != "Mn"
-    )
+    conectivos = ["a","e","i","o","u","da","de","di","do","du"]
+    palavras = texto.split()
+    resultado = []
+
+    for i,palavra in enumerate(palavras):
+        if i == 0 or palavra.lower() not in conectivos:
+            resultado.append(palavra.capitalize())
+        else:
+            resultado.append(palavra.lower())
 
     # Divide a string, capitaliza cada pedaço e junta novamente com um único espaço
-    return " ".join(p.capitalize() for p in nome_sem_acentos.split())
+    return " ".join(resultado)
 
 
 @validar
@@ -95,7 +100,7 @@ def limpar_palavras(nome: str, sobrenome: str) -> Tuple[List[str], List[str]]:
 # 3. EXPORTAÇÃO DO MÓDULO
 # =================================================================
 __all__ = [
-    "formatar_nome",
+    "formatar_texto",
     "formatar_nome_com_acentos",
     "limpar_palavras",
 ]

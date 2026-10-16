@@ -7,6 +7,7 @@ Este módulo garante a imutabilidade e segurança operacional do sistema ao:
 1. Validar a presença de variáveis obrigatórias logo na inicialização.
 2. Interromper a execução imediatamente (Fail-Fast) em caso de ausência de chaves.
 3. Converter e tratar os tipos primitivos (int, bool, list) do arquivo .env.
+
 """
 
 # =================================================================
@@ -21,7 +22,8 @@ from typing import List, Optional  # Anotações de tipo para coleções e valor
 # =================================================================
 
 def get_env_or_fail(var_name: str, default: Optional[str] = None) -> str:
-    """Recupera e valida uma variável de ambiente obrigatória ou retorna o valor padrão.
+    """
+    Recupera e valida uma variável de ambiente obrigatória ou retorna o valor padrão.
 
     Busca a chave informada no ambiente do S.O. e remove espaços em
     branco nas extremidades. Caso a variável esteja ausente ou vazia,
@@ -36,7 +38,9 @@ def get_env_or_fail(var_name: str, default: Optional[str] = None) -> str:
 
     Raises:
         ValueError: Lançado se a variável não estiver definida e sem valor padrão.
+        
     """
+    
     valor = os.getenv(var_name, "").strip()
     if not valor:
         if default is not None:

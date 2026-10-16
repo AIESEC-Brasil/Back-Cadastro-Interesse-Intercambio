@@ -1,4 +1,7 @@
-"""Módulo de abstração e gerenciamento de operações de Leads no Podio."""
+"""
+Módulo de abstração e gerenciamento de operações de Leads no Podio.
+
+"""
 
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
@@ -98,7 +101,7 @@ class LeadPodio:
     @staticmethod
     @validar
     def atualizar_lead(
-            lead_existe: dict[str, Any], lead: CriarPreCadastroLead
+            lead_existe: dict[str, Any], lead: CriarPreCadastroLead | QualificacaoLead
     ) -> tuple[Any, HttpStatus] | dict[str, Any]:
         """Atualiza os dados de um lead já existente com base nas informações fornecidas.
 
@@ -146,7 +149,8 @@ class LeadPodio:
             chave="ogx-token-podio",
             payload=payload_qualificacao_lead(lead),
             response_dto=lead.model_dump(exclude_none=True),
-            data_response=lead.model_dump(exclude_none=True)
+            data_response=lead.model_dump(exclude_none=True),
+            atualizar="qualificação"
         ))
 
         # Se a atualização falhar, interrompe e retorna a resposta de erro
