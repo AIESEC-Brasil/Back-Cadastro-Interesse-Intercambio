@@ -29,6 +29,7 @@ class CampoMetadado(BaseModel):
 
 
 class DadosMetadados(BaseModel):
+    """Dados de metadados retornados pelo Apps Script B2C."""
     fields: List[CampoMetadado]
 
 
