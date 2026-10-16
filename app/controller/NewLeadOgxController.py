@@ -13,6 +13,18 @@ new_lead_ogx = Router(name="metadados_b2c", url_prefix="/new-lead-ogx")
 
 @new_lead_ogx.get("/metadados", responses={200: Metadados})
 def buscar_metadados():
+    """
+    Endpoint para buscar os metadados do formulário B2C.
+        ---
+        responses:
+        200:
+            description: Metadados do formulário B2C.
+            content:
+            application/json:
+                schema:
+                $ref: '#/components/schemas/Metadados'
+                
+    """
     payload, status = async_to_sync(cache.get_or_set)(
         key="metadados_b2c",
         fetch=enviar_metadados_b2c,
