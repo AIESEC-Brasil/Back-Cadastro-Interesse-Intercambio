@@ -50,16 +50,9 @@ jobs:
           CACHE_TTL: ${{ secrets.CACHE_TTL }}
           DOMINIOS_PERMITIDOS: ${{ secrets.DOMINIOS_PERMITIDOS }}
           API_KEYS_PERMITIDAS: ${{ secrets.API_KEYS_PERMITIDAS }}
-          DB_CONNECT: ${{ secrets.DB_CONNECT }}
-          DB_CONNECT_TEST: ${{ secrets.DB_CONNECT_TEST }}
-          DB_POOL_PRE_PING: ${{ secrets.DB_POOL_PRE_PING }}
-          DB_POOL_RECYCLE: ${{ secrets.DB_POOL_RECYCLE }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_TOKEN: ${{ secrets.APP_TOKEN }}
           TOKEN_EXPA: ${{ secrets.TOKEN_EXPA }}
           APPSCRIPT_EXPA: ${{ secrets.APPSCRIPT_EXPA }}
+          APPSCRIPT_B2C: ${{ secrets.APPSCRIPT_B2C }}
           PYTHONANYWHERE_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
@@ -79,8 +72,8 @@ jobs:
           # Os secrets do GitHub são usados para montar o .env.dev no runner.
           APP_ENV_NAMES = (
               "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
-              "DB_CONNECT", "DB_POOL_PRE_PING", "DB_POOL_RECYCLE", "CLIENT_ID",
-              "CLIENT_SECRET", "APP_ID", "APP_TOKEN", "TOKEN_EXPA", "APPSCRIPT_EXPA",
+              "TOKEN_EXPA", "APPSCRIPT_EXPA",
+              "APPSCRIPT_B2C",
           )
           ALLOWED_DIRS = {"app", "doc"}
           ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}

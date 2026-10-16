@@ -1,125 +1,25 @@
-"""Módulo de Rotas de Leads B2C (OGX).
+"""Endpoint de metadados do formulário B2C."""
 
-Define os endpoints para captação de leads interessados em intercâmbios (B2C).
-Gerencia metadados estruturais do Podio e o fluxo de inscrição/pré-cadastro.
-"""
+from asgiref.sync import async_to_sync
+from flask import jsonify
 
-# =================================================================
-# 1. IMPORTAÇÕES E DEPENDÊNCIAS
-# =================================================================
-import logging  # Sistema de log para rastreamento de operações e erros
-import asyncio
-from typing import Union
-from asgiref.sync import async_to_sync  # Adaptador para execução síncrona de corotinas
-from ..cache import cache  # Gerenciador de cache da aplicação
-from ..clients import metadados  # Cliente HTTP para metadados da API do Podio
-from ..config import APP_ID  # ID do aplicativo Podio para Leads OGX
-from ..dto import (  # DTOs de validação e serialização OpenAPI3/Pydantic
-    CriarPreCadastroLead,
-    ConflitosLeadOutput,
-    LeadPreCadastroOutput,
-    Metadados,
-    RetornoGenerico,
-    QualificacaoLead
-)
+from ..cache import cache
+from ..clients.b2c import enviar_metadados_b2c
+from ..dto.output.metadadosDTO import Metadados
+from ..router import Router
 
-from ..middlewares import gerar_token_podio_rota  # Interceptador de autenticação de rota
-from ..router import Router  # Classe estendida de roteamento OpenAPI3
-from ..service import cadastrar_lead,qualificar_lead  # Regra de negócio para criação de leads
+new_lead_ogx = Router(name="metadados_b2c", url_prefix="/new-lead-ogx")
 
-# =================================================================
-# 2. CONFIGURAÇÃO DO ROTEADOR E LOGGER
-# =================================================================
-
-# Instancia o roteador especializado para a rota /new-lead-ogx
-new_lead_ogx = Router(name="novos_leads_ogx", url_prefix="/new-lead-ogx")
-
-# Instancia o logger específico deste módulo
-logger = logging.getLogger(__name__)
-
-# =================================================================
-# 3. ENDPOINTS E MANIPULADORES DE REQUISIÇÃO
-# =================================================================
 
 @new_lead_ogx.get("/metadados", responses={200: Metadados})
-@gerar_token_podio_rota(service="new-lead-ogx")
-def buscar_metadados() -> Metadados:
-    """Retorna a estrutura de campos do App de Leads B2C do Podio.
-
-    Lógica de Cache:
-    - Chave: 'metadados_card-ogx'
-    - Autenticação: Utiliza o token específico de OGX ('ogx-token-podio')
-    - Expiração: Segue o tempo de vida (TTL) configurado na aplicação.
-
-    Returns:
-        Metadados: Estrutura dos campos do aplicativo Podio serializada.
-    """
-    # Executa a corotina do cache de forma síncrona dentro do loop do Flask
-    response, status = async_to_sync(cache.get_or_set)(
-        key="metadados_card-ogx",
-        fetch=lambda: metadados(
-            chave="ogx-token-podio",
-            app_id=APP_ID,
-        ),
-        baixando="Metadados de Novos lead B2C",
+def buscar_metadados():
+    payload, status = async_to_sync(cache.get_or_set)(
+        key="metadados_b2c",
+        fetch=enviar_metadados_b2c,
     )
-
+    response = jsonify(payload)
     response.headers["Content-Type"] = "application/json"
-
-    # Converte os dados salvos no cache para a instância do modelo Pydantic/DTO
-    return Metadados(**cache.store["metadados_card-ogx"]).model_dump()
+    return response, status
 
 
-@new_lead_ogx.post(
-    "/cadastro",
-    responses = {
-        201: RetornoGenerico[LeadPreCadastroOutput],
-        200: RetornoGenerico[Union[LeadPreCadastroOutput,dict]],
-        409: RetornoGenerico[Union[ConflitosLeadOutput,dict]],
-        400: RetornoGenerico[Union[dict,str]],
-    },
-)
-@gerar_token_podio_rota(service="new-lead-ogx")
-def criar_inscricao(body: CriarPreCadastroLead):
-    """Endpoint para recepção e processamento de novos leads de intercâmbio.
-
-    Args:
-        body (CriarPreCadastroLead): DTO validado contendo os dados do candidato.
-
-    Returns:
-        Response: Objeto de resposta processado pela camada de serviço.
-    """
-    logger.info("AIESEC OGX | Iniciando processo de cadastro de novo lead...")
-
-    # Delega o processamento da regra de negócio para a camada de serviço
-    return cadastrar_lead(body)
-
-@new_lead_ogx.put(
-    "/cadastro",
-    responses = {
-        200: RetornoGenerico[Union[QualificacaoLead,dict]],
-        400: RetornoGenerico[Union[dict,str]],
-    },
-)
-@gerar_token_podio_rota(service="new-lead-ogx")
-def qualificacao_lead(body: QualificacaoLead):
-    """Endpoint para recepção e processamento de novos leads de intercâmbio.
-
-    Args:
-        body (CriarPreCadastroLead): DTO validado contendo os dados do candidato.
-
-    Returns:
-        Response: Objeto de resposta processado pela camada de serviço.
-    """
-    logger.info("AIESEC OGX | Iniciando processo de atualização das qualificação do lead...")
-
-    # Delega o processamento da regra de negócio para a camada de serviço
-    return qualificar_lead(body)
-
-
-# =================================================================
-# 4. EXPORTAÇÃO DO MÓDULO
-# =================================================================
-__all__ = [
-    "new_lead_ogx",  # Roteador consolidado das rotas de Leads OGX B2C
-]
+__all__ = ["new_lead_ogx"]

@@ -85,7 +85,7 @@ class HttpClient:
         """Inicializa as configurações de base da URL, rotas e políticas do pool de conexões.
 
         Args:
-            base_url (str, optional): URL raiz do serviço remetente (ex: 'https://api.podio.com'). Padrão é "".
+            base_url (str, optional): URL raiz do serviço remetente (ex: 'serviço externo'). Padrão é "".
             prefix (str, optional): Sufixo/Prefixo do recurso (ex: '/file' ou '/item'). Padrão é "".
             timeout (Optional[float], optional): Timeout padrão para as requisições em segundos. Padrão é None.
         """
