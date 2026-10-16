@@ -14,6 +14,7 @@ class ConfiguracoesCampo(BaseModel):
 
 
 class ConfiguracaoMetadado(BaseModel):
+    """Configurações de um metadado."""
     model_config = ConfigDict(extra="allow")
 
     settings: ConfiguracoesCampo
