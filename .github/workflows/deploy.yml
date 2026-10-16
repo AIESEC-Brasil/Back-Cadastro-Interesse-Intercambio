@@ -93,13 +93,14 @@ jobs:
               session.headers.update({
                   "Authorization": f"Token {required_env('PYTHONANYWHERE_API_TOKEN')}"
               })
+                # "db_connect_test": required_env("DB_CONNECT_TEST"), 
               return {
                   "username": username,
                   "domain": required_env("PYTHONANYWHERE_DOMAIN"),
                   "project_dir": Path.cwd(),
                   "remote_dir": f"/home/{username}/Back-Cadastro-Interesse-Intercambio",
                   "app_env": {name: required_env(name) for name in APP_ENV_NAMES},
-                  "db_connect_test": required_env("DB_CONNECT_TEST"),
+                  
                   "session": session,
               }
 
@@ -186,12 +187,12 @@ jobs:
                   for name, value in config["app_env"].items():
                       set_key(str(env_file), name, value, quote_mode="never")
 
-                  """test_env_file = Path(temp_dir) / ".env.test"
+                  test_env_file = Path(temp_dir) / ".env.test"
                   shutil.copyfile(template_file, test_env_file)
                   test_env = dict(config["app_env"])
-                  test_env["DB_CONNECT"] = config["db_connect_test"]
+                  # test_env["DB_CONNECT"] = config["db_connect_test"]
                   for name, value in test_env.items():
-                      set_key(str(test_env_file), name, value, quote_mode="never")"""
+                      set_key(str(test_env_file), name, value, quote_mode="never")
 
                   files = []
                   for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
