@@ -111,6 +111,29 @@ jobs:
               api_user = quote(config["username"], safe="")
               return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
 
+          def read_null_separated_file(file_path):
+              """Lê arquivos gravados pelo git diff com flag -z (separados por \\0)."""
+              path = Path(file_path)
+              if not path.exists():
+                  return set()
+              raw_bytes = path.read_bytes()
+              if not raw_bytes:
+                  return set()
+              
+              # Tenta separar por byte nulo \0 (padrão do git diff -z)
+              items = raw_bytes.split(b"\0")
+              
+              result = set()
+              for item in items:
+                  text = item.decode("utf-8", errors="ignore").strip()
+                  if text:
+                      # Se tiver quebras de linha dentro (caso o git não tenha usado -z por algum motivo)
+                      for line in text.splitlines():
+                          line = line.strip()
+                          if line:
+                              result.add(Path(line).as_posix())
+              return result
+
           def delete_remote_file(config, remote_path):
               """Remove um arquivo do servidor PythonAnywhere via API DELETE."""
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -181,16 +204,7 @@ jobs:
 
           def process_deletions(config):
               """Processa a remoção de arquivos apagados no commit via Git Diff."""
-              deleted_file = Path(required_env("DELETED_FILES_PATH"))
-              if not deleted_file.exists():
-                  return 0
-
-              deleted_paths = {
-                  Path(item.decode("utf-8")).as_posix()
-                  for item in deleted_file.read_bytes().split(b"\0")
-                  if item
-              }
-
+              deleted_paths = read_null_separated_file(required_env("DELETED_FILES_PATH"))
               total_deleted = 0
               for relative_path in sorted(deleted_paths):
                   if is_path_allowed(relative_path):
@@ -210,15 +224,11 @@ jobs:
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
                   return False
 
-              changed_file = Path(required_env("CHANGED_FILES_PATH"))
-              changed_paths = {
-                  Path(item.decode("utf-8")).as_posix()
-                  for item in changed_file.read_bytes().split(b"\0")
-                  if item
-              }
+              changed_paths = read_null_separated_file(required_env("CHANGED_FILES_PATH"))
 
               print(f"Pasta local: {project_dir}")
-              print(f"Destino no servidor: {config['remote_dir']}\n")
+              print(f"Destino no servidor: {config['remote_dir']}")
+              print(f"Arquivos detectados no Git Diff: {len(changed_paths)}\n")
               CREATED_DIRS.clear()
 
               # Deleta no PythonAnywhere o que foi apagado no git diff
@@ -244,11 +254,10 @@ jobs:
 
                   files = []
                   for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
-                      if filename not in changed_paths:
-                          continue
-                      path = project_dir / filename
-                      if path.is_file():
-                          files.append((path, filename))
+                      if filename in changed_paths:
+                          path = project_dir / filename
+                          if path.is_file():
+                              files.append((path, filename))
 
                   for dirname in sorted(ALLOWED_DIRS):
                       base = project_dir / dirname
@@ -308,6 +317,7 @@ jobs:
                   with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                       output.write("deployed=true\n")
           PY
+
       - name: Notificar sucesso via Google Apps Script
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
@@ -348,6 +358,7 @@ jobs:
           except requests.RequestException as error:
               print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
+
       - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
         env:
