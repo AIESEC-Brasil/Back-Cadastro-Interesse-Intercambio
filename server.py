@@ -25,19 +25,8 @@ load_dotenv(os.path.join(path_atual, ".env.dev"))
 # =================================================================
 # Importações relativas de módulos internos (devem ocorrer obrigatoriamente após a carga do .env)
 from app import create_app  # Fábrica da aplicação Flask/OpenAPI
-from app.core import (
-    IS_DEV,             # Booleano indicando se o ambiente é de desenvolvimento
-    IS_TEST,            # Booleano indicando se o ambiente é de testes
-    configurar_idioma,  # Configura preferências regionais e locale do sistema
-    setup_logging,      # Configura handlers, formatação e níveis do logger
-)
+from app.core import IS_DEV, IS_TEST
 from waitress import serve  # Servidor WSGI robusto e multithread para produção/testes
-
-# Configura o locale e preferências regionais da aplicação
-configurar_idioma()
-
-# Configura os logs globais da aplicação conforme o ambiente carregado
-setup_logging()
 
 # Inicializa a aplicação Flask com todas as extensões, rotas e middlewares registrados
 app = create_app()
