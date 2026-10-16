@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Identificar arquivos alterados
+      - name: Identificar arquivos alterados e deletados
         env:
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
@@ -31,8 +31,12 @@ jobs:
 
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            touch "$RUNNER_TEMP/deleted-files.txt"
           else
-            git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # ACMRT -> Novos, Copiados, Modificados, Renomeados, Tipo Alterado
+            git diff --name-only --diff-filter=ACMRT -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # D -> Deletados
+            git diff --name-only --diff-filter=D -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/deleted-files.txt"
           fi
 
       - name: Configurar Python
@@ -57,6 +61,7 @@ jobs:
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
           CHANGED_FILES_PATH: ${{ runner.temp }}/changed-files.txt
+          DELETED_FILES_PATH: ${{ runner.temp }}/deleted-files.txt
         run: |
           python - <<'PY'
           import os
@@ -69,7 +74,6 @@ jobs:
           import requests
           from dotenv import set_key
 
-          # Os secrets do GitHub são usados para montar o .env.dev no runner.
           APP_ENV_NAMES = (
               "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
               "TOKEN_EXPA", "APPSCRIPT_EXPA",
@@ -87,26 +91,46 @@ jobs:
               return value
 
           def load_config():
-              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
               username = required_env("PYTHONANYWHERE_USERNAME")
               session = requests.Session()
               session.headers.update({
                   "Authorization": f"Token {required_env('PYTHONANYWHERE_API_TOKEN')}"
               })
-                # "db_connect_test": required_env("DB_CONNECT_TEST"), 
               return {
                   "username": username,
                   "domain": required_env("PYTHONANYWHERE_DOMAIN"),
                   "project_dir": Path.cwd(),
                   "remote_dir": f"/home/{username}/Back-Cadastro-Interesse-Intercambio",
                   "app_env": {name: required_env(name) for name in APP_ENV_NAMES},
-                  
                   "session": session,
               }
 
           def api_url(config, path):
               api_user = quote(config["username"], safe="")
               return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
+
+          def parse_null_bytes_file(file_path_str):
+              """Lê arquivos separados por NUL (\\0) gerados pelo git diff -z."""
+              path = Path(file_path_str)
+              if not path.exists():
+                  return set()
+              raw = path.read_bytes()
+              if not raw:
+                  return set()
+              return {
+                  Path(item.decode("utf-8", errors="ignore")).as_posix()
+                  for item in raw.split(b"\0")
+                  if item.strip()
+              }
+
+          def delete_remote_file(config, remote_path):
+              """Remove um arquivo do servidor PythonAnywhere via API DELETE."""
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
+              response = config["session"].delete(url, timeout=60)
+              if response.status_code in (204, 404):
+                  return True
+              print(f"ERRO [{response.status_code}] ao deletar {remote_path}")
+              return False
 
           def ensure_remote_dir(config, remote_path):
               if remote_path in CREATED_DIRS:
@@ -121,7 +145,6 @@ jobs:
               time.sleep(2)
 
           def upload_file(config, local_path, remote_path, max_retries=3):
-              """Envia um arquivo local ao servidor com retentativas."""
               remote_parent = str(Path(remote_path).parent).replace("\\", "/")
               ensure_remote_dir(config, remote_parent)
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -157,23 +180,44 @@ jobs:
 
               return False
 
+          def is_path_allowed(relative_path):
+              parts = Path(relative_path).parts
+              if not parts:
+                  return False
+              if parts[0] in ALLOWED_DIRS:
+                  return True
+              if len(parts) == 1 and parts[0] in ALLOWED_FILES:
+                  return True
+              return False
+
+          def process_deletions(config):
+              deleted_paths = parse_null_bytes_file(required_env("DELETED_FILES_PATH"))
+              total_deleted = 0
+              for relative_path in sorted(deleted_paths):
+                  if is_path_allowed(relative_path):
+                      remote_path = f"{config['remote_dir']}/{relative_path}"
+                      print(f"Deletando do servidor: {relative_path} ...", end=" ", flush=True)
+                      if delete_remote_file(config, remote_path):
+                          print("OK")
+                          total_deleted += 1
+                      else:
+                          print("FALHA")
+              return total_deleted
+
           def upload_project(config):
-              """Monta o .env.dev e envia somente arquivos alterados e permitidos."""
               project_dir = config["project_dir"]
               if not project_dir.is_dir():
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
                   return False
 
-              changed_file = Path(required_env("CHANGED_FILES_PATH"))
-              changed_paths = {
-                  item.decode("utf-8")
-                  for item in changed_file.read_bytes().split(b"\0")
-                  if item
-              }
+              changed_paths = parse_null_bytes_file(required_env("CHANGED_FILES_PATH"))
 
               print(f"Pasta local: {project_dir}")
-              print(f"Destino no servidor: {config['remote_dir']}\n")
+              print(f"Destino no servidor: {config['remote_dir']}")
+              print(f"Arquivos detectados no Git: {len(changed_paths)}\n")
               CREATED_DIRS.clear()
+
+              total_deleted = process_deletions(config)
 
               with tempfile.TemporaryDirectory() as temp_dir:
                   template_file = project_dir / ".env.example"
@@ -190,17 +234,15 @@ jobs:
                   test_env_file = Path(temp_dir) / ".env.test"
                   shutil.copyfile(template_file, test_env_file)
                   test_env = dict(config["app_env"])
-                  # test_env["DB_CONNECT"] = config["db_connect_test"]
                   for name, value in test_env.items():
                       set_key(str(test_env_file), name, value, quote_mode="never")
 
                   files = []
                   for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
-                      if filename not in changed_paths:
-                          continue
-                      path = project_dir / filename
-                      if path.is_file():
-                          files.append((path, filename))
+                      if filename in changed_paths:
+                          path = project_dir / filename
+                          if path.is_file():
+                              files.append((path, filename))
 
                   for dirname in sorted(ALLOWED_DIRS):
                       base = project_dir / dirname
@@ -217,16 +259,13 @@ jobs:
                               ):
                                   files.append((path, relative))
 
-                  # Os ambientes são montados a partir dos secrets em toda publicação
-                  # que tenha ao menos um arquivo do projeto alterado. O teste usa
-                  # DB_CONNECT_TEST, mantendo o mesmo nome da variável no .env.test.
-                  if files:
+                  if files or total_deleted > 0:
                       files.append((env_file, ".env.dev"))
                       files.append((test_env_file, ".env.test"))
 
                   files.sort(key=lambda item: item[1])
-                  if not files:
-                      print("Nenhum arquivo permitido foi alterado; deploy ignorado.")
+                  if not files and total_deleted == 0:
+                      print("Nenhum arquivo permitido foi alterado, criado ou deletado; deploy ignorado.")
                       return False
 
                   ensure_remote_dir(config, config["remote_dir"])
@@ -241,11 +280,10 @@ jobs:
                           print()
                           return False
 
-              print(f"\nConcluído! Total de {total_uploaded} arquivos enviados.")
+              print(f"\nConcluído! Total: {total_uploaded} enviados/atualizados, {total_deleted} deletados.")
               return True
 
           def reload_webapp(config):
-              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
               url = api_url(
                   config,
                   f"/webapps/{quote(config['domain'], safe='')}/reload/",
@@ -263,6 +301,7 @@ jobs:
                   with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                       output.write("deployed=true\n")
           PY
+
       - name: Notificar sucesso via Google Apps Script
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
@@ -303,6 +342,7 @@ jobs:
           except requests.RequestException as error:
               print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
+
       - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
         env:
