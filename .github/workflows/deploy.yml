@@ -19,15 +19,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Identificar arquivos alterados e deletados
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE_SHA="$(git rev-parse "${GITHUB_SHA}^" 2>/dev/null || true)"
+          else
+            BASE_SHA="$PUSH_BEFORE"
+          fi
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            touch "$RUNNER_TEMP/deleted-files.txt"
+          else
+            # A, M, C, R -> Apenas arquivos alterados/novos
+            git diff --name-only --diff-filter=d -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # D -> Apenas arquivos deletados
+            git diff --name-only --diff-filter=D -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/deleted-files.txt"
+          fi
+
       - name: Configurar Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
-      - name: Instalar dependências do deploy
+      - name: Instalar dependência do deploy
         run: python -m pip install requests python-dotenv pytz
 
-      - name: Sincronizar arquivos e recarregar WebApp
+      - name: Enviar arquivos e recarregar a webapp
         id: deploy
         env:
           AMBIENTE: ${{ secrets.AMBIENTE }}
@@ -40,6 +60,8 @@ jobs:
           PYTHONANYWHERE_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
+          CHANGED_FILES_PATH: ${{ runner.temp }}/changed-files.txt
+          DELETED_FILES_PATH: ${{ runner.temp }}/deleted-files.txt
         run: |
           python - <<'PY'
           import os
@@ -52,14 +74,15 @@ jobs:
           import requests
           from dotenv import set_key
 
+          # Os secrets do GitHub são usados para montar o .env.dev no runner.
           APP_ENV_NAMES = (
               "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
-              "TOKEN_EXPA", "APPSCRIPT_EXPA", "APPSCRIPT_B2C",
+              "TOKEN_EXPA", "APPSCRIPT_EXPA",
+              "APPSCRIPT_B2C",
           )
           ALLOWED_DIRS = {"app", "doc"}
           ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
           IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
-          PROTECTED_REMOTE_FILES = {".env.dev", ".env.test"}
           CREATED_DIRS = set()
 
           def required_env(name):
@@ -69,6 +92,7 @@ jobs:
               return value
 
           def load_config():
+              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
               username = required_env("PYTHONANYWHERE_USERNAME")
               session = requests.Session()
               session.headers.update({
@@ -87,34 +111,14 @@ jobs:
               api_user = quote(config["username"], safe="")
               return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
 
-          def delete_remote_path(config, remote_path):
-              """Apaga um arquivo ou diretório no PythonAnywhere."""
+          def delete_remote_file(config, remote_path):
+              """Remove um arquivo do servidor PythonAnywhere via API DELETE."""
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
               response = config["session"].delete(url, timeout=60)
               if response.status_code in (204, 404):
                   return True
-              print(f"ERRO [{response.status_code}] ao excluir {remote_path}")
+              print(f"ERRO [{response.status_code}] ao deletar {remote_path}")
               return False
-
-          def get_remote_file_tree(config):
-              """Obtém a lista de caminhos de arquivos/pastas existentes no servidor remoto."""
-              url = api_url(config, f"/files/tree/?path={quote(config['remote_dir'], safe='/')}")
-              response = config["session"].get(url, timeout=60)
-              if response.status_code == 200:
-                  raw_paths = response.json()
-                  remote_prefix = config["remote_dir"].rstrip("/") + "/"
-                  relative_paths = set()
-                  for path in raw_paths:
-                      if path.startswith(remote_prefix):
-                          rel = path[len(remote_prefix):]
-                          if rel:
-                              relative_paths.add(rel)
-                  return relative_paths
-              elif response.status_code == 404:
-                  return set()
-              else:
-                  print(f"Aviso: Não foi possível obter a árvore remota (HTTP {response.status_code})")
-                  return set()
 
           def ensure_remote_dir(config, remote_path):
               if remote_path in CREATED_DIRS:
@@ -126,9 +130,10 @@ jobs:
                       f"Não foi possível preparar diretório remoto: HTTP {response.status_code}"
                   )
               CREATED_DIRS.add(remote_path)
-              time.sleep(1)
+              time.sleep(2)
 
           def upload_file(config, local_path, remote_path, max_retries=3):
+              """Envia um arquivo local ao servidor com retentativas."""
               remote_parent = str(Path(remote_path).parent).replace("\\", "/")
               ensure_remote_dir(config, remote_parent)
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -142,10 +147,13 @@ jobs:
                               timeout=60,
                           )
                       if response.status_code in (200, 201):
-                          time.sleep(1)
+                          time.sleep(2)
                           return True
                       if response.status_code == 429 and attempt < max_retries - 1:
-                          wait = int(response.headers.get("Retry-After", "10"))
+                          try:
+                              wait = int(response.headers.get("Retry-After", "10"))
+                          except ValueError:
+                              wait = 10
                           time.sleep(max(wait, 1))
                           continue
                       if response.status_code >= 500 and attempt < max_retries - 1:
@@ -161,19 +169,68 @@ jobs:
 
               return False
 
-          def sync_project(config):
+          def is_path_allowed(relative_path):
+              parts = Path(relative_path).parts
+              if not parts:
+                  return False
+              if parts[0] in ALLOWED_DIRS:
+                  return True
+              if len(parts) == 1 and parts[0] in ALLOWED_FILES:
+                  return True
+              return False
+
+          def process_deletions(config):
+              """Processa a remoção de arquivos apagados no commit via Git Diff."""
+              deleted_file = Path(required_env("DELETED_FILES_PATH"))
+              if not deleted_file.exists():
+                  return 0
+
+              deleted_paths = {
+                  item.decode("utf-8")
+                  for item in deleted_file.read_bytes().split(b"\0")
+                  if item
+              }
+
+              total_deleted = 0
+              for relative_path in sorted(deleted_paths):
+                  if is_path_allowed(relative_path):
+                      remote_path = f"{config['remote_dir']}/{relative_path}"
+                      print(f"Deletando do servidor: {relative_path} ...", end=" ", flush=True)
+                      if delete_remote_file(config, remote_path):
+                          print("OK")
+                          total_deleted += 1
+                      else:
+                          print("FALHA")
+              return total_deleted
+
+          def upload_project(config):
+              """Monta o .env.dev, remove arquivos deletados no Git e envia somente os alterados."""
               project_dir = config["project_dir"]
+              if not project_dir.is_dir():
+                  print(f"Erro local: pasta '{project_dir}' não encontrada")
+                  return False
+
+              changed_file = Path(required_env("CHANGED_FILES_PATH"))
+              changed_paths = {
+                  item.decode("utf-8")
+                  for item in changed_file.read_bytes().split(b"\0")
+                  if item
+              }
+
               print(f"Pasta local: {project_dir}")
               print(f"Destino no servidor: {config['remote_dir']}\n")
-
               CREATED_DIRS.clear()
+
+              # Deleta no PythonAnywhere o que foi apagado no git diff
+              total_deleted = process_deletions(config)
 
               with tempfile.TemporaryDirectory() as temp_dir:
                   template_file = project_dir / ".env.example"
                   if not template_file.is_file():
-                      raise SystemExit("O arquivo .env.example é necessário como modelo.")
+                      raise SystemExit(
+                          "O arquivo .env.example é necessário como modelo documentado"
+                      )
 
-                  # Gerar .env.dev e .env.test dinamicamente
                   env_file = Path(temp_dir) / ".env.dev"
                   shutil.copyfile(template_file, env_file)
                   for name, value in config["app_env"].items():
@@ -181,76 +238,63 @@ jobs:
 
                   test_env_file = Path(temp_dir) / ".env.test"
                   shutil.copyfile(template_file, test_env_file)
-                  for name, value in config["app_env"].items():
+                  test_env = dict(config["app_env"])
+                  for name, value in test_env.items():
                       set_key(str(test_env_file), name, value, quote_mode="never")
 
-                  # Mapear todos os arquivos locais permitidos
-                  local_files_map = {}
-
-                  for filename in ALLOWED_FILES - {".env.dev", ".env.test"}:
+                  files = []
+                  for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
+                      if filename not in changed_paths:
+                          continue
                       path = project_dir / filename
                       if path.is_file():
-                          local_files_map[filename] = path
+                          files.append((path, filename))
 
-                  for dirname in ALLOWED_DIRS:
+                  for dirname in sorted(ALLOWED_DIRS):
                       base = project_dir / dirname
                       if not base.is_dir():
                           continue
                       for root, dirs, filenames in os.walk(base):
-                          dirs[:] = [d for d in dirs if d not in IGNORED_SUBDIRS]
-                          for filename in filenames:
+                          dirs[:] = sorted(d for d in dirs if d not in IGNORED_SUBDIRS)
+                          for filename in sorted(filenames):
                               path = Path(root) / filename
                               relative = path.relative_to(project_dir).as_posix()
-                              if path.suffix not in {".pyc", ".pyo"}:
-                                  local_files_map[relative] = path
+                              if (
+                                  path.suffix not in {".pyc", ".pyo"}
+                                  and relative in changed_paths
+                              ):
+                                  files.append((path, relative))
 
-                  # Adicionar .env.dev e .env.test gerados
-                  local_files_map[".env.dev"] = env_file
-                  local_files_map[".env.test"] = test_env_file
+                  if files:
+                      files.append((env_file, ".env.dev"))
+                      files.append((test_env_file, ".env.test"))
 
-                  # 1. REMOVER DO SERVIDOR O QUE NÃO EXISTE NO LOCAL
-                  remote_tree = get_remote_file_tree(config)
-                  deleted_count = 0
+                  files.sort(key=lambda item: item[1])
+                  if not files and total_deleted == 0:
+                      print("Nenhum arquivo permitido foi alterado ou deletado; deploy ignorado.")
+                      return False
 
-                  # Ordenamos do caminho mais longo ao mais curto para apagar arquivos antes de pastas
-                  for remote_rel_path in sorted(remote_tree, key=lambda p: len(p.split('/')), reverse=True):
-                      # Ignora arquivos gerados dinamicamente no servidor
-                      if remote_rel_path in PROTECTED_REMOTE_FILES:
-                          continue
-
-                      # Se for arquivo/pasta de diretórios não gerenciados pelo deploy, ignora
-                      root_folder = remote_rel_path.split('/')[0]
-                      is_managed_path = (root_folder in ALLOWED_DIRS) or (remote_rel_path in ALLOWED_FILES)
-
-                      if is_managed_path and remote_rel_path not in local_files_map:
-                          full_remote_path = f"{config['remote_dir']}/{remote_rel_path}"
-                          print(f"Removendo do servidor (obsoleto): {remote_rel_path} ...", end=" ", flush=True)
-                          if delete_remote_path(config, full_remote_path):
-                              print("OK")
-                              deleted_count += 1
-                          else:
-                              print("FALHA")
-
-                  # 2. ENVIAR / ATUALIZAR ARQUIVOS
                   ensure_remote_dir(config, config["remote_dir"])
-                  uploaded_count = 0
-
-                  for relative_path in sorted(local_files_map.keys()):
-                      local_path = local_files_map[relative_path]
+                  total_uploaded = 0
+                  for path, relative_path in files:
                       remote_path = f"{config['remote_dir']}/{relative_path}"
-                      print(f"Enviando/Atualizando: {relative_path} ...", end=" ", flush=True)
-                      if upload_file(config, local_path, remote_path):
+                      print(f"Enviando: {relative_path} ...", end=" ", flush=True)
+                      if upload_file(config, path, remote_path):
                           print("OK")
-                          uploaded_count += 1
+                          total_uploaded += 1
                       else:
-                          print("FALHA")
+                          print()
                           return False
 
-                  print(f"\nSincronização concluída! {uploaded_count} enviados/atualizados, {deleted_count} removidos.")
-                  return True
+              print(f"\nConcluído! Total: {total_uploaded} enviados/atualizados, {total_deleted} deletados.")
+              return True
 
           def reload_webapp(config):
-              url = api_url(config, f"/webapps/{quote(config['domain'], safe='')}/reload/")
+              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
+              url = api_url(
+                  config,
+                  f"/webapps/{quote(config['domain'], safe='')}/reload/",
+              )
               print("\nRecarregando a aplicação Web no PythonAnywhere...")
               response = config["session"].post(url, timeout=60)
               if response.status_code != 200:
@@ -259,12 +303,11 @@ jobs:
 
           if __name__ == "__main__":
               deploy_config = load_config()
-              if sync_project(deploy_config):
+              if upload_project(deploy_config):
                   reload_webapp(deploy_config)
                   with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                       output.write("deployed=true\n")
           PY
-
       - name: Notificar sucesso via Google Apps Script
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
@@ -274,11 +317,12 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           ACTOR: ${{ github.actor }}
-          DETAIL: Sincronização completa (upload/remoção) realizada e aplicação recarregada.
+          DETAIL: Deploy realizado com sucesso e aplicação recarregada.
         run: |
           python - <<'PY'
           import datetime
           import os
+
           import pytz
           import requests
 
@@ -297,12 +341,13 @@ jobs:
           }
 
           try:
-              response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
               print(f"Resposta do Apps Script: HTTP {response.status_code}")
           except requests.RequestException as error:
-              print(f"Falha ao enviar notificação: {type(error).__name__}")
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
-
       - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
         env:
@@ -312,11 +357,12 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           ACTOR: ${{ github.actor }}
-          DETAIL: A pipeline falhou durante a sincronização ou reload no PythonAnywhere.
+          DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
         run: |
           python - <<'PY'
           import datetime
           import os
+
           import pytz
           import requests
 
@@ -335,8 +381,10 @@ jobs:
           }
 
           try:
-              response = requests.post(os.environ["APPSCRIPT_URL"], json=payload, timeout=30)
+              response = requests.post(
+                  os.environ["APPSCRIPT_URL"], json=payload, timeout=30
+              )
               print(f"Resposta do Apps Script: HTTP {response.status_code}")
           except requests.RequestException as error:
-              print(f"Falha ao enviar notificação: {type(error).__name__}")
+              print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
