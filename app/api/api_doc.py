@@ -262,7 +262,8 @@ def documentacao() -> str:
 
 @api.get("/register", responses={308: None})
 def registro():
-    """Registra o endereço IP do cliente solicitante na Whitelist.
+    """
+    Registra o endereço IP do cliente solicitante na Whitelist.
 
     Captura o IP real a partir do cabeçalho de Proxy 'X-Forwarded-For' (se disponível)
     ou da conexão direta do socket ('request.remote_addr'). Após autorizar o IP no
