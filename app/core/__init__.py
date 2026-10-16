@@ -1,5 +1,6 @@
 """Flags do ambiente."""
 
-from .config import IS_DEV, IS_PRODUCTION, IS_TEST
+from .config import DOMINIOS_PERMITIDOS, IS_DEV, IS_PRODUCTION, IS_TEST
+from .logger import setup_logging
 
-__all__ = ["IS_DEV", "IS_PRODUCTION", "IS_TEST"]
+__all__ = ["DOMINIOS_PERMITIDOS", "IS_DEV", "IS_PRODUCTION", "IS_TEST", "setup_logging"]
