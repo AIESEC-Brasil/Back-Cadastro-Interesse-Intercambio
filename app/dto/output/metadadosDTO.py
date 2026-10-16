@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConfiguracoesCampo(BaseModel):
+    """Configurações de um campo de metadado."""
     model_config = ConfigDict(extra="allow")
 
     description: Optional[str] = None

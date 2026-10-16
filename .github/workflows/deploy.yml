@@ -227,7 +227,6 @@ jobs:
               parts = Path(relative_path).parts
               return (
                   any(part.startswith(".env") for part in parts)
-                  or (parts and parts[0] == ".git")
                   or (parts and parts[0] == "logs")
               )
 
