@@ -21,6 +21,7 @@ class ConfiguracaoMetadado(BaseModel):
 
 
 class CampoMetadado(BaseModel):
+    """Campo de metadado retornado pelo Apps Script B2C."""
     model_config = ConfigDict(extra="allow")
 
     external_id: str

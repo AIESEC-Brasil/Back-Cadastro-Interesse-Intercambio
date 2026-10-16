@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Identificar arquivos alterados
+      - name: Identificar arquivos alterados e deletados
         env:
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
@@ -30,9 +30,14 @@ jobs:
           fi
 
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            # Primeira execução / Push inicial
             git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            touch "$RUNNER_TEMP/deleted-files.txt"
           else
-            git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # Arquivos modificados/adicionados (A, M, C, R)
+            git diff --name-only --diff-filter=d -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # Arquivos explicitamente deletados (D)
+            git diff --name-only --diff-filter=D -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/deleted-files.txt"
           fi
 
       - name: Configurar Python
@@ -43,7 +48,7 @@ jobs:
       - name: Instalar dependência do deploy
         run: python -m pip install requests python-dotenv pytz
 
-      - name: Enviar arquivos e recarregar a webapp
+      - name: Enviar arquivos, deletar removidos e recarregar a webapp
         id: deploy
         env:
           AMBIENTE: ${{ secrets.AMBIENTE }}
@@ -57,10 +62,10 @@ jobs:
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           PYTHONANYWHERE_DOMAIN: ${{ secrets.PYTHONANYWHERE_DOMAIN }}
           CHANGED_FILES_PATH: ${{ runner.temp }}/changed-files.txt
+          DELETED_FILES_PATH: ${{ runner.temp }}/deleted-files.txt
         run: |
           python - <<'PY'
           import os
-          import posixpath
           import shutil
           import tempfile
           import time
@@ -70,11 +75,9 @@ jobs:
           import requests
           from dotenv import set_key
 
-          # Os secrets do GitHub são usados para montar o .env.dev no runner.
           APP_ENV_NAMES = (
               "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
-              "TOKEN_EXPA", "APPSCRIPT_EXPA",
-              "APPSCRIPT_B2C",
+              "TOKEN_EXPA", "APPSCRIPT_EXPA", "APPSCRIPT_B2C",
           )
           ALLOWED_DIRS = {"app", "doc"}
           ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
@@ -88,26 +91,32 @@ jobs:
               return value
 
           def load_config():
-              """Carrega secrets do Actions e configura acesso ao PythonAnywhere."""
               username = required_env("PYTHONANYWHERE_USERNAME")
               session = requests.Session()
               session.headers.update({
                   "Authorization": f"Token {required_env('PYTHONANYWHERE_API_TOKEN')}"
               })
-                # "db_connect_test": required_env("DB_CONNECT_TEST"), 
               return {
                   "username": username,
                   "domain": required_env("PYTHONANYWHERE_DOMAIN"),
                   "project_dir": Path.cwd(),
                   "remote_dir": f"/home/{username}/Back-Cadastro-Interesse-Intercambio",
                   "app_env": {name: required_env(name) for name in APP_ENV_NAMES},
-                  
                   "session": session,
               }
 
           def api_url(config, path):
               api_user = quote(config["username"], safe="")
               return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
+
+          def delete_remote_file(config, remote_path):
+              """Remove um arquivo do servidor PythonAnywhere via API DELETE."""
+              url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
+              response = config["session"].delete(url, timeout=60)
+              if response.status_code in (204, 404):
+                  return True
+              print(f"ERRO [{response.status_code}] ao deletar {remote_path}")
+              return False
 
           def ensure_remote_dir(config, remote_path):
               if remote_path in CREATED_DIRS:
@@ -122,7 +131,6 @@ jobs:
               time.sleep(2)
 
           def upload_file(config, local_path, remote_path, max_retries=3):
-              """Envia um arquivo local ao servidor com retentativas."""
               remote_parent = str(Path(remote_path).parent).replace("\\", "/")
               ensure_remote_dir(config, remote_parent)
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -158,106 +166,40 @@ jobs:
 
               return False
 
-          def list_remote_files(config):
-              """Lista recursivamente os arquivos na pasta do projeto remoto."""
-              remote_root = config["remote_dir"].rstrip("/")
-              remote_files = set()
-
-              def walk(directory):
-                  directory_url_path = directory.rstrip("/") + "/"
-                  url = api_url(
-                      config,
-                      f"/files/path{quote(directory_url_path, safe='/')}",
-                  )
-                  for attempt in range(5):
-                      response = config["session"].get(url, timeout=60)
-                      if response.status_code == 429 or response.status_code >= 500:
-                          if attempt == 4:
-                              raise SystemExit(
-                                  f"Falha ao listar arquivos remotos: HTTP {response.status_code}"
-                              )
-                          try:
-                              wait = int(response.headers.get("Retry-After", str(2 ** attempt)))
-                          except ValueError:
-                              wait = 2 ** attempt
-                          time.sleep(max(wait, 1))
-                          continue
-                      if response.status_code == 404:
-                          raise SystemExit(
-                              "Diretório remoto não encontrado ao listar: "
-                              f"{directory} (HTTP 404)"
-                          )
-                      if response.status_code != 200:
-                          raise SystemExit(
-                              f"Falha ao listar arquivos remotos: HTTP {response.status_code}"
-                          )
-                      entries = response.json()
-                      if not isinstance(entries, dict):
-                          raise SystemExit("Resposta inesperada ao listar arquivos remotos")
-                      break
-
-                  for name, metadata in entries.items():
-                      if not isinstance(metadata, dict):
-                          continue
-                      remote_path = posixpath.join(directory, name)
-                      relative_path = posixpath.relpath(remote_path, remote_root)
-                      if relative_path == ".." or relative_path.startswith("../"):
-                          raise SystemExit("A listagem remota retornou um caminho fora do projeto")
-                      if metadata.get("type") == "directory":
-                          walk(remote_path)
-                      else:
-                          remote_files.add(relative_path)
-
-              walk(remote_root)
-              return remote_files
-
-          def list_repository_files(project_dir):
-              """Retorna os caminhos presentes no checkout atual do repositório."""
-              ignored_dirs = {
-                  ".git", "__pycache__", ".pytest_cache", ".vscode", ".idea", "logs"
-              }
-              repository_files = set()
-              for root, dirs, filenames in os.walk(project_dir):
-                  dirs[:] = sorted(directory for directory in dirs if directory not in ignored_dirs)
-                  for filename in filenames:
-                      path = Path(root) / filename
-                      if path.suffix in {".pyc", ".pyo"}:
-                          continue
-                      repository_files.add(path.relative_to(project_dir).as_posix())
-              return repository_files
-
-          def protected_remote_file(relative_path):
-              """Preserva ambientes locais/gerados e os logs persistidos no servidor."""
+          def is_path_allowed(relative_path):
               parts = Path(relative_path).parts
-              return (
-                  any(part.startswith(".env") for part in parts)
-                  or (parts and parts[0] == "logs")
-              )
-
-          def delete_remote_file(config, relative_path, max_retries=5):
-              """Apaga um arquivo obsoleto, sem remover diretórios recursivamente."""
-              remote_path = posixpath.join(config["remote_dir"], relative_path)
-              file_path = quote(remote_path.lstrip("/"), safe="/")
-              url = api_url(config, f"/files/path/{file_path}")
-              for attempt in range(max_retries):
-                  response = config["session"].delete(url, timeout=60)
-                  if response.status_code in (200, 204, 404):
-                      time.sleep(2)
-                      return True
-                  if response.status_code == 429 or response.status_code >= 500:
-                      if attempt < max_retries - 1:
-                          try:
-                              wait = int(response.headers.get("Retry-After", str(2 ** attempt)))
-                          except ValueError:
-                              wait = 2 ** attempt
-                          time.sleep(max(wait, 1))
-                          continue
-                  print(f"ERRO [{response.status_code}] ao remover {relative_path}")
+              if not parts:
                   return False
+              if parts[0] in ALLOWED_DIRS:
+                  return True
+              if len(parts) == 1 and parts[0] in ALLOWED_FILES:
+                  return True
               return False
 
+          def process_deletions(config):
+              deleted_file = Path(required_env("DELETED_FILES_PATH"))
+              if not deleted_file.exists():
+                  return 0
+
+              deleted_paths = {
+                  item.decode("utf-8")
+                  for item in deleted_file.read_bytes().split(b"\0")
+                  if item
+              }
+
+              total_deleted = 0
+              for relative_path in sorted(deleted_paths):
+                  if is_path_allowed(relative_path):
+                      remote_path = f"{config['remote_dir']}/{relative_path}"
+                      print(f"Deletando do servidor: {relative_path} ...", end=" ", flush=True)
+                      if delete_remote_file(config, remote_path):
+                          print("OK")
+                          total_deleted += 1
+                      else:
+                          print("FALHA")
+              return total_deleted
+
           def upload_project(config):
-              """Monta o .env.dev e envia somente arquivos alterados e permitidos."""
               project_dir = config["project_dir"]
               if not project_dir.is_dir():
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
@@ -274,6 +216,9 @@ jobs:
               print(f"Destino no servidor: {config['remote_dir']}\n")
               CREATED_DIRS.clear()
 
+              # Processa as remoções de arquivos deletados do repositório
+              total_deleted = process_deletions(config)
+
               with tempfile.TemporaryDirectory() as temp_dir:
                   template_file = project_dir / ".env.example"
                   if not template_file.is_file():
@@ -289,7 +234,6 @@ jobs:
                   test_env_file = Path(temp_dir) / ".env.test"
                   shutil.copyfile(template_file, test_env_file)
                   test_env = dict(config["app_env"])
-                  # test_env["DB_CONNECT"] = config["db_connect_test"]
                   for name, value in test_env.items():
                       set_key(str(test_env_file), name, value, quote_mode="never")
 
@@ -316,39 +260,16 @@ jobs:
                               ):
                                   files.append((path, relative))
 
-                  # Os arquivos de ambiente são atualizados quando há arquivos para publicar.
                   if files:
                       files.append((env_file, ".env.dev"))
                       files.append((test_env_file, ".env.test"))
 
                   files.sort(key=lambda item: item[1])
-                  ensure_remote_dir(config, config["remote_dir"])
-                  repository_files = list_repository_files(project_dir)
-                  remote_files = list_remote_files(config)
-                  obsolete_files = sorted(
-                      relative_path
-                      for relative_path in remote_files - repository_files
-                      if not protected_remote_file(relative_path)
-                  )
-                  print(
-                      "Reconciliação PythonAnywhere: "
-                      f"{len(remote_files)} arquivos remotos, "
-                      f"{len(repository_files)} arquivos no checkout, "
-                      f"{len(obsolete_files)} obsoletos."
-                  )
-
-                  if not files and not obsolete_files:
-                      print("Nenhum arquivo para publicar ou remover; deploy ignorado.")
+                  if not files and total_deleted == 0:
+                      print("Nenhum arquivo permitido foi alterado ou deletado; deploy ignorado.")
                       return False
 
-                  for relative_path in obsolete_files:
-                      print(f"Removendo arquivo ausente do repositório: {relative_path} ...", end=" ", flush=True)
-                      if delete_remote_file(config, relative_path):
-                          print("OK")
-                      else:
-                          print()
-                          return False
-
+                  ensure_remote_dir(config, config["remote_dir"])
                   total_uploaded = 0
                   for path, relative_path in files:
                       remote_path = f"{config['remote_dir']}/{relative_path}"
@@ -360,14 +281,10 @@ jobs:
                           print()
                           return False
 
-              print(
-                  f"\nConcluído! {len(obsolete_files)} arquivos removidos e "
-                  f"{total_uploaded} arquivos enviados."
-              )
+              print(f"\nConcluído! Total: {total_uploaded} enviados, {total_deleted} deletados.")
               return True
 
           def reload_webapp(config):
-              """Recarrega o WebApp no PythonAnywhere após o envio completo."""
               url = api_url(
                   config,
                   f"/webapps/{quote(config['domain'], safe='')}/reload/",
@@ -385,6 +302,7 @@ jobs:
                   with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                       output.write("deployed=true\n")
           PY
+
       - name: Notificar sucesso via Google Apps Script
         if: success() && steps.deploy.outputs.deployed == 'true'
         env:
@@ -425,6 +343,7 @@ jobs:
           except requests.RequestException as error:
               print(f"Falha ao enviar notificação ao Apps Script: {type(error).__name__}")
           PY
+
       - name: Notificar falha via Google Apps Script
         if: failure() && steps.deploy.outcome == 'failure'
         env:
@@ -434,7 +353,7 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           ACTOR: ${{ github.actor }}
-          DETAIL: A pipeline de deploy falhou durante o envio dos arquivos ou o reload da aplicação.
+          DETAIL: A pipeline de deploy falhou durante o envio/deleção dos arquivos ou o reload da aplicação.
         run: |
           python - <<'PY'
           import datetime
