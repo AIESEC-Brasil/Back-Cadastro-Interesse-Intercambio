@@ -33,9 +33,9 @@ jobs:
             git ls-tree -r -z --name-only "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
             touch "$RUNNER_TEMP/deleted-files.txt"
           else
-            # A, M, C, R -> Apenas arquivos alterados/novos
-            git diff --name-only --diff-filter=d -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
-            # D -> Apenas arquivos deletados
+            # ACMRT -> Novos, Copiados, Modificados, Renomeados, Tipo Alterado
+            git diff --name-only --diff-filter=ACMRT -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/changed-files.txt"
+            # D -> Deletados
             git diff --name-only --diff-filter=D -z "$BASE_SHA" "$GITHUB_SHA" > "$RUNNER_TEMP/deleted-files.txt"
           fi
 
@@ -186,7 +186,7 @@ jobs:
                   return 0
 
               deleted_paths = {
-                  item.decode("utf-8")
+                  Path(item.decode("utf-8")).as_posix()
                   for item in deleted_file.read_bytes().split(b"\0")
                   if item
               }
@@ -204,7 +204,7 @@ jobs:
               return total_deleted
 
           def upload_project(config):
-              """Monta o .env.dev, remove arquivos deletados no Git e envia somente os alterados."""
+              """Monta o .env.dev, remove arquivos deletados no Git e envia alterados/novos."""
               project_dir = config["project_dir"]
               if not project_dir.is_dir():
                   print(f"Erro local: pasta '{project_dir}' não encontrada")
@@ -212,7 +212,7 @@ jobs:
 
               changed_file = Path(required_env("CHANGED_FILES_PATH"))
               changed_paths = {
-                  item.decode("utf-8")
+                  Path(item.decode("utf-8")).as_posix()
                   for item in changed_file.read_bytes().split(b"\0")
                   if item
               }
@@ -265,13 +265,13 @@ jobs:
                               ):
                                   files.append((path, relative))
 
-                  if files:
+                  if files or total_deleted > 0:
                       files.append((env_file, ".env.dev"))
                       files.append((test_env_file, ".env.test"))
 
                   files.sort(key=lambda item: item[1])
                   if not files and total_deleted == 0:
-                      print("Nenhum arquivo permitido foi alterado ou deletado; deploy ignorado.")
+                      print("Nenhum arquivo permitido foi alterado, criado ou deletado; deploy ignorado.")
                       return False
 
                   ensure_remote_dir(config, config["remote_dir"])
