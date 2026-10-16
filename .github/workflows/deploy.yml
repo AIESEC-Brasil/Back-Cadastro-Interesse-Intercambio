@@ -79,7 +79,7 @@ jobs:
               "TOKEN_EXPA", "APPSCRIPT_EXPA",
               "APPSCRIPT_B2C",
           )
-          ALLOWED_DIRS = {"app", "doc"}
+          ALLOWED_DIRS = {"app", "doc","test"}
           ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
           IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
           CREATED_DIRS = set()
