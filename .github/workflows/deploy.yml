@@ -79,7 +79,7 @@ jobs:
               "TOKEN_EXPA", "APPSCRIPT_EXPA",
               "APPSCRIPT_B2C",
           )
-          ALLOWED_DIRS = {"app", "doc","test"}
+          ALLOWED_DIRS = {"app", "doc", "test"}
           ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
           IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
           CREATED_DIRS = set()
@@ -123,12 +123,30 @@ jobs:
                   if item.strip()
               }
 
-          def delete_remote_file(config, remote_path):
-              """Remove um arquivo do servidor PythonAnywhere via API DELETE."""
+          def delete_remote_path(config, remote_path):
+              """Remove arquivo ou diretório (recursivamente se necessário) via API DELETE."""
               url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
               response = config["session"].delete(url, timeout=60)
+              
               if response.status_code in (204, 404):
                   return True
+
+              # Se falhar porque a pasta contém arquivos no servidor, limpa o diretório recursivamente
+              tree_url = api_url(config, f"/files/tree/?path={quote(remote_path, safe='/')}")
+              tree_res = config["session"].get(tree_url, timeout=60)
+              
+              if tree_res.status_code == 200:
+                  contents = tree_res.json()
+                  # Apaga itens internos ordenando dos caminhos mais profundos aos mais rasos
+                  for item_path in sorted(contents, key=lambda p: len(p.split('/')), reverse=True):
+                      item_url = api_url(config, f"/files/path{quote(item_path, safe='/')}")
+                      config["session"].delete(item_url, timeout=60)
+                  
+                  # Tenta deletar o diretório principal novamente após esvaziar
+                  retry_res = config["session"].delete(url, timeout=60)
+                  if retry_res.status_code in (204, 404):
+                      return True
+
               print(f"ERRO [{response.status_code}] ao deletar {remote_path}")
               return False
 
@@ -193,15 +211,26 @@ jobs:
           def process_deletions(config):
               deleted_paths = parse_null_bytes_file(required_env("DELETED_FILES_PATH"))
               total_deleted = 0
-              for relative_path in sorted(deleted_paths):
+              
+              # Ordena do caminho mais longo ao mais curto para apagar arquivos antes das pastas pai
+              sorted_deletions = sorted(deleted_paths, key=lambda p: len(Path(p).parts), reverse=True)
+              
+              for relative_path in sorted_deletions:
                   if is_path_allowed(relative_path):
                       remote_path = f"{config['remote_dir']}/{relative_path}"
                       print(f"Deletando do servidor: {relative_path} ...", end=" ", flush=True)
-                      if delete_remote_file(config, remote_path):
+                      if delete_remote_path(config, remote_path):
                           print("OK")
                           total_deleted += 1
                       else:
                           print("FALHA")
+
+                      # Tenta remover também o diretório pai caso a exclusão do arquivo tenha deixado a pasta vazia
+                      parent_rel = Path(relative_path).parent.as_posix()
+                      if parent_rel and parent_rel != "." and is_path_allowed(parent_rel):
+                          remote_parent = f"{config['remote_dir']}/{parent_rel}"
+                          delete_remote_path(config, remote_parent)
+
               return total_deleted
 
           def upload_project(config):
