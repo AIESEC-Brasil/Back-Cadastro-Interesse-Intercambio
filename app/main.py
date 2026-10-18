@@ -10,7 +10,12 @@ from .api import api
 from .controller import new_lead_ogx
 from .core import IS_DEV, pre_carregamento_metadados, setup_logging
 from .dto.exception import AppError, ValidationErrorResponse
-from .middlewares import capture_request_start, register_url, verificar_origem
+from .middlewares import (
+    capture_request_start,
+    injetar_css_no_elements,
+    register_url,
+    verificar_origem,
+)
 from .utils.exception import (
     handle_app_error,
     handle_validation_error,
@@ -34,6 +39,11 @@ def create_app() -> OpenAPI:
         validate_response=True,
         validate_response_callback=validate_api_response,
     )
+    app.config["ELEMENTS_CONFIG"] = {
+        "layout": "sidebar",
+        "hideTryIt": False,
+        "router": "hash"
+    }
     CORS(app, origins=["*"], allow_headers=["Content-Type"], methods=["GET", "OPTIONS"])
     app.register_api(new_lead_ogx)
     app.register_api(api)
@@ -41,6 +51,7 @@ def create_app() -> OpenAPI:
     app.before_request(capture_request_start)
     app.before_request(verificar_origem)
     app.after_request(register_url)
+    app.after_request(injetar_css_no_elements)
     app.logger.info("Aplicação de metadados B2C iniciada")
 
     # O Werkzeug inicia a aplicação duas vezes ao usar o reloader em DEV.
