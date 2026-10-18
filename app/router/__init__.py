@@ -7,7 +7,7 @@ utilizada para definição de rotas, middlewares e documentação OpenAPI.
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
-from .router import Router  # Importa a classe Router customizada do módulo router local
+from .router import Router
 
 
 # =================================================================

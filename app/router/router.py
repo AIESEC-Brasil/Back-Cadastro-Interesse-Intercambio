@@ -7,9 +7,9 @@ Este componente é o que permite a geração automática da documentação Swagg
 # =================================================================
 # 1. IMPORTAÇÕES E DEPENDÊNCIAS
 # =================================================================
-from typing import Optional  # Suporte para digitação de tipos opcionais
+from typing import Optional
 
-from flask_openapi3 import APIBlueprint  # Blueprint estendido do Flask com OpenAPI3
+from flask_openapi3 import APIBlueprint
 
 
 # =================================================================

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Erro {{ status_code }}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #17212b;
+        background: #f3f6f8;
+      }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+      }
+      main {
+        box-sizing: border-box;
+        width: min(92vw, 520px);
+        padding: 40px;
+        border: 1px solid #dce3e8;
+        border-radius: 16px;
+        background: #fff;
+        text-align: center;
+        box-shadow: 0 12px 40px rgb(23 33 43 / 8%);
+      }
+      .code {
+        margin: 0;
+        color: #087f5b;
+        font-size: clamp(4rem, 18vw, 7rem);
+        font-weight: 750;
+        line-height: 1;
+      }
+      h1 { margin: 16px 0 8px; font-size: 1.5rem; }
+      p { margin: 0; color: #52616b; line-height: 1.6; }
+      .status { margin-top: 20px; font-size: .85rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="code">{{ status_code }}</p>
+      <h1>Não foi possível concluir</h1>
+      <p>{{ message }}</p>
+      <p class="status">{{ status_name }}</p>
+    </main>
+  </body>
+</html>

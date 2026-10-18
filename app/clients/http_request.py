@@ -81,7 +81,7 @@ class HttpClient:
             base_url: str = "",
             prefix: str = "",
             timeout: Optional[float] = None,
-    ):
+    ) -> None:
         """Inicializa as configurações de base da URL, rotas e políticas do pool de conexões.
 
         Args:
@@ -159,7 +159,12 @@ class HttpClient:
         """Permite o uso da classe em blocos de contexto assíncronos (`async with`)."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
         """Garante a limpeza e encerramento do pool ao sair do contexto `async with`."""
         await self.close()
 
@@ -177,7 +182,7 @@ class HttpClient:
         )
 
     @timeout.setter
-    def timeout(self, value: Optional[float]):
+    def timeout(self, value: Optional[float]) -> None:
         """Define um valor de timeout temporário que será aplicado exclusivamente na próxima chamada."""
         self._timeout_override = value
 
