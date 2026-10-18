@@ -12,9 +12,10 @@ interfaces dinâmicas de documentação técnica (OpenAPI/Swagger/Scalar).
 
 # O módulo 'os' permite a interação com variáveis de ambiente do sistema operacional
 import os
+from typing import Any
 
 # Importações do framework Flask para renderização de templates e gerenciamento de requisições
-from flask import redirect, render_template_string, request
+from flask import redirect, render_template, request
 from werkzeug.wrappers import Response
 from flask_openapi3 import Tag
 
@@ -46,25 +47,35 @@ api: Router = Router(name="api", url_prefix="/api")
 # 4. DEFINIÇÃO DAS ROTAS E ENDPOINTS
 # ==============================================================================
 
+# ===============================================================================
+# DOCUMENTAÇÃO DA ROTA DE DOCUMENTAÇÃO
+# ===============================================================================
+DOCUMENTACAO_DESCRIPTION: str = """\
+Apresenta links para as especificações OpenAPI e interfaces de documentação
+interativa. Requer IP autorizado fora do ambiente DEV."""
+
+DOCUMENTACAO_RESPONSES: dict[int | str, Any] = {
+    200: {
+        "description": "Página HTML com os links da documentação.",
+        "content": {"text/html": {"schema": {"type": "string"}}},
+    },
+    401: {
+        "description": "IP cliente não autorizado.",
+        "content": {"text/html": {"schema": {"type": "string"}}},
+    },
+    422: BaseErrorResponse,
+}
+
+
+# ===============================================================================
+# ROTA DA PÁGINA DE DOCUMENTAÇÃO
+# ===============================================================================
 @api.get(
     "/docs",
     summary="Exibir a documentação da API",
     tags=[Tag(name="Documentação")],
-    description=(
-        "Apresenta links para as especificações OpenAPI e interfaces de "
-        "documentação interativa. Requer IP autorizado fora do ambiente DEV."
-    ),
-    responses={
-        200: {
-            "description": "Página HTML com os links da documentação.",
-            "content": {"text/html": {"schema": {"type": "string"}}},
-        },
-        401: {
-            "description": "IP cliente não autorizado.",
-            "content": {"text/html": {"schema": {"type": "string"}}},
-        },
-        422: BaseErrorResponse,
-    },
+    description=DOCUMENTACAO_DESCRIPTION,
+    responses=DOCUMENTACAO_RESPONSES,
 )
 @require_ip_whitelist
 def documentacao() -> str:
@@ -100,196 +111,41 @@ def documentacao() -> str:
         ],
     }
 
-    # Template HTML inline otimizado estilizado com o design system da AIESEC
-    template: str = """
-    <!DOCTYPE html>
-    <html lang="pt-br">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>API Documentation | AIESEC Hub</title>
-        <style>
-            :root {
-                --aiesec-blue: #037EF3;
-                --aiesec-dark-blue: #0056b3;
-                --aiesec-light-grey: #F3F4F6;
-                --text-color: #52565E;
-                --success-green: #00C16E;
-            }
-            body {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                background-color: var(--aiesec-light-grey);
-                color: var(--text-color);
-                margin: 0;
-                padding: 0;
-            }
-            header {
-                background: white;
-                padding: 40px 20px;
-                text-align: center;
-                border-bottom: 4px solid var(--aiesec-blue);
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            }
-            .logo {
-                font-weight: bold;
-                font-size: 28px;
-                color: var(--aiesec-blue);
-                letter-spacing: -1px;
-                margin-bottom: 10px;
-                display: block;
-            }
-            .tagline {
-                font-style: italic;
-                color: #888;
-                margin-bottom: 20px;
-            }
-            .container {
-                max-width: 1100px;
-                margin: 40px auto;
-                padding: 0 20px;
-            }
-            .intro-text {
-                text-align: center;
-                margin-bottom: 40px;
-            }
-            .intro-text p {
-                font-size: 1.1em;
-                line-height: 1.6;
-            }
-            .cards {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-                gap: 25px;
-            }
-            .card {
-                background: white;
-                border-radius: 8px;
-                padding: 25px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                display: flex;
-                flex-direction: column;
-                border-top: 1px solid #eee;
-            }
-            .card h2 {
-                font-size: 19px;
-                color: var(--aiesec-blue);
-                margin-top: 0;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            .card h2::before {
-                content: '◈';
-                font-size: 12px;
-            }
-            .card ul {
-                list-style: none;
-                padding: 0;
-                margin: 15px 0;
-            }
-            .card li {
-                margin: 8px 0;
-            }
-            .card a {
-                color: var(--text-color);
-                text-decoration: none;
-                font-size: 13px;
-                word-break: break-all;
-                padding: 10px;
-                border-radius: 6px;
-                display: block;
-                background: #fdfdfd;
-                border: 1px solid #f0f0f0;
-                transition: all 0.2s ease;
-            }
-            .card a:hover {
-                background: var(--aiesec-blue);
-                color: white;
-                transform: translateX(5px);
-                box-shadow: 2px 2px 8px rgba(3, 126, 243, 0.2);
-            }
-            .badge {
-                display: inline-block;
-                padding: 2px 8px;
-                background: var(--aiesec-blue);
-                color: white;
-                border-radius: 12px;
-                font-size: 10px;
-                text-transform: uppercase;
-                margin-bottom: 10px;
-            }
-            footer {
-                text-align: center;
-                padding: 60px 40px;
-                color: #aaa;
-                font-size: 0.9em;
-            }
-            .highlight { color: var(--aiesec-blue); font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <header>
-            <span class="logo">AIESEC API Gateway</span>
-            <div class="tagline">"Empowering young leaders through technology."</div>
-        </header>
-
-        <div class="container">
-            <div class="intro-text">
-                <h1>Seja bem-vindo, <span class="highlight">Leader Developer!</span></h1>
-                <p>Nossa API é o motor que conecta projetos nacionais da AIESEC no Brasil. <br>
-                Abaixo você encontra todas as interfaces de documentação técnica disponíveis.</p>
-            </div>
-
-            <div class="cards">
-                {% for categoria, links in rotas.items() %}
-                    <div class="card">
-                        <span class="badge">AIESEC Dev Tools</span>
-                        <h2>{{ categoria }}</h2>
-                        <p style="font-size: 0.85em; color: #888; margin-bottom: 15px;">Acesse e teste os recursos da V1.</p>
-                        <ul>
-                            {% for rota in links %}
-                                <li><a href="{{ rota }}">➔ {{ rota }}</a></li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <footer>
-            <strong>AIESEC no Brasil | Documentação do Código</strong><br>
-            Desenvolvido para causar impacto e conectar jovens ao redor do mundo. <br>
-            &copy; 2026 Todos os direitos reservados.
-        </footer>
-    </body>
-    </html>
-    """
-
-    # Processa e renderiza as variáveis do mapa de rotas dentro do template Jinja2
-    return render_template_string(template, rotas=rotas)
+    # Renderiza o template HTML externo com os links categorizados.
+    return render_template("docs.html", rotas=rotas)
 
 
+# ===============================================================================
+# DOCUMENTAÇÃO DA ROTA DE AUTORIZAÇÃO DE IP
+# ===============================================================================
+REGISTRO_DESCRIPTION: str = """\
+Registra na whitelist o IP informado em `X-Forwarded-For` ou, se ausente, o
+endereço remoto da conexão. Em seguida redireciona para `/api/docs`. Não recebe
+parâmetros nem corpo."""
+
+REGISTRO_RESPONSES: dict[int | str, Any] = {
+    308: {
+        "description": "Redirecionamento permanente para `/api/docs`.",
+        "headers": {
+            "Location": {
+                "description": "URL de destino do redirecionamento.",
+                "schema": {"type": "string"},
+            }
+        },
+    },
+    422: BaseErrorResponse,
+}
+
+
+# ===============================================================================
+# ROTA DE AUTORIZAÇÃO DE IP
+# ===============================================================================
 @api.get(
     "/register",
     summary="Autorizar IP e abrir a documentação",
     tags=[Tag(name="Documentação")],
-    description=(
-        "Registra na whitelist o IP informado em `X-Forwarded-For` ou, se "
-        "ausente, o endereço remoto da conexão. Em seguida redireciona para "
-        "`/api/docs`. Não recebe parâmetros nem corpo."
-    ),
-    responses={
-        308: {
-            "description": "Redirecionamento permanente para `/api/docs`.",
-            "headers": {
-                "Location": {
-                    "description": "URL de destino do redirecionamento.",
-                    "schema": {"type": "string"},
-                }
-            },
-        },
-        422: BaseErrorResponse,
-    },
+    description=REGISTRO_DESCRIPTION,
+    responses=REGISTRO_RESPONSES,
 )
 def registro() -> tuple[Response, int]:
     """Autoriza o IP cliente e redireciona na rota `/api/register`."""

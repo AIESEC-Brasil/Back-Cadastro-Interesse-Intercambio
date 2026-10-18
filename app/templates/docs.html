@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>API Documentation | AIESEC Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/api-docs.css') }}">
+  </head>
+  <body>
+    <header>
+      <span class="logo">AIESEC API Gateway</span>
+      <div class="tagline">"Empowering young leaders through technology."</div>
+    </header>
+
+    <main class="container">
+      <section class="intro-text">
+        <h1>Seja bem-vindo, <span class="highlight">Leader Developer!</span></h1>
+        <p>
+          Nossa API é o motor que conecta projetos nacionais da AIESEC no Brasil.<br>
+          Abaixo você encontra todas as interfaces de documentação técnica disponíveis.
+        </p>
+      </section>
+
+      <section class="cards" aria-label="Interfaces de documentação">
+        {% for categoria, links in rotas.items() %}
+          <article class="card">
+            <span class="badge">AIESEC Dev Tools</span>
+            <h2>{{ categoria }}</h2>
+            <p class="card-description">Acesse e teste os recursos da V1.</p>
+            <ul>
+              {% for rota in links %}
+                <li><a href="{{ rota }}">➔ {{ rota }}</a></li>
+              {% endfor %}
+            </ul>
+          </article>
+        {% endfor %}
+      </section>
+    </main>
+
+    <footer>
+      <strong>AIESEC no Brasil | Documentação do Código</strong><br>
+      Desenvolvido para causar impacto e conectar jovens ao redor do mundo.<br>
+      &copy; 2026 Todos os direitos reservados.
+    </footer>
+  </body>
+</html>

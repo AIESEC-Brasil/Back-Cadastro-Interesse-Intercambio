@@ -21,7 +21,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 # DOCUMENTAÇÃO DA ROTA DE METADADOS
 # ==============================================================================
 METADADOS_DESCRIPTION: str = """\
-Não recebe parâmetros nem corpo. Usa o cache válido ou consulta a origem \
+Usa o cache válido ou consulta a origem \
 quando ele está ausente ou expirado. Preserva todos os campos do Apps Script \
 e remove opções explicitamente inativas.
 
