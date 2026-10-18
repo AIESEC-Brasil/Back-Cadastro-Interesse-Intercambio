@@ -21,5 +21,11 @@ def buscar_metadados():
     response.headers["Content-Type"] = "application/json"
     return response, status
 
+@new_lead_ogx.post(
+    "/cadastro",
+    responses={201: Metadados},
+)
+def cadastro_lead():
+    pass
 
 __all__ = ["new_lead_ogx"]
