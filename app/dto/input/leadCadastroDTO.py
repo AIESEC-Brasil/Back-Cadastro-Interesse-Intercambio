@@ -1,10 +1,11 @@
 """DTOs de entrada para pré-cadastro e criação de leads."""
 
 from pydantic import ConfigDict, Field
+from typing import TypeAlias
 
 from ..base import LeadPreCadastroBase
 
-LeadPreCadastroInput = LeadPreCadastroBase
+LeadPreCadastroInput: TypeAlias = LeadPreCadastroBase
 
 
 class CriarPreCadastroLead(LeadPreCadastroInput):

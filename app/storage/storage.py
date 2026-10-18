@@ -19,7 +19,7 @@ from app.dto.output import HttpStatus  # Constantes de status HTTP da aplicaçã
 # =================================================================
 
 # Instanciação do logger no nível do módulo (ex: 'app.core.storage')
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 # =================================================================
@@ -91,7 +91,7 @@ class Storage:
 # =================================================================
 
 # Objeto global compartilhado entre diferentes middlewares e rotas
-storage = Storage()
+storage: Storage = Storage()
 
 
 # =================================================================

@@ -6,12 +6,12 @@ from app.config import APPSCRIPT_B2C
 from .http_request import HttpClient
 
 
-_http = HttpClient(timeout=60)
+_http: HttpClient = HttpClient(timeout=60)
 
 
 def _endpoint() -> str:
     """Aceita tanto a URL publicada quanto o ID de implantação do script."""
-    endpoint = APPSCRIPT_B2C.strip()
+    endpoint: str = APPSCRIPT_B2C.strip()
     if endpoint.startswith(("https://", "http://")):
         return endpoint
     return f"https://script.google.com/macros/s/{endpoint}/exec"

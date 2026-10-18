@@ -42,7 +42,10 @@ class AppError(Exception):
             type=type,
             message=message,
             status_code=status_code,
-            error_details=error_details or [],
+            error_details=[
+                ErrorDetail.model_validate(detail)
+                for detail in (error_details or [])
+            ],
         )
         super().__init__(message)
 
@@ -59,15 +62,15 @@ class ValidationErrorResponse(BaseErrorResponse):
         seen: set[tuple[str, str]] = set()
 
         for error in exception.errors():
-            location = " -> ".join(str(part) for part in error["loc"])
-            original_message = error["msg"]
-            key = (location, original_message)
+            location: str = " -> ".join(str(part) for part in error["loc"])
+            original_message: str = error["msg"]
+            key: tuple[str, str] = (location, original_message)
             if key in seen:
                 continue
             seen.add(key)
 
             try:
-                message = GoogleTranslator(source="auto", target="pt").translate(
+                message: str = GoogleTranslator(source="auto", target="pt").translate(
                     original_message
                 )
             except Exception:

@@ -14,13 +14,13 @@ from ..dto import HttpStatus, ValidationErrorResponse
 from ..dto.output.metadadosDTO import Metadados
 from ..router import Router
 
-new_lead_ogx = Router(name="metadados_b2c", url_prefix="/new-lead-ogx")
-logger = logging.getLogger(__name__)
+new_lead_ogx: Router = Router(name="metadados_b2c", url_prefix="/new-lead-ogx")
+logger: logging.Logger = logging.getLogger(__name__)
 
 # ==============================================================================
 # DOCUMENTAÇÃO DA ROTA DE METADADOS
 # ==============================================================================
-METADADOS_DESCRIPTION = """\
+METADADOS_DESCRIPTION: str = """\
 Não recebe parâmetros nem corpo. Usa o cache válido ou consulta a origem \
 quando ele está ausente ou expirado. Preserva todos os campos do Apps Script \
 e remove opções explicitamente inativas.
@@ -58,6 +58,8 @@ METADADOS_RESPONSES: dict[int | str, Any] = {
 def buscar_metadados() -> tuple[dict[str, Any], int]:
     """Busca os metadados do formulário B2C para a rota `/new-lead-ogx/metadados`."""
     logger.info("Requisição recebida para buscar metadados B2C")
+    payload: Any
+    status: int
     payload, status = async_to_sync(cache.get_or_set)(
         key="metadados_b2c",
         fetch=enviar_metadados_b2c,
@@ -65,7 +67,7 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
     )
     if status < 200 or status >= 300:
         try:
-            status_name = HttpStatus(status).name
+            status_name: str = HttpStatus(status).name
         except ValueError:
             status_name = "UNKNOWN"
         logger.error(
@@ -75,7 +77,7 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
     else:
         logger.info("Metadados B2C retornados com sucesso")
 
-    cache_entry = cache.store.get("metadados_b2c")
+    cache_entry: dict[str, Any] | None = cache.store.get("metadados_b2c")
     if cache_entry is None:
         logger.error(
             "Metadados B2C não foram armazenados no cache | HTTP %s %s",
@@ -84,10 +86,10 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
         )
         return {"error": "Metadados B2C indisponíveis."}, HttpStatus.BAD_GATEWAY
 
-    timestamp = datetime.fromtimestamp(
+    timestamp: datetime = datetime.fromtimestamp(
         cache_entry["timestamp"], ZoneInfo("America/Sao_Paulo")
     )
-    metadata = Metadados.model_validate(
+    metadata: dict[str, Any] = Metadados.model_validate(
         {**payload, "timestamp": timestamp}
     ).model_dump(mode="json")
     return metadata, status
@@ -95,7 +97,7 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
 # ==============================================================================
 # DOCUMENTAÇÃO DA ROTA DE CADASTRO
 # ==============================================================================
-CADASTRO_DESCRIPTION = """\
+CADASTRO_DESCRIPTION: str = """\
 Rota reservada para o cadastro de leads. Ainda não recebe nem valida dados \
 e não cria cadastros."""
 

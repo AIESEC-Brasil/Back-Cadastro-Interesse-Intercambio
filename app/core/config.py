@@ -1,14 +1,15 @@
 """Flags do ambiente de execução do servidor."""
 
 import logging
+from typing import Any
 
 from ..config import AMBIENTE, DOMINIOS_PERMITIDOS
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
-IS_DEV = AMBIENTE in {"DEV", "DEVELOPMENT"}
-IS_TEST = AMBIENTE in {"TEST", "TESTING"}
-IS_PRODUCTION = AMBIENTE in {"PROD", "PRODUCTION"}
+IS_DEV: bool = AMBIENTE in {"DEV", "DEVELOPMENT"}
+IS_TEST: bool = AMBIENTE in {"TEST", "TESTING"}
+IS_PRODUCTION: bool = AMBIENTE in {"PROD", "PRODUCTION"}
 
 
 async def pre_carregamento_metadados() -> bool:
@@ -17,6 +18,8 @@ async def pre_carregamento_metadados() -> bool:
     from ..clients.b2c import enviar_metadados_b2c
 
     logger.info("Iniciando pré-carregamento dos metadados B2C")
+    payload: Any
+    status: int
     payload, status = await cache.get_or_set(
         key="metadados_b2c",
         fetch=enviar_metadados_b2c,
@@ -29,8 +32,8 @@ async def pre_carregamento_metadados() -> bool:
         )
         return False
 
-    data = payload.get("data", {}) if isinstance(payload, dict) else {}
-    fields = data.get("fields", []) if isinstance(data, dict) else []
+    data: Any = payload.get("data", {}) if isinstance(payload, dict) else {}
+    fields: list[Any] = data.get("fields", []) if isinstance(data, dict) else []
     logger.info("Pré-carregamento concluído: %s campos em cache", len(fields))
     return True
 

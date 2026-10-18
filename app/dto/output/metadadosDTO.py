@@ -52,11 +52,11 @@ class Metadados(BaseModel):
         if isinstance(valor, str):
             return valor
         valor = valor.astimezone(ZoneInfo("America/Sao_Paulo"))
-        dias = (
+        dias: tuple[str, ...] = (
             "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
             "sexta-feira", "sábado", "domingo",
         )
-        meses = (
+        meses: tuple[str, ...] = (
             "janeiro", "fevereiro", "março", "abril", "maio", "junho",
             "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
         )

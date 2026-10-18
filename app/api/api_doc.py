@@ -14,7 +14,8 @@ interfaces dinâmicas de documentação técnica (OpenAPI/Swagger/Scalar).
 import os
 
 # Importações do framework Flask para renderização de templates e gerenciamento de requisições
-from flask import Response, redirect, render_template_string, request
+from flask import redirect, render_template_string, request
+from werkzeug.wrappers import Response
 from flask_openapi3 import Tag
 
 # ==============================================================================
@@ -38,7 +39,7 @@ from ..storage import storage
 # ==============================================================================
 
 # Instancia o roteador principal configurando o prefixo global de URL '/api'
-api = Router(name="api", url_prefix="/api")
+api: Router = Router(name="api", url_prefix="/api")
 
 
 # ==============================================================================
@@ -69,7 +70,7 @@ api = Router(name="api", url_prefix="/api")
 def documentacao() -> str:
     """Renderiza o portal de documentação da rota `/api/docs`."""
     # Mapeamento categorizado das rotas de documentação técnica expostas pelo Gateway
-    rotas = {
+    rotas: dict[str, list[str]] = {
         "Swagger & OAuth": [
             "/openapi/swagger",
             "/openapi/swagger/<path:filename>",
@@ -100,7 +101,7 @@ def documentacao() -> str:
     }
 
     # Template HTML inline otimizado estilizado com o design system da AIESEC
-    template = """
+    template: str = """
     <!DOCTYPE html>
     <html lang="pt-br">
     <head>
@@ -293,13 +294,15 @@ def documentacao() -> str:
 def registro() -> tuple[Response, int]:
     """Autoriza o IP cliente e redireciona na rota `/api/register`."""
     # Extrai o IP considerando proxies/load balancers ou pega o IP direto do cliente
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    client_ip: str = (
+        request.headers.get("X-Forwarded-For") or request.remote_addr or ""
+    )
 
     # Registra o IP capturado no banco/memória de autorização
     storage.add_ip(client_ip)
 
     # Redireciona o usuário de forma permanente para o portal de documentação
-    return redirect("/api/docs"), HttpStatus.PERMANENT_REDIRECT
+    return redirect("/api/docs"), int(HttpStatus.PERMANENT_REDIRECT)
 
 
 # ==============================================================================

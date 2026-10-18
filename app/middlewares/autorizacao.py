@@ -40,22 +40,24 @@ from ..storage import storage  # Armazenamento em memória de IP
 # =================================================================
 
 # Instância do Logger para rastreabilidade de tentativas de acesso
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 # ROTAS_PUBLICAS: Recursos estáticos que não exigem validação de segurança.
-ROTAS_PUBLICAS = {"/favicon.ico"}
+ROTAS_PUBLICAS: set[str] = {"/favicon.ico"}
 
 # ROTAS_GRAFICAS: Endpoints que renderizam interfaces HTML para o usuário.
-ROTAS_GRAFICAS = {"/api/docs", "/api/register"}
+ROTAS_GRAFICAS: set[str] = {"/api/docs", "/api/register"}
 
 # ROTAS_RESTRITAS_IP: Estruturas que expõem especificações técnicas da API.
-ROTAS_RESTRITAS_IP = ("/apidoc", "/openapi", "/static")
+ROTAS_RESTRITAS_IP: tuple[str, ...] = ("/apidoc", "/openapi", "/static")
 
 
 def _registrar_bloqueio(motivo: str) -> None:
     """Registra tentativas barradas com status e dados básicos da requisição."""
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    client_ip = forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "-"
+    forwarded_for: str = request.headers.get("X-Forwarded-For", "")
+    client_ip: str = (
+        forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "-"
+    )
     logger.warning(
         "AIESEC Security | acesso não autorizado | HTTP %s %s | motivo=%s | "
         "método=%s | endpoint=%s | IP cliente=%s",
@@ -104,15 +106,17 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     if IS_PRODUCTION or IS_TEST:
         if request.path.startswith(ROTAS_RESTRITAS_IP):
             # Carrega a lista de IPs permitidos armazenada no storage
-            allow_ip_list = set(storage.get_ip())
+            allow_ip_list: set[str] = set(storage.get_ip())
 
             # Extrai o IP considerando proxies/load balancers intermediários
-            raw_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-            client_ip = raw_ip.split(",")[0].strip() if raw_ip else ""
+            raw_ip: str | None = request.headers.get(
+                "X-Forwarded-For", request.remote_addr
+            )
+            client_ip: str = raw_ip.split(",")[0].strip() if raw_ip else ""
 
             if client_ip not in allow_ip_list:
                 _registrar_bloqueio("IP fora da lista autorizada")
-                mensagem_erro = {
+                mensagem_erro: dict[str, str] = {
                     "erro": "Sua máquina não está autorizada a entrar nessa rota"
                 }
                 return jsonify(mensagem_erro), HttpStatus.UNAUTHORIZED

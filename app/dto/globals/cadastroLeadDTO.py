@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import IntEnum
+from typing import TypeAlias
 
 from pydantic import BaseModel, ConfigDict, PositiveInt
 
@@ -42,7 +43,7 @@ class ProdutoLead(BaseModel):
     id: PositiveInt
 
 
-DataNascimento = datetime
+DataNascimento: TypeAlias = datetime
 
 
 class Autorizacao(IntEnum):
@@ -52,7 +53,7 @@ class Autorizacao(IntEnum):
     SIM = 1
 
 
-Tag = str
+Tag: TypeAlias = str
 
 __all__ = [
     "Autorizacao",

@@ -13,7 +13,7 @@ import httpx
 from ..config import CACHE_TTL
 from ..dto import HttpStatus
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def _status_name(status: int) -> str:
@@ -35,16 +35,16 @@ class CacheManager:
 
     def _get_lock(self, key: str) -> asyncio.Lock:
         """Obtém o lock da chave no event loop atualmente em execução."""
-        loop = asyncio.get_running_loop()
+        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         with self._locks_guard:
-            loop_locks = self._locks.setdefault(loop, {})
+            loop_locks: dict[str, asyncio.Lock] = self._locks.setdefault(loop, {})
             if key not in loop_locks:
                 loop_locks[key] = asyncio.Lock()
             return loop_locks[key]
 
     def _get_valid_entry(self, key: str, ttl: int) -> dict[str, Any] | None:
         """Retorna a entrada se ela existir e ainda estiver dentro do TTL."""
-        cached = self.store.get(key)
+        cached: dict[str, Any] | None = self.store.get(key)
         if cached and time.time() - cached["timestamp"] < ttl:
             return cached
         return None
@@ -59,22 +59,24 @@ class CacheManager:
         if not isinstance(payload, dict):
             return None
 
-        root = copy.deepcopy(payload)
-        data = root.get("data", root)
+        root: dict[str, Any] = copy.deepcopy(payload)
+        data: Any = root.get("data", root)
         if not isinstance(data, dict) or not isinstance(data.get("fields"), list):
             return None
 
-        fields = []
+        fields: list[dict[str, Any]] = []
         for field in data["fields"]:
             if not isinstance(field, dict):
                 continue
-            config = field.get("config")
+            config: Any = field.get("config")
             if not isinstance(config, dict):
                 config = {}
-            settings = config.get("settings")
+            settings: Any = config.get("settings")
             if not isinstance(settings, dict):
                 settings = {}
-            options = settings.get("options") or settings.get("possible_types") or []
+            options: Any = (
+                settings.get("options") or settings.get("possible_types") or []
+            )
             if not isinstance(options, list):
                 options = []
             settings["options"] = [
@@ -109,11 +111,11 @@ class CacheManager:
         Returns:
             Tupla com o payload e o código HTTP correspondente.
         """
-        ttl = CACHE_TTL if ttl is None else ttl
-        label = baixando or key
+        cache_ttl: int = CACHE_TTL if ttl is None else ttl
+        label: str = baixando or key
 
         if not resync:
-            cached = self._get_valid_entry(key, ttl)
+            cached: dict[str, Any] | None = self._get_valid_entry(key, cache_ttl)
             if cached:
                 logger.info("AIESEC Cache | HIT: '%s' recuperado da memória", label)
                 return cached["data"], 200
@@ -128,16 +130,16 @@ class CacheManager:
             # Confere novamente após aguardar o lock: outra requisição pode ter
             # preenchido o cache enquanto esta aguardava.
             if not resync:
-                cached = self._get_valid_entry(key, ttl)
+                cached = self._get_valid_entry(key, cache_ttl)
                 if cached:
                     logger.info("AIESEC Cache | HIT pós-lock: '%s'", label)
                     return cached["data"], 200
 
-            action = "FORCED RESYNC" if resync else "MISS"
+            action: str = "FORCED RESYNC" if resync else "MISS"
             logger.info("AIESEC Cache | %s: buscando '%s'", action, label)
 
             try:
-                result = fetch()
+                result: Any = fetch()
                 if inspect.isawaitable(result):
                     result = await result
             except (TimeoutError, httpx.TimeoutException):
@@ -163,6 +165,8 @@ class CacheManager:
                     HttpStatus.BAD_GATEWAY,
                 )
 
+            status: int
+            payload: Any
             if (
                 isinstance(result, tuple)
                 and len(result) == 2
@@ -173,7 +177,9 @@ class CacheManager:
                 status, payload = 200, result
 
             if not 200 <= status < 300:
-                log = logger.error if status >= 500 else logger.warning
+                log: Callable[..., None] = (
+                    logger.error if status >= 500 else logger.warning
+                )
                 log(
                     "AIESEC Cache | busca de '%s' falhou | HTTP %s %s",
                     label,
@@ -182,7 +188,7 @@ class CacheManager:
                 )
                 return payload, status
 
-            data = self._normalize(payload)
+            data: dict[str, Any] | None = self._normalize(payload)
             if data is None:
                 logger.error(
                     "AIESEC Cache | payload inválido para '%s' | HTTP %s %s",
@@ -200,6 +206,6 @@ class CacheManager:
             return data, status
 
 
-cache = CacheManager()
+cache: CacheManager = CacheManager()
 
 __all__ = ["cache", "CacheManager"]

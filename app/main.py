@@ -30,7 +30,7 @@ def create_app() -> OpenAPI:
         Instância Flask/OpenAPI pronta para ser servida pelo servidor WSGI.
     """
     setup_logging(debug=IS_DEV)
-    app = OpenAPI(
+    app: OpenAPI = OpenAPI(
         __name__,
         info=Info(title="Metadados B2C", version="1.0.0"),
         validation_error_status=422,
@@ -56,7 +56,9 @@ def create_app() -> OpenAPI:
 
     # O Werkzeug inicia a aplicação duas vezes ao usar o reloader em DEV.
     # Pré-carrega apenas no processo filho que realmente atende as requisições.
-    reloader_active = os.environ.get("WERKZEUG_RUN_MAIN", "").lower() == "true"
+    reloader_active: bool = (
+        os.environ.get("WERKZEUG_RUN_MAIN", "").lower() == "true"
+    )
     if not IS_DEV or reloader_active:
         try:
             async_to_sync(pre_carregamento_metadados)()

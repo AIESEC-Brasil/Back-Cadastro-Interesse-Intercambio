@@ -15,7 +15,7 @@ import os  # Utilitário para manipulação do sistema operacional e caminhos de
 from dotenv import load_dotenv  # Biblioteca para carregar variáveis de ambiente de arquivos .env
 
 # Localiza o caminho absoluto do diretório onde este script está sendo executado
-path_atual = os.path.dirname(os.path.abspath(__file__))
+path_atual: str = os.path.dirname(os.path.abspath(__file__))
 
 # Concatena o caminho absoluto com o arquivo '.env.dev' e injeta as variáveis no os.environ
 load_dotenv(os.path.join(path_atual, ".env.dev"))

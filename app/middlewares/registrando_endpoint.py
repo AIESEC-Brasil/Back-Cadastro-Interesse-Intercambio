@@ -2,15 +2,16 @@
 
 import logging
 from time import perf_counter
+from typing import Callable
 
 from flask import Response, render_template, request
 
 from ..dto import HttpStatus
 
-logger = logging.getLogger(__name__)
-error_logger = logging.getLogger("app.http.errors")
+logger: logging.Logger = logging.getLogger(__name__)
+error_logger: logging.Logger = logging.getLogger("app.http.errors")
 
-NO_CACHE_ROUTES = {
+NO_CACHE_ROUTES: set[str] = {
     "/api/docs",
     "/openapi",
     "/openapi/scalar",
@@ -22,7 +23,7 @@ NO_CACHE_ROUTES = {
     "/apidoc/openapi.json",
 }
 
-NO_CACHE_PREFIXES = (
+NO_CACHE_PREFIXES: tuple[str, ...] = (
     "/static/",
     "/openapi/swagger",
     "/apidoc/swagger",
@@ -31,9 +32,9 @@ NO_CACHE_PREFIXES = (
     "/openapi/scalar/",
 )
 
-IGNORED_ERROR_PATHS = {"/favicon.ico"}
+IGNORED_ERROR_PATHS: set[str] = {"/favicon.ico"}
 
-ERROR_MESSAGES = {
+ERROR_MESSAGES: dict[int, str] = {
     HttpStatus.BAD_REQUEST: "A solicitação não pôde ser entendida pelo servidor.",
     HttpStatus.UNAUTHORIZED: "Você não tem autorização para acessar este recurso.",
     HttpStatus.FORBIDDEN: "O acesso a este recurso foi bloqueado.",
@@ -50,7 +51,7 @@ ERROR_MESSAGES = {
 }
 
 
-REQUEST_STARTED_AT = "app.request_started_at"
+REQUEST_STARTED_AT: str = "app.request_started_at"
 
 
 def capture_request_start() -> None:
@@ -60,11 +61,13 @@ def capture_request_start() -> None:
 
 def register_url(response: Response) -> Response:
     """Registra os dados de acesso e define a política de cache da resposta."""
-    started_at = request.environ.get(REQUEST_STARTED_AT, perf_counter())
-    duration_ms = (perf_counter() - started_at) * 1000
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    client_ip = forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "-"
-    peer_ip = request.remote_addr or "-"
+    started_at: float = request.environ.get(REQUEST_STARTED_AT, perf_counter())
+    duration_ms: float = (perf_counter() - started_at) * 1000
+    forwarded_for: str = request.headers.get("X-Forwarded-For", "")
+    client_ip: str = (
+        forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "-"
+    )
+    peer_ip: str = request.remote_addr or "-"
 
     if request.path not in IGNORED_ERROR_PATHS:
         logger.info(
@@ -86,11 +89,15 @@ def register_url(response: Response) -> Response:
         and request.path not in IGNORED_ERROR_PATHS
     ):
         try:
-            status_name = HttpStatus(response.status_code).name
+            status_name: str = HttpStatus(response.status_code).name
         except ValueError:
             status_name = "HTTP_ERROR"
 
-        log_error = error_logger.error if response.status_code >= 500 else error_logger.warning
+        log_error: Callable[..., None] = (
+            error_logger.error
+            if response.status_code >= 500
+            else error_logger.warning
+        )
         log_error(
             "Requisição HTTP rejeitada | HTTP %s %s | método=%s | endpoint=%s | "
             "IP cliente=%s",
@@ -101,7 +108,7 @@ def register_url(response: Response) -> Response:
             client_ip,
         )
 
-        message = ERROR_MESSAGES.get(
+        message: str = ERROR_MESSAGES.get(
             response.status_code,
             "Ocorreu um erro ao processar sua solicitação.",
         )

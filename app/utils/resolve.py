@@ -14,14 +14,14 @@ def resolve_exception(exception: Exception) -> BaseErrorResponse:
     if isinstance(exception, ValidationError):
         return ValidationErrorResponse.from_exception(exception)
     if isinstance(exception, HTTPException):
-        code = exception.code or HttpStatus.INTERNAL_SERVER_ERROR.value
+        code: int = exception.code or HttpStatus.INTERNAL_SERVER_ERROR.value
         try:
-            status_code = HttpStatus(code)
+            status_code: HttpStatus = HttpStatus(code)
         except ValueError:
             status_code = HttpStatus.INTERNAL_SERVER_ERROR
         return BaseErrorResponse(
             type=exception.__class__.__name__,
-            message=exception.description,
+            message=exception.description or "Ocorreu um erro HTTP.",
             status_code=status_code,
         )
     return BaseErrorResponse(

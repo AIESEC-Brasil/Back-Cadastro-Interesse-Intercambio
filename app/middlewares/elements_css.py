@@ -5,7 +5,7 @@ from flask import Response, request
 
 def injetar_css_no_elements(response: Response) -> Response:
     if "/openapi/elements" in request.path and response.mimetype == "text/html":
-        script_injecao = b"""
+        script_injecao: bytes = b"""
         <script>
           window.addEventListener("DOMContentLoaded", () => {
             const ajustarAbasDeResposta = () => {

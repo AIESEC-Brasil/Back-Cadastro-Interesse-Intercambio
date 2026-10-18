@@ -10,10 +10,12 @@ from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from zoneinfo import ZoneInfo
 
-LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs"))
-TIMEZONE = ZoneInfo("America/Sao_Paulo")
-LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-DATE_FORMAT = "%d/%m/%Y %H:%M:%S"
+LOG_DIR: str = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "logs")
+)
+TIMEZONE: ZoneInfo = ZoneInfo("America/Sao_Paulo")
+LOG_FORMAT: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+DATE_FORMAT: str = "%d/%m/%Y %H:%M:%S"
 
 _file_handler: FlushHandler | None = None
 _console_handler: logging.StreamHandler | None = None
@@ -28,9 +30,10 @@ class FlushHandler(TimedRotatingFileHandler):
         self.flush()
 
 
-def _brasil_timestamp(seconds: float) -> time.struct_time:
+def _brasil_timestamp(seconds: float | None) -> time.struct_time:
     """Converte o horário do registro para o fuso nacional de São Paulo."""
-    return datetime.fromtimestamp(seconds, TIMEZONE).timetuple()
+    timestamp: float = time.time() if seconds is None else seconds
+    return datetime.fromtimestamp(timestamp, TIMEZONE).timetuple()
 
 
 def _get_file_handler(formatter: logging.Formatter) -> FlushHandler:
@@ -62,13 +65,13 @@ def setup_logging(debug: bool = False) -> None:
     """Grava logs da aplicação no arquivo e amplia a saída no modo debug."""
     os.makedirs(LOG_DIR, exist_ok=True)
 
-    formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+    formatter: logging.Formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
     formatter.converter = _brasil_timestamp
 
-    file_handler = _get_file_handler(formatter)
-    console_handler = _get_console_handler(formatter)
+    file_handler: FlushHandler = _get_file_handler(formatter)
+    console_handler: logging.StreamHandler = _get_console_handler(formatter)
 
-    app_logger = logging.getLogger("app")
+    app_logger: logging.Logger = logging.getLogger("app")
     app_logger.setLevel(logging.DEBUG if debug else logging.INFO)
     app_logger.propagate = False
     if file_handler not in app_logger.handlers:
@@ -78,7 +81,9 @@ def setup_logging(debug: bool = False) -> None:
     elif not debug and console_handler in app_logger.handlers:
         app_logger.removeHandler(console_handler)
 
-    endpoint_logger = logging.getLogger("app.middlewares.registrando_endpoint")
+    endpoint_logger: logging.Logger = logging.getLogger(
+        "app.middlewares.registrando_endpoint"
+    )
     endpoint_logger.setLevel(logging.INFO)
     endpoint_logger.propagate = False
     if file_handler not in endpoint_logger.handlers:
@@ -86,13 +91,13 @@ def setup_logging(debug: bool = False) -> None:
     if console_handler in endpoint_logger.handlers:
         endpoint_logger.removeHandler(console_handler)
 
-    werkzeug_logger = logging.getLogger("werkzeug")
+    werkzeug_logger: logging.Logger = logging.getLogger("werkzeug")
     werkzeug_logger.setLevel(logging.DEBUG if debug else logging.INFO)
     werkzeug_logger.propagate = False
     if console_handler not in werkzeug_logger.handlers:
         werkzeug_logger.addHandler(console_handler)
 
-    warnings_logger = logging.getLogger("py.warnings")
+    warnings_logger: logging.Logger = logging.getLogger("py.warnings")
     warnings_logger.setLevel(logging.WARNING)
     warnings_logger.propagate = False
     if file_handler not in warnings_logger.handlers:

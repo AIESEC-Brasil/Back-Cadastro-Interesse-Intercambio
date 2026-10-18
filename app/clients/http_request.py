@@ -23,7 +23,7 @@ from urllib.parse import urlencode  # Utilitário para formatação segura de pa
 import httpx  # Cliente HTTP assíncrono de alto desempenho
 
 # Instancia o logger específico para o módulo de infraestrutura de rede
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 # =================================================================
@@ -42,8 +42,9 @@ def _force_sync_close_client(client: httpx.AsyncClient) -> None:
     """
     try:
         # Verifica se o cliente possui um transportador de rede ativo antes de fechar
-        if hasattr(client, "_transport") and client.transport is not None:
-            client.transport.close()
+        transport: Any = getattr(client, "_transport", None)
+        if transport is not None:
+            transport.close()
             logger.debug("Transportador do cliente antigo fechado com sucesso de forma síncrona.")
     except Exception as e:
         logger.debug(f"Falha ao tentar fechar o transportador do cliente antigo de forma síncrona: {e}")
@@ -125,7 +126,7 @@ class HttpClient:
         """
         # Identifica ou inicializa o Event Loop em execução na thread corrente
         try:
-            loop_atual = asyncio.get_running_loop()
+            loop_atual: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         except RuntimeError:
             loop_atual = asyncio.new_event_loop()
             asyncio.set_event_loop(loop_atual)
@@ -192,12 +193,12 @@ class HttpClient:
         Returns:
             httpx.Timeout: Objeto contendo os limites configurados para cada etapa da requisição.
         """
-        t = self.timeout
+        t: Optional[float] = self.timeout
         self._timeout_override = None  # Reseta a substituição temporária para chamadas futuras
 
         # Aplica o timeout personalizado se configurado
         if t is not None:
-            connect_timeout = min(10.0, t)  # Mantém o limite de conexão razoável
+            connect_timeout: float = min(10.0, t)  # Mantém o limite de conexão razoável
             return httpx.Timeout(timeout=t, connect=connect_timeout, read=t)
 
         # Timeout padrão de infraestrutura para requisições convencionais
@@ -227,21 +228,21 @@ class HttpClient:
             str: URL absoluta montada.
         """
         if self._base_url:
-            parts = [self._base_url.rstrip("/")]
+            parts: list[str] = [self._base_url.rstrip("/")]
 
             # Inclui o prefixo caso configurado na classe
             if self._prefix:
-                clean_prefix = self._prefix.strip("/")
+                clean_prefix: str = self._prefix.strip("/")
                 if clean_prefix:
                     parts.append(clean_prefix)
 
             # Inclui o caminho específico da requisição
             if path:
-                clean_path = path.strip("/")
+                clean_path: str = path.strip("/")
                 if clean_path:
                     parts.append(clean_path)
 
-            url = "/".join(parts)
+            url: str = "/".join(parts)
 
             # Anexa os parâmetros de busca formatados (?chave=valor&...)
             if params:
@@ -296,12 +297,12 @@ class HttpClient:
                 "Accept": "application/json",
             }
 
-        timeout = self._consume_timeout()
-        url = self._build_url(path, params)
-        client = self._client
+        timeout: httpx.Timeout = self._consume_timeout()
+        url: str = self._build_url(path, params)
+        client: Optional[httpx.AsyncClient] = self._client
 
         assert client is not None
-        response = await client.get(
+        response: httpx.Response = await client.get(
             url,
             headers=headers,
             timeout=timeout,
@@ -336,9 +337,9 @@ class HttpClient:
         Returns:
             Tuple[int, Any]: Tupla contendo o status HTTP e a resposta decodificada.
         """
-        timeout = self._consume_timeout()
-        url = self._build_url(path, params)
-        client = self._client
+        timeout: httpx.Timeout = self._consume_timeout()
+        url: str = self._build_url(path, params)
+        client: Optional[httpx.AsyncClient] = self._client
 
         assert client is not None
 
@@ -346,7 +347,7 @@ class HttpClient:
         # CASO 1: UPLOAD DE ARQUIVOS (MULTIPART / FORM-DATA)
         # -------------------------------------------------------------
         if files is not None:
-            headers_req = headers.copy() if headers else {}
+            headers_req: Dict[str, str] = headers.copy() if headers else {}
 
             # O HTTPX gera automaticamente o cabeçalho 'Content-Type: multipart/form-data; boundary=...'
             # Removemos qualquer 'Content-Type: application/json' manual para evitar conflitos na API remota.
@@ -357,7 +358,7 @@ class HttpClient:
             if "Accept" not in headers_req:
                 headers_req["Accept"] = "application/json"
 
-            response = await client.post(
+            response: httpx.Response = await client.post(
                 url,
                 data=payload,
                 files=files,
@@ -424,12 +425,12 @@ class HttpClient:
                 "Accept": "application/json",
             }
 
-        timeout = self._consume_timeout()
-        url = self._build_url(path, params)
-        client = self._client
+        timeout: httpx.Timeout = self._consume_timeout()
+        url: str = self._build_url(path, params)
+        client: Optional[httpx.AsyncClient] = self._client
 
         assert client is not None
-        response = await client.put(
+        response: httpx.Response = await client.put(
             url,
             json=payload,
             headers=headers,
@@ -462,12 +463,12 @@ class HttpClient:
                 "Accept": "application/json",
             }
 
-        timeout = self._consume_timeout()
-        url = self._build_url(path, params)
-        client = self._client
+        timeout: httpx.Timeout = self._consume_timeout()
+        url: str = self._build_url(path, params)
+        client: Optional[httpx.AsyncClient] = self._client
 
         assert client is not None
-        response = await client.patch(
+        response: httpx.Response = await client.patch(
             url,
             json=payload,
             headers=headers,
@@ -498,12 +499,12 @@ class HttpClient:
                 "Accept": "application/json",
             }
 
-        timeout = self._consume_timeout()
-        url = self._build_url(path, params)
-        client = self._client
+        timeout: httpx.Timeout = self._consume_timeout()
+        url: str = self._build_url(path, params)
+        client: Optional[httpx.AsyncClient] = self._client
 
         assert client is not None
-        response = await client.delete(
+        response: httpx.Response = await client.delete(
             url,
             headers=headers,
             timeout=timeout,
@@ -511,7 +512,7 @@ class HttpClient:
         )
         return self._handle_response(response)
 
-    def clone(self, **kwargs) -> "HttpClient":
+    def clone(self, **kwargs: Any) -> "HttpClient":
         """Clona a instância atual do cliente preservando ou alterando parâmetros base.
 
         Útil para criar sub-clientes que compartilham as configurações gerais, mas alteram
@@ -523,9 +524,9 @@ class HttpClient:
         Returns:
             HttpClient: Uma nova instância configurada.
         """
-        new_prefix = kwargs.get("prefix", self._prefix)
+        new_prefix: str = kwargs.get("prefix", self._prefix)
 
-        client = HttpClient(
+        client: HttpClient = HttpClient(
             base_url=kwargs.get("base_url", self._base_url),
             prefix=new_prefix,
             timeout=kwargs.get("timeout", self._timeout_base),
