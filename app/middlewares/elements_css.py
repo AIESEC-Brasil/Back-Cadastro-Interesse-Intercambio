@@ -4,6 +4,17 @@ from flask import Response, request
 
 
 def injetar_css_no_elements(response: Response) -> Response:
+    """Ajusta a disposição das abas de resposta na página Elements.
+
+    O script só é inserido na interface HTML do Elements; os demais tipos de
+    resposta e endpoints permanecem inalterados.
+
+    Args:
+        response: Resposta Flask devolvida pela rota atual.
+
+    Returns:
+        A resposta recebida, com o script de layout quando aplicável.
+    """
     if "/openapi/elements" in request.path and response.mimetype == "text/html":
         script_injecao: bytes = b"""
         <script>

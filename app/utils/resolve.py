@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from werkzeug.exceptions import HTTPException
 
 from ..dto import HttpStatus
-from ..dto.exception import AppError, BaseErrorResponse, ValidationErrorResponse
+from ..dto import AppError, BaseErrorResponse, ValidationErrorResponse
 
 
 def resolve_exception(exception: Exception) -> BaseErrorResponse:

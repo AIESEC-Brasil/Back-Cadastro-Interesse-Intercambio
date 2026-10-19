@@ -1,15 +1,50 @@
 """Contratos de dados da aplicação, organizados por tipo de uso."""
 
-from . import base, globals, input, output, exception
+from . import base, common, exception, input, output
 from .base import LeadPreCadastroBase
+from .common import (
+    AreaAtuacao,
+    Autorizacao,
+    CategoriaContato,
+    Comite,
+    ContatoEmail,
+    ContatoTelefone,
+    DataNascimento,
+    EmailItem,
+    Idioma,
+    Meio,
+    NivelAtuacao,
+    Origem,
+    ProdutoLead,
+    Produto,
+    ReferenciaLead,
+    Senha,
+    SemestreCurso,
+    Tag,
+    TelefoneItem,
+    Universidade,
+)
 from .exception import AppError, BaseErrorResponse, ErrorDetail, ValidationErrorResponse
-from .globals import *
-from .input import CriarPreCadastroLead, LeadPreCadastroInput
-from .output import HttpStatus, Metadados
+from .input import (
+    AtualizarPreCadastroLead,
+    CriarPreCadastroLead,
+    LeadPreCadastroInput,
+    QualificacaoLead,
+    UploadItem,
+)
+from .output import (
+    ConflitoEmail,
+    ConflitoTelefone,
+    ConflitosLeadOutput,
+    HttpStatus,
+    LeadPreCadastroOutput,
+    Metadados,
+    RetornoGenerico,
+)
 
 __all__ = [
     "base",
-    "globals",
+    "common",
     "input",
     "output",
     "exception",
@@ -18,9 +53,36 @@ __all__ = [
     "HttpStatus",
     "LeadPreCadastroInput",
     "CriarPreCadastroLead",
+    "AtualizarPreCadastroLead",
+    "QualificacaoLead",
     "AppError",
     "BaseErrorResponse",
     "ErrorDetail",
     "ValidationErrorResponse",
-    *globals.__all__,
+    "Autorizacao",
+    "AreaAtuacao",
+    "CategoriaContato",
+    "Comite",
+    "ContatoEmail",
+    "ContatoTelefone",
+    "DataNascimento",
+    "EmailItem",
+    "Idioma",
+    "Meio",
+    "NivelAtuacao",
+    "Origem",
+    "ProdutoLead",
+    "Produto",
+    "ReferenciaLead",
+    "Senha",
+    "SemestreCurso",
+    "Tag",
+    "TelefoneItem",
+    "Universidade",
+    "UploadItem",
+    "LeadPreCadastroOutput",
+    "RetornoGenerico",
+    "ConflitoEmail",
+    "ConflitoTelefone",
+    "ConflitosLeadOutput",
 ]

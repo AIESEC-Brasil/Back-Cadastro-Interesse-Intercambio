@@ -1,5 +1,5 @@
 """Modelos base reutilizados pelos DTOs da aplicação."""
 
-from .leadCadastroBaseDTO import LeadPreCadastroBase
+from .lead import LeadPreCadastroBase
 
 __all__ = ["LeadPreCadastroBase"]

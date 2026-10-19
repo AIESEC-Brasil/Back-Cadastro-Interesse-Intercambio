@@ -6,7 +6,7 @@ from flask import Response, jsonify, make_response
 from flask_openapi3.utils import run_validate_response
 from pydantic import BaseModel, ValidationError
 
-from ..dto.exception import AppError, BaseErrorResponse
+from ..dto import AppError, BaseErrorResponse
 from .resolve import resolve_exception
 
 
@@ -24,13 +24,36 @@ def handle_app_error(exception: AppError) -> tuple[dict[str, Any], int]:
 
 
 def validate_api_response(response: Any, responses: dict[Any, Any] | None = None) -> Any:
-    """Valida respostas declaradas com DTOs e ignora metadados OpenAPI em dicionários."""
+    """Valida e serializa respostas declaradas com DTOs Pydantic."""
     response_models: dict[str | int, type[BaseModel] | dict[Any, Any] | None] = {
         status: model
         for status, model in (responses or {}).items()
         if isinstance(model, type) and issubclass(model, BaseModel)
     }
-    return run_validate_response(response, response_models)
+    run_validate_response(response, response_models)
+
+    payload: Any
+    status: Any
+    if isinstance(response, tuple):
+        payload, status = response[:2]
+    elif isinstance(response, Response):
+        # Flask Response já está serializada; a validação anterior ainda verifica
+        # respostas JSON declaradas sem alterar headers ou status.
+        return response
+    else:
+        payload, status = response, 200
+
+    status = getattr(status, "value", status)
+    response_model: type[BaseModel] | None = response_models.get(status)
+    if response_model is None:
+        return response
+
+    serialized: dict[str, Any] = response_model.model_validate(payload).model_dump(
+        mode="json", by_alias=True
+    )
+    if isinstance(response, tuple):
+        return (serialized, *response[1:])
+    return serialized
 
 
 __all__ = [

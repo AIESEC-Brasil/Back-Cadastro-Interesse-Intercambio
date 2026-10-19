@@ -6,15 +6,20 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from asgiref.sync import async_to_sync
-from flask_openapi3 import Tag
+from flask_openapi3 import APIView, Tag
 
 from ..cache import cache
 from ..clients.b2c import enviar_metadados_b2c
-from ..dto import HttpStatus, ValidationErrorResponse
-from ..dto.output.metadadosDTO import Metadados
+from ..dto import (
+    CriarPreCadastroLead,
+    HttpStatus,
+    QualificacaoLead,
+    ValidationErrorResponse,
+)
+from ..dto.output import LeadPreCadastroOutput, Metadados
 from ..router import Router
 
-new_lead_ogx: Router = Router(name="metadados_b2c", url_prefix="/new-lead-ogx")
+new_lead_ogx: Router = Router(name="cadatro_interesse_intercambio", url_prefix="/new-lead-ogx")
 logger: logging.Logger = logging.getLogger(__name__)
 
 # ==============================================================================
@@ -50,8 +55,8 @@ METADADOS_RESPONSES: dict[int | str, Any] = {
 # ==============================================================================
 @new_lead_ogx.get(
     "/metadados",
-    summary="Consultar metadados do formulário B2C",
-    tags=[Tag(name="New Lead OGX")],
+    summary="Consultar metadados do Banco para formulário B2C",
+    tags=[Tag(name="Metadados")],
     description=METADADOS_DESCRIPTION,
     responses=METADADOS_RESPONSES,
 )
@@ -89,20 +94,27 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
     timestamp: datetime = datetime.fromtimestamp(
         cache_entry["timestamp"], ZoneInfo("America/Sao_Paulo")
     )
-    metadata: dict[str, Any] = Metadados.model_validate(
-        {**payload, "timestamp": timestamp}
-    ).model_dump(mode="json")
+    metadata: dict[str, Any] = {**payload, "timestamp": timestamp}
     return metadata, status
 
 # ==============================================================================
-# DOCUMENTAÇÃO DA ROTA DE CADASTRO
+# DOCUMENTAÇÃO DAS OPERAÇÕES DE CADASTRO
 # ==============================================================================
-CADASTRO_DESCRIPTION: str = """\
-Rota reservada para o cadastro de leads. Ainda não recebe nem valida dados \
-e não cria cadastros."""
+CADASTRO_POST_DESCRIPTION: str = """\
+Recebe os dados da primeira etapa e cria o pré-cadastro do lead. Quando o
+registro for criado, retorna os dados salvos e o `id` gerado, sem devolver a
+senha enviada."""
 
-CADASTRO_RESPONSES: dict[int | str, Any] = {
-    200: {"description": "Rota reservada, ainda sem implementação."},
+CADASTRO_PUT_DESCRIPTION: str = """\
+Recebe os dados complementares da segunda etapa e atualiza o lead criado no
+pré-cadastro. A implementação da atualização ainda está pendente."""
+
+CADASTRO_POST_RESPONSES: dict[int | str, Any] = {
+    201: CriarPreCadastroLead,
+    501: {
+        "description": "A criação do pré-cadastro ainda não está implementada.",
+        "content": {"text/html": {"schema": {"type": "string"}}},
+    },
     422: ValidationErrorResponse,
     "default": {
         "description": "Erro HTTP exibido na página genérica de erro.",
@@ -110,18 +122,54 @@ CADASTRO_RESPONSES: dict[int | str, Any] = {
     },
 }
 
-# ==============================================================================
-# ROTA RESERVADA PARA CADASTRO DE LEADS
-# ==============================================================================
-@new_lead_ogx.post(
-    "/cadastro",
-    summary="Cadastrar lead de interesse",
-    tags=[Tag(name="New Lead OGX")],
-    description=CADASTRO_DESCRIPTION,
-    responses=CADASTRO_RESPONSES,
-)
-def cadastro_lead() -> None:
-    """Representa a rota `/new-lead-ogx/cadastro`, ainda reservada."""
-    pass
+CADASTRO_PUT_RESPONSES: dict[int | str, Any] = {
+    501: {
+        "description": "A atualização do cadastro ainda não está implementada.",
+        "content": {"text/html": {"schema": {"type": "string"}}},
+    },
+    422: ValidationErrorResponse,
+    "default": {
+        "description": "Erro HTTP exibido na página genérica de erro.",
+        "content": {"text/html": {"schema": {"type": "string"}}},
+    },
+}
 
-__all__ = ["new_lead_ogx"]
+
+# ==============================================================================
+# VIEW DE CADASTRO DE LEADS
+# ==============================================================================
+cadastro_lead_view: APIView = APIView(
+    view_tags=[Tag(name="New Lead OGX")],
+    url_prefix=new_lead_ogx.url_prefix,
+)
+
+
+@cadastro_lead_view.route("/cadastro")
+class CadastroLeadView:
+    """Agrupa a criação e a atualização do cadastro de leads."""
+
+    @cadastro_lead_view.doc(
+        summary="Criar pré-cadastro de lead",
+        description=CADASTRO_POST_DESCRIPTION,
+        responses=CADASTRO_POST_RESPONSES,
+    )
+    def post(self, body: CriarPreCadastroLead) -> tuple[CriarPreCadastroLead, int]:
+        """Recebe o payload da primeira etapa do cadastro."""
+        return body, HttpStatus.CREATED
+
+    @cadastro_lead_view.doc(
+        summary="Atualizar cadastro do lead",
+        description=CADASTRO_PUT_DESCRIPTION,
+        responses=CADASTRO_PUT_RESPONSES,
+    )
+    def put(
+        self, body: QualificacaoLead
+    ) -> tuple[dict[str, str], int]:
+        """Recebe dados complementares da segunda etapa do cadastro."""
+        return (
+            {"error": "A atualização do cadastro ainda não está implementada."},
+            int(HttpStatus.NOT_IMPLEMENTED),
+        )
+
+
+__all__ = ["cadastro_lead_view", "new_lead_ogx"]

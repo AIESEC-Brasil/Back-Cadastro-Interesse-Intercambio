@@ -38,6 +38,14 @@ class AppError(Exception):
         status_code: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY,
         error_details: list[dict[str, Any]] | None = None,
     ) -> None:
+        """Monta a resposta estruturada e inicializa a exceção base.
+
+        Args:
+            type: Categoria identificável do erro.
+            message: Mensagem apresentada ao cliente.
+            status_code: Status HTTP associado ao erro.
+            error_details: Detalhes opcionais sobre campos ou causas específicas.
+        """
         self.dto = BaseErrorResponse(
             type=type,
             message=message,

@@ -67,4 +67,10 @@ class Metadados(BaseModel):
         )
 
 
-__all__ = ["Metadados"]
+__all__ = [
+    "CampoMetadado",
+    "ConfiguracaoMetadado",
+    "ConfiguracoesCampo",
+    "DadosMetadados",
+    "Metadados",
+]
