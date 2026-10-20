@@ -22,6 +22,7 @@ def _env(name: str, default: str | None = None) -> str:
 AMBIENTE: str = _env("AMBIENTE", "PRODUCTION").upper()
 CACHE_TTL: int = int(_env("CACHE_TTL", "3600"))
 APPSCRIPT_B2C: str = _env("APPSCRIPT_B2C")
+APPSCRIPT_DIVISAO_MERCADO: str = _env("APPSCRIPT_DIVISAO_MERCADO")
 DOMINIOS_PERMITIDOS: list[str] = [
     domain.strip()
     for domain in _env("DOMINIOS_PERMITIDOS").split(",")
@@ -35,5 +36,6 @@ API_KEYS_PERMITIDAS: list[str] = [
 
 __all__ = [
     "AMBIENTE", "CACHE_TTL", "APPSCRIPT_B2C",
+    "APPSCRIPT_DIVISAO_MERCADO",
     "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
 ]

@@ -76,8 +76,8 @@ def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
     divisao: dict[str, Any] | None = None
     if dados.universidade:
         universidades: Any = cache.store.get(
-            "divisao-mercado-universidades", {}
-        ).get("data", [])
+            "metadados_universidades", {}
+        ).get("data", {}).get("dados", [])
         divisao = next(
             (
                 universidade
@@ -89,8 +89,8 @@ def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
         )
     elif dados.comite:
         escritorios: Any = cache.store.get(
-            "divisao-mercado-escritorios", {}
-        ).get("data", [])
+            "metadados_escritorios", {}
+        ).get("data", {}).get("dados", [])
         nome_comite: str = _normalizar_nome_escritorio(dados.comite.nome).title()
         divisao = next(
             (

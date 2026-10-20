@@ -61,35 +61,45 @@ class CacheManager:
 
         root: dict[str, Any] = copy.deepcopy(payload)
         data: Any = root.get("data", root)
-        if not isinstance(data, dict) or not isinstance(data.get("fields"), list):
-            return None
+        if isinstance(data, dict) and isinstance(data.get("fields"), list):
+            fields: list[dict[str, Any]] = []
+            for field in data["fields"]:
+                if not isinstance(field, dict):
+                    continue
+                config: Any = field.get("config")
+                if not isinstance(config, dict):
+                    config = {}
+                settings: Any = config.get("settings")
+                if not isinstance(settings, dict):
+                    settings = {}
+                options: Any = (
+                    settings.get("options") or settings.get("possible_types") or []
+                )
+                if not isinstance(options, list):
+                    options = []
+                settings["options"] = [
+                    option
+                    for option in options
+                    if not isinstance(option, dict)
+                    or option.get("status") in (None, "activate", "active")
+                ]
+                config["settings"] = settings
+                field["config"] = config
+                fields.append(field)
+            return {"data": {"fields": fields}}
 
-        fields: list[dict[str, Any]] = []
-        for field in data["fields"]:
-            if not isinstance(field, dict):
-                continue
-            config: Any = field.get("config")
-            if not isinstance(config, dict):
-                config = {}
-            settings: Any = config.get("settings")
-            if not isinstance(settings, dict):
-                settings = {}
-            options: Any = (
-                settings.get("options") or settings.get("possible_types") or []
-            )
-            if not isinstance(options, list):
-                options = []
-            settings["options"] = [
-                option
-                for option in options
-                if not isinstance(option, dict)
-                or option.get("status") in (None, "activate", "active")
-            ]
-            config["settings"] = settings
-            field["config"] = config
-            fields.append(field)
+        total: Any = root.get("total")
+        if (
+            isinstance(root.get("recurso"), str)
+            and isinstance(root.get("path"), str)
+            and isinstance(root.get("aba"), str)
+            and isinstance(total, int)
+            and not isinstance(total, bool)
+            and isinstance(root.get("dados"), list)
+        ):
+            return root
 
-        return {"data": {"fields": fields}}
+        return None
 
     async def get_or_set(
         self,
@@ -190,9 +200,19 @@ class CacheManager:
 
             data: dict[str, Any] | None = self._normalize(payload)
             if data is None:
+                payload_keys: list[str] = (
+                    sorted(payload.keys()) if isinstance(payload, dict) else []
+                )
+                is_html: bool = (
+                    isinstance(payload, str) and "<html" in payload[:512].lower()
+                )
                 logger.error(
-                    "AIESEC Cache | payload inválido para '%s' | HTTP %s %s",
+                    "AIESEC Cache | payload inválido para '%s' | "
+                    "tipo=%s chaves=%s html=%s | HTTP %s %s",
                     label,
+                    type(payload).__name__,
+                    payload_keys,
+                    is_html,
                     HttpStatus.BAD_GATEWAY.value,
                     HttpStatus.BAD_GATEWAY.name,
                 )

@@ -18,7 +18,7 @@ Recursos principais:
 import asyncio  # Gerenciamento de tarefas assíncronas e detecção do Event Loop ativo
 import logging  # Registro de diagnósticos, avisos e erros de comunicação de rede
 from typing import Any, Dict, Optional, Tuple  # Anotações para tipagem estática e segurança do código
-from urllib.parse import urlencode  # Utilitário para formatação segura de parâmetros na URL
+from urllib.parse import urlencode, urlsplit, urlunsplit  # Utilitários de URL e query string
 
 import httpx  # Cliente HTTP assíncrono de alto desempenho
 
@@ -243,13 +243,17 @@ class HttpClient:
                     parts.append(clean_path)
 
             url: str = "/".join(parts)
+        else:
+            url = path
 
-            # Anexa os parâmetros de busca formatados (?chave=valor&...)
-            if params:
-                url += f"?{urlencode(params, doseq=True)}"
+        if params:
+            parsed = urlsplit(url)
+            query: str = urlencode(params, doseq=True)
+            if parsed.query:
+                query = f"{parsed.query}&{query}"
+            url = urlunsplit(parsed._replace(query=query))
 
-            return url
-        return path
+        return url
 
     def _handle_response(self, response: httpx.Response) -> Tuple[int, Any]:
         """Processa o resultado do HTTPX e normaliza o retorno em uma tupla (Status, Dados).

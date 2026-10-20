@@ -7,7 +7,7 @@ from flask_cors import CORS
 from flask_openapi3 import Info, OpenAPI
 
 from .api import api
-from .controller import cadastro_lead_view, new_lead_ogx
+from .controller import cadastro_lead_view, divisao_mercado, new_lead_ogx
 from .core import IS_DEV, pre_carregamento_metadados, setup_logging
 from .dto import AppError, ValidationErrorResponse
 from .middlewares import (
@@ -52,6 +52,7 @@ def create_app() -> OpenAPI:
         methods=["GET", "POST", "PUT", "OPTIONS"],
     )
     app.register_api(new_lead_ogx)
+    app.register_api(divisao_mercado)
     app.register_api_view(cadastro_lead_view)
     app.register_api(api)
     app.register_error_handler(AppError, handle_app_error)

@@ -4,6 +4,7 @@ from .http_status import HttpStatus
 from .conflicts import ConflitoEmail, ConflitoTelefone, ConflitosLeadOutput
 from .generic import RetornoGenerico
 from .lead import LeadPreCadastroOutput
+from .divisao_mercado import DivisaoMercadoMetadados
 from .metadata import (
     CampoMetadado,
     ConfiguracaoMetadado,
@@ -20,6 +21,7 @@ __all__ = [
     "ConfiguracaoMetadado",
     "ConfiguracoesCampo",
     "DadosMetadados",
+    "DivisaoMercadoMetadados",
     "HttpStatus",
     "LeadPreCadastroOutput",
     "Metadados",
