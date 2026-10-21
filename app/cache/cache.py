@@ -15,6 +15,29 @@ from ..dto import HttpStatus
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+_PALAVRAS_CONECTIVAS: frozenset[str] = frozenset(
+    {
+        "a", "à", "ao", "aos", "as", "às", "com", "contra", "da", "das",
+        "de", "desde", "di", "do", "dos", "du", "dum", "duma", "dumas",
+        "duns", "e", "em", "entre", "i", "na", "nas", "no", "nos", "num",
+        "numa", "nuns", "numas", "o", "os", "ou", "para", "pela", "pelas",
+        "pelo", "pelos", "perante", "por", "sem", "sob", "sobre", "trás",
+        "u", "um", "uma", "umas", "uns",
+    }
+)
+
+
+def capitalizar_nome(valor: str) -> str:
+    """Capitaliza palavras, mantendo conectivos em minúsculas após a primeira."""
+    palavras: list[str] = valor.strip().lower().split()
+    if not palavras:
+        return ""
+    return " ".join(
+        palavra if indice and palavra in _PALAVRAS_CONECTIVAS
+        else palavra[0].upper() + palavra[1:]
+        for indice, palavra in enumerate(palavras)
+    )
+
 
 def _status_name(status: int) -> str:
     """Converte um código HTTP para o nome do enum, com fallback desconhecido."""
@@ -51,9 +74,9 @@ class CacheManager:
 
     @staticmethod
     def _normalize(payload: Any) -> dict[str, Any] | None:
-        """Normaliza o envelope B2C e remove apenas opções explicitamente inativas.
+        """Normaliza metadados B2C ou formata nomes da divisão de mercado.
 
-        Retorna ``None`` quando o payload não contém uma lista ``fields`` válida.
+        Retorna ``None`` quando o payload não tem um formato de metadados válido.
         Uma cópia profunda evita modificar o objeto recebido do cliente HTTP.
         """
         if not isinstance(payload, dict):
@@ -97,6 +120,9 @@ class CacheManager:
             and not isinstance(total, bool)
             and isinstance(root.get("dados"), list)
         ):
+            for item in root["dados"]:
+                if isinstance(item, dict) and isinstance(item.get("nome"), str):
+                    item["nome"] = capitalizar_nome(item["nome"])
             return root
 
         return None

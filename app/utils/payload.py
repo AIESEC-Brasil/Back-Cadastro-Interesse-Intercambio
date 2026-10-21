@@ -5,7 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..dto.common import CategoriaContato
+from ..cache.cache import capitalizar_nome
+from ..dto.common import CategoriaContato, PayloadExpa
 from ..dto.input import CriarPreCadastroLead
 
 
@@ -61,44 +62,66 @@ def montar_payload_persistencia(modelo: BaseModel) -> dict[str, Any]:
 
 def _normalizar_nome_escritorio(nome: str) -> str:
     """Remove os prefixos usados nos nomes de escritórios da AIESEC."""
-    return (
-        nome.replace("AIESEC em São Paulo Unidade", "")
-        .replace("AIESEC em", "")
-        .replace("AIESEC no", "")
-        .strip()
+    nome = nome.strip()
+    for prefixo in (
+        "AIESEC em São Paulo Unidade",
+        "AIESEC em",
+        "AIESEC no",
+    ):
+        if nome.casefold().startswith(prefixo.casefold()):
+            return nome[len(prefixo):].strip()
+    return nome
+
+
+def _chave_nome_cache(nome: str) -> str:
+    """Normaliza capitalização e espaços para comparar nomes do cache."""
+    return capitalizar_nome(nome).casefold()
+
+
+def _dados_divisao_cache(chave_cache: str) -> list[Any]:
+    """Obtém os registros da divisão de mercado armazenados na chave informada."""
+    from app.cache import cache
+
+    entrada: Any = cache.store.get(chave_cache)
+    dados_cache: Any = entrada.get("data") if isinstance(entrada, Mapping) else None
+    registros: Any = (
+        dados_cache.get("dados") if isinstance(dados_cache, Mapping) else None
     )
+    return registros if isinstance(registros, list) else []
 
 
 def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
     """Resolve o comitê EXPA pela divisão de mercado histórica."""
-    from app.cache import cache
-
     divisao: dict[str, Any] | None = None
     if dados.universidade:
-        universidades: Any = cache.store.get(
-            "metadados_universidades", {}
-        ).get("data", {}).get("dados", [])
+        universidades: list[Any] = _dados_divisao_cache(
+            "metadados_universidades"
+        )
         divisao = next(
             (
                 universidade
                 for universidade in universidades
                 if isinstance(universidade, dict)
-                and universidade.get("nome") == dados.universidade.nome
+                and isinstance(universidade.get("nome"), str)
+                and _chave_nome_cache(universidade["nome"])
+                == _chave_nome_cache(dados.universidade)
             ),
             None,
         )
     elif dados.comite:
-        escritorios: Any = cache.store.get(
-            "metadados_escritorios", {}
-        ).get("data", {}).get("dados", [])
-        nome_comite: str = _normalizar_nome_escritorio(dados.comite.nome).title()
+        escritorios: list[Any] = _dados_divisao_cache(
+            "metadados_escritorios"
+        )
+        nome_comite: str = _chave_nome_cache(
+            _normalizar_nome_escritorio(dados.comite.nome)
+        )
         divisao = next(
             (
                 escritorio
                 for escritorio in escritorios
                 if isinstance(escritorio, dict)
                 and isinstance(escritorio.get("nome"), str)
-                and escritorio["nome"].title() == nome_comite
+                and _chave_nome_cache(escritorio["nome"]) == nome_comite
             ),
             None,
         )
@@ -109,7 +132,7 @@ def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
             "indisponível ou sem correspondência."
         )
 
-    chave_produto: str = "gv" if dados.produto.id_expa == 7 else "gt"
+    chave_produto: str = "oGV" if dados.produto.id_expa == 7 else "oGT"
     nome_cl: Any = divisao.get(chave_produto)
     if nome_cl == "MC BAZI":
         return "AIESEC no Brasil"
@@ -120,24 +143,27 @@ def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
     return nome_cl
 
 
-def montar_payload_expa(dados: CriarPreCadastroLead) -> dict[str, Any]:
-    """Monta o payload plano do EXPA com a resolução histórica de comitê."""
+def montar_payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
+    """Monta o payload plano que o webhook GAS espera para criar no EXPA."""
+    from app.config import TOKEN_EXPA
+
     nome_cl_formatado: str = _normalizar_nome_escritorio(
         _resolver_nome_cl_expa(dados)
     )
-    return {
-        "nome": str(dados.nome).title(),
-        "sobrenome": str(dados.sobrenome).title(),
-        "senha": str(dados.senha),
-        "dataNascimento": str(dados.dataNascimento),
-        "programa": int(dados.produto.id_expa),
-        "nomeCL": nome_cl_formatado,
-        "telefone": str(dados.telefone[0].numero) if dados.telefone else "",
-        "email": str(dados.email[0].email) if dados.email else "",
-    }
+    return PayloadExpa(
+        nome=str(dados.nome).title(),
+        sobrenome=str(dados.sobrenome).title(),
+        senha=str(dados.senha),
+        data_nascimento=dados.dataNascimento.date().isoformat(),
+        programa=int(dados.produto.id_expa),
+        nome_cl=nome_cl_formatado,
+        telefone=str(dados.telefone[0].numero) if dados.telefone else "",
+        email=str(dados.email[0].email) if dados.email else "",
+        token_expa=TOKEN_EXPA,
+    )
 
 
-def payload_expa(dados: CriarPreCadastroLead) -> dict[str, Any]:
+def payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
     """Nome histórico do builder de cadastro EXPA."""
     return montar_payload_expa(dados)
 

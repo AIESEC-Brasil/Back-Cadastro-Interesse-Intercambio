@@ -95,20 +95,30 @@ class ProdutoLead(BaseModel):
 
     @model_validator(mode="after")
     def validar_produto(self) -> Self:
-        """Confere o produto no cache e o código EXPA aceito."""
-        if self.id_expa not in {7, 8, 9}:
+        """Confere a combinação permitida de ID, título e código EXPA."""
+        produtos_expa: dict[int, tuple[tuple[int, str], ...]] = {
+            7: ((1, "Voluntário Global"),),
+            8: (
+                (2, "Talento Global Short Term"),
+                (3, "Talento Global Mid e Long Term"),
+            ),
+            9: ((4, "Professor Global"),),
+        }
+        combinacoes_validas: tuple[tuple[int, str], ...] | None = produtos_expa.get(
+            self.id_expa
+        )
+        if combinacoes_validas is None:
             raise ValueError("ID EXPA inválido; valores aceitos: 7, 8 ou 9.")
+        if (self.id, self.titulo) not in combinacoes_validas:
+            raise ValueError(
+                "A combinação de ID e título não corresponde ao ID EXPA informado."
+            )
         validar_opcao_cache("produto", self.id, self.titulo)
         return self
 
 
 # Nomes usados pelos DTOs anteriores, mantidos como aliases compatíveis.
 Produto = ProdutoLead
-
-
-class Universidade(ReferenciaLead):
-    """Instituição de ensino associada ao lead."""
-
 
 class Comite(ReferenciaLead):
     """Comitê responsável pelo atendimento do lead."""
@@ -187,7 +197,28 @@ def _validar_senha(valor: str) -> str:
         raise ValueError(" ".join(falhas))
     return valor
 
+def _validar_nome_no_cache(valor:str) -> str | None :
+    """Confere o nome da universidade na divisão de mercado em cache."""
+    from app.cache import cache
 
+    entry = cache.store.get("metadados_universidades")
+    data = entry.get("data") if isinstance(entry, dict) else None
+    universities = data.get("dados") if isinstance(data, dict) else None
+    if not isinstance(universities, list):
+        raise ValueError("Metadados de universidades indisponíveis no cache.")
+
+    nome_normalizado: str = valor.strip().casefold()
+    if any(
+        isinstance(universidade, dict)
+        and isinstance(universidade.get("nome"), str)
+        and universidade["nome"].strip().casefold() == nome_normalizado
+        for universidade in universities
+    ):
+        return valor
+
+    raise ValueError("O nome informado não corresponde a uma universidade válida.")
+
+Universidade: TypeAlias = Annotated[str, AfterValidator(_validar_nome_no_cache)]
 DataNascimento: TypeAlias = Annotated[datetime, AfterValidator(_validar_data_nascimento)]
 Tag: TypeAlias = Annotated[str, AfterValidator(_validar_tag)]
 Senha: TypeAlias = Annotated[

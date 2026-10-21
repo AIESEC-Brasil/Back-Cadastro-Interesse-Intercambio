@@ -7,6 +7,7 @@ from .contact import (
     EmailItem,
     TelefoneItem,
 )
+from .expa import PayloadExpa
 from .lead import (
     AreaAtuacao,
     Autorizacao,
@@ -38,6 +39,7 @@ __all__ = [
     "Meio",
     "NivelAtuacao",
     "Origem",
+    "PayloadExpa",
     "ProdutoLead",
     "Produto",
     "ReferenciaLead",
