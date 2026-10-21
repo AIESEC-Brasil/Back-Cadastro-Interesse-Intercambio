@@ -1,8 +1,22 @@
-"""Contratos de dados da aplicação, organizados por tipo de uso."""
+"""Contratos de dados organizados por entrada, integração e persistência.
 
-from . import base, common, exception, input, output
-from .base import LeadPreCadastroBase
-from .common import (
+Fluxo principal do cadastro:
+``CriarPreCadastroLead`` -> ``PayloadExpa`` -> ``LeadPersistencia``.
+"""
+
+# ==============================================================================
+# AGRUPAMENTOS E EXPORTAÇÕES PÚBLICAS
+# ==============================================================================
+from . import exception, input, integration, output, persistence, types
+from .integration import PayloadExpa
+from .input import (
+    AtualizarPreCadastroLead,
+    CriarPreCadastroLead,
+    LeadPreCadastroInput,
+    QualificacaoLead,
+)
+from .persistence import LeadPersistencia
+from .types import (
     AreaAtuacao,
     Autorizacao,
     CategoriaContato,
@@ -12,10 +26,10 @@ from .common import (
     DataNascimento,
     EmailItem,
     Idioma,
+    LeadPreCadastroBase,
     Meio,
     NivelAtuacao,
     Origem,
-    PayloadExpa,
     ProdutoLead,
     Produto,
     ReferenciaLead,
@@ -23,16 +37,10 @@ from .common import (
     SemestreCurso,
     Tag,
     TelefoneItem,
+    UploadItem,
     Universidade,
 )
 from .exception import AppError, BaseErrorResponse, ErrorDetail, ValidationErrorResponse
-from .input import (
-    AtualizarPreCadastroLead,
-    CriarPreCadastroLead,
-    LeadPreCadastroInput,
-    QualificacaoLead,
-    UploadItem,
-)
 from .output import (
     ConflitoEmail,
     ConflitoTelefone,
@@ -44,11 +52,12 @@ from .output import (
 )
 
 __all__ = [
-    "base",
-    "common",
     "input",
     "output",
     "exception",
+    "integration",
+    "persistence",
+    "types",
     "LeadPreCadastroBase",
     "Metadados",
     "HttpStatus",
@@ -83,6 +92,7 @@ __all__ = [
     "Universidade",
     "UploadItem",
     "LeadPreCadastroOutput",
+    "LeadPersistencia",
     "RetornoGenerico",
     "ConflitoEmail",
     "ConflitoTelefone",

@@ -6,15 +6,18 @@ import inspect
 import logging
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Self
 
 import httpx
 
 from ..config import CACHE_TTL
-from ..dto import HttpStatus
+from ..dto.output import HttpStatus
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# NORMALIZAÇÃO DE NOMES E RESPOSTAS
+# ==============================================================================
 _PALAVRAS_CONECTIVAS: frozenset[str] = frozenset(
     {
         "a", "à", "ao", "aos", "as", "às", "com", "contra", "da", "das",
@@ -47,16 +50,19 @@ def _status_name(status: int) -> str:
         return "UNKNOWN"
 
 
+# ==============================================================================
+# GERENCIADOR DE CACHE COM TTL E PROTEÇÃO CONTRA CARGAS DUPLICADAS
+# ==============================================================================
 class CacheManager:
     """Armazena dados com TTL, timestamp e sincronização de cargas concorrentes."""
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Inicializa o armazenamento e os locks por event loop e chave."""
         self.store: dict[str, dict[str, Any]] = {}
         self._locks: dict[asyncio.AbstractEventLoop, dict[str, asyncio.Lock]] = {}
         self._locks_guard = threading.Lock()
 
-    def _get_lock(self, key: str) -> asyncio.Lock:
+    def _get_lock(self: Self, key: str) -> asyncio.Lock:
         """Obtém o lock da chave no event loop atualmente em execução."""
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         with self._locks_guard:
@@ -65,7 +71,7 @@ class CacheManager:
                 loop_locks[key] = asyncio.Lock()
             return loop_locks[key]
 
-    def _get_valid_entry(self, key: str, ttl: int) -> dict[str, Any] | None:
+    def _get_valid_entry(self: Self, key: str, ttl: int) -> dict[str, Any] | None:
         """Retorna a entrada se ela existir e ainda estiver dentro do TTL."""
         cached: dict[str, Any] | None = self.store.get(key)
         if cached and time.time() - cached["timestamp"] < ttl:
@@ -128,7 +134,7 @@ class CacheManager:
         return None
 
     async def get_or_set(
-        self,
+        self: Self,
         key: str,
         fetch: Callable[[], Any] | None = None,
         ttl: int | None = None,

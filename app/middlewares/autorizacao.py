@@ -32,7 +32,7 @@ from ..core import (
     IS_PRODUCTION,  # Flag de ambiente para ativação de travas de segurança em produção
     IS_TEST,  # Flag de ambiente para ativação de travas de segurança em Teste
 )
-from ..dto import HttpStatus  # Enum ou estrutura com os Status HTTP
+from ..dto.output import HttpStatus  # Enum ou estrutura com os Status HTTP
 from ..storage import storage  # Armazenamento em memória de IP
 
 # =================================================================

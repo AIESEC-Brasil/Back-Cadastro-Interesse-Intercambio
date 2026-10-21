@@ -3,6 +3,9 @@
 from flask import Response, request
 
 
+# ==============================================================================
+# AJUSTE DA INTERFACE ELEMENTS
+# ==============================================================================
 def injetar_css_no_elements(response: Response) -> Response:
     """Ajusta a disposição das abas de resposta na página Elements.
 

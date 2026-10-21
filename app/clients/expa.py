@@ -3,10 +3,13 @@
 from typing import Any, Tuple
 
 from app.config import APPSCRIPT_EXPA
-from app.dto import PayloadExpa
+from app.dto.integration import PayloadExpa
 from .http_request import HttpClient
 
 
+# ==============================================================================
+# CLIENTE DE CRIAÇÃO DE LEADS NO EXPA
+# ==============================================================================
 _http: HttpClient = HttpClient(timeout=60)
 
 

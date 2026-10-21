@@ -3,6 +3,9 @@
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
 
+# ==============================================================================
+# PAYLOAD ENVIADO AO WEBHOOK EXPA
+# ==============================================================================
 class PayloadExpa(BaseModel):
     """Representa o payload plano recebido pelo Apps Script de integração EXPA."""
 

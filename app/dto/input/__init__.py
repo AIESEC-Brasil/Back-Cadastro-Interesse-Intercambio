@@ -6,8 +6,11 @@ from .lead import (
     LeadPreCadastroInput,
     QualificacaoLead,
 )
-from .upload import UploadItem
+from ..types import UploadItem
 
+# ==============================================================================
+# CONTRATOS RECEBIDOS PELA API
+# ==============================================================================
 __all__ = [
     "LeadPreCadastroInput",
     "CriarPreCadastroLead",

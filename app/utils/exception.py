@@ -6,10 +6,13 @@ from flask import Response, jsonify, make_response
 from flask_openapi3.utils import run_validate_response
 from pydantic import BaseModel, ValidationError
 
-from ..dto import AppError, BaseErrorResponse
+from ..dto.exception import AppError, BaseErrorResponse
 from .resolve import resolve_exception
 
 
+# ==============================================================================
+# CALLBACKS DE ERRO E VALIDAÇÃO DE RESPOSTA
+# ==============================================================================
 def handle_validation_error(exception: ValidationError) -> Response:
     """Formata erros de validação do OpenAPI como resposta JSON HTTP 422."""
     error: BaseErrorResponse = resolve_exception(exception)

@@ -4,6 +4,10 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+
+# ==============================================================================
+# ENVELOPE GENÉRICO
+# ==============================================================================
 T = TypeVar("T")
 
 

@@ -1,10 +1,15 @@
-"""DTO para envio de documentos PDF codificados em Base64."""
+"""Tipo compartilhado para documentos PDF codificados em Base64."""
+
+from typing import Self
 
 from pydantic import Base64Bytes, BaseModel, ConfigDict, Field, field_validator
 
 MAX_PDF_SIZE_BYTES: int = 5 * 1024 * 1024
 
 
+# ==============================================================================
+# VALIDAÇÃO DO ARQUIVO PDF
+# ==============================================================================
 class UploadItem(BaseModel):
     """Arquivo PDF enviado pelo formulário."""
 
@@ -18,7 +23,7 @@ class UploadItem(BaseModel):
 
     @field_validator("nome")
     @classmethod
-    def validar_extensao_pdf(cls, nome: str) -> str:
+    def validar_extensao_pdf(cls: type[Self], nome: str) -> str:
         """Exige extensão `.pdf` no nome enviado."""
         if not nome.lower().endswith(".pdf"):
             raise ValueError("O nome do arquivo deve ter a extensão '.pdf'.")
@@ -26,7 +31,7 @@ class UploadItem(BaseModel):
 
     @field_validator("base64")
     @classmethod
-    def validar_assinatura_pdf(cls, conteudo: bytes) -> bytes:
+    def validar_assinatura_pdf(cls: type[Self], conteudo: bytes) -> bytes:
         """Confere a assinatura do PDF após a decodificação Base64."""
         if not conteudo.startswith(b"%PDF"):
             raise ValueError("O conteúdo enviado não é um arquivo PDF válido.")

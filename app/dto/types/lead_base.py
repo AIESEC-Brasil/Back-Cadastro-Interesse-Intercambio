@@ -4,20 +4,22 @@ from typing import List, Optional, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..common import (
+from .contact import ContatoEmail, ContatoTelefone
+from .lead import (
     Autorizacao,
     Comite,
-    ContatoEmail,
-    ContatoTelefone,
     DataNascimento,
     Meio,
     Origem,
     ProdutoLead,
     Tag,
     Universidade,
+    validar_opcao_cache,
 )
-from ..common.lead import validar_opcao_cache
 
+# ==============================================================================
+# CAMPOS COMPARTILHADOS DO PRÉ-CADASTRO
+# ==============================================================================
 
 class LeadPreCadastroBase(BaseModel):
     """Campos comuns do pré-cadastro de um lead."""
@@ -57,14 +59,16 @@ class LeadPreCadastroBase(BaseModel):
 
     @field_validator("autorizacao")
     @classmethod
-    def validar_autorizacao_metadados(cls, valor: Autorizacao) -> Autorizacao:
+    def validar_autorizacao_metadados(
+        cls: type[Self], valor: Autorizacao
+    ) -> Autorizacao:
         """Confere o ID e o rótulo do consentimento com `termo_privacidade`."""
         texto: str = "sim" if valor is Autorizacao.SIM else "não"
         validar_opcao_cache("termo_privacidade", int(valor), texto)
         return valor
 
     @model_validator(mode="after")
-    def validar_universidade_ou_comite(self) -> Self:
+    def validar_universidade_ou_comite(self: Self) -> Self:
         """Exige uma referência de universidade ou comitê."""
         if self.universidade is None and self.comite is None:
             raise ValueError("Informe ao menos um dos campos: universidade ou comite.")

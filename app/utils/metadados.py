@@ -3,6 +3,9 @@
 from typing import Any, Dict, List, Optional
 
 
+# ==============================================================================
+# LEITURA DOS CAMPOS E OPÇÕES DO CACHE B2C
+# ==============================================================================
 def buscar_campo_metadado(external_id: str) -> Optional[Dict[str, Any]]:
     """Retorna o campo B2C identificado por ``external_id``, se estiver no cache."""
     from app.cache import cache

@@ -6,10 +6,17 @@ from typing import Any
 from pydantic import BaseModel
 
 from ..cache.cache import capitalizar_nome
-from ..dto.common import CategoriaContato, PayloadExpa
-from ..dto.input import CriarPreCadastroLead
+from ..dto.integration import PayloadExpa
+from ..dto.persistence import LeadPersistencia
+from ..dto.types import CategoriaContato, LeadPreCadastroBase
+from ..dto.input import CriarPreCadastroLead, QualificacaoLead
+from ..dto.output import LeadPreCadastroOutput
+from .metadados import buscar_opcoes_metadado
 
 
+# ==============================================================================
+# CONVERSÃO DOS CONTATOS PARA O FORMATO DE PERSISTÊNCIA
+# ==============================================================================
 def _id_tipo_contato(contato: Any, nome_campo: str, indice: int) -> int:
     """Obtém o ID de persistência do tipo de um contato validado ou em dict."""
     if isinstance(contato, BaseModel):
@@ -60,6 +67,9 @@ def montar_payload_persistencia(modelo: BaseModel) -> dict[str, Any]:
     return payload
 
 
+# ==============================================================================
+# RESOLUÇÃO DE ESCRITÓRIO PELOS METADADOS DE MERCADO
+# ==============================================================================
 def _normalizar_nome_escritorio(nome: str) -> str:
     """Remove os prefixos usados nos nomes de escritórios da AIESEC."""
     nome = nome.strip()
@@ -90,7 +100,40 @@ def _dados_divisao_cache(chave_cache: str) -> list[Any]:
     return registros if isinstance(registros, list) else []
 
 
-def _resolver_nome_cl(dados: CriarPreCadastroLead) -> str:
+def _resolver_id_escritorio(dados: LeadPreCadastroBase) -> int:
+    """Resolve o ID B2C do escritório correspondente ao lead."""
+    if not dados.universidade and not dados.comite:
+        raise ValueError("Não há universidade ou comitê para resolver o escritório.")
+    nome_escritorio: str = _resolver_nome_cl(dados)
+
+    nome_normalizado: str = _chave_nome_cache(
+        _normalizar_nome_escritorio(nome_escritorio)
+    )
+    for opcao in buscar_opcoes_metadado("aiesec_proxima"):
+        nome_opcao: Any = opcao.get("text", opcao.get("name"))
+        if not isinstance(nome_opcao, str):
+            continue
+        if (
+            _chave_nome_cache(_normalizar_nome_escritorio(nome_opcao))
+            != nome_normalizado
+        ):
+            continue
+        try:
+            id_escritorio: int = int(opcao["id"])
+        except (KeyError, TypeError, ValueError) as erro:
+            raise ValueError(
+                "A opção do escritório não possui um ID válido nos metadados B2C."
+            ) from erro
+        if id_escritorio <= 0:
+            raise ValueError("A opção do escritório possui um ID inválido.")
+        return id_escritorio
+
+    raise ValueError(
+        f"O escritório '{nome_escritorio}' não foi encontrado em aiesec_proxima."
+    )
+
+
+def _resolver_nome_cl(dados: LeadPreCadastroBase) -> str:
     """Resolve o comitê EXPA pela divisão de mercado histórica."""
     divisao: dict[str, Any] | None = None
     if dados.universidade:
@@ -143,6 +186,56 @@ def _resolver_nome_cl(dados: CriarPreCadastroLead) -> str:
     return nome_cl
 
 
+# ==============================================================================
+# MONTAGEM DOS PAYLOADS DE PERSISTÊNCIA E EXPA
+# ==============================================================================
+def montar_dto_persistencia(
+    dados: LeadPreCadastroBase,
+    lead_output: LeadPreCadastroOutput,
+    *,
+    qualificacao: QualificacaoLead | None = None,
+) -> LeadPersistencia:
+    """Monta os campos do banco combinando o lead validado e sua resposta EXPA."""
+    if qualificacao is not None and qualificacao.id != lead_output.id:
+        raise ValueError("O ID da qualificação não corresponde ao lead retornado.")
+
+    dados_com_contatos: dict[str, Any] = montar_payload_persistencia(dados)
+    dados_persistencia: dict[str, Any] = {
+        campo: dados_com_contatos[campo]
+        for campo in ("telefone", "email", "tag")
+        if campo in dados_com_contatos
+    }
+    dados_persistencia.update(
+        id=lead_output.id,
+        id_produto=dados.produto.id,
+        id_status=1,
+        id_escritorio=_resolver_id_escritorio(dados),
+        id_origem=dados.origem.id,
+        nome=dados.nome,
+        sobrenome=dados.sobrenome,
+        universidade=dados.universidade,
+        dataNascimento=dados.dataNascimento,
+        id_nivel_mercado=(
+            qualificacao.nivelAtuacao.id
+            if qualificacao and qualificacao.nivelAtuacao
+            else None
+        ),
+        id_area_atuacao=(
+            qualificacao.areaAtuacao.id
+            if qualificacao and qualificacao.areaAtuacao
+            else None
+        ),
+        id_meio=dados.meio.id if dados.meio else None,
+        id_semestre_curso=(
+            qualificacao.semestreCurso.id
+            if qualificacao and qualificacao.semestreCurso
+            else None
+        ),
+        link_drive=qualificacao.curriculo if qualificacao else None,
+    )
+    return LeadPersistencia.model_validate(dados_persistencia)
+
+
 def montar_payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
     """Monta o payload plano que o webhook GAS espera para criar no EXPA."""
     from app.config import TOKEN_EXPA
@@ -170,6 +263,7 @@ def payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
 
 __all__ = [
     "montar_payload_persistencia",
+    "montar_dto_persistencia",
     "montar_payload_expa",
     "payload_expa",
 ]

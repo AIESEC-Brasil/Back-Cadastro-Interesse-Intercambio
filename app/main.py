@@ -9,7 +9,7 @@ from flask_openapi3 import Info, OpenAPI
 from .api import api
 from .controller import cadastro_lead_view, divisao_mercado, new_lead_ogx
 from .core import IS_DEV, pre_carregamento_metadados, setup_logging
-from .dto import AppError, ValidationErrorResponse
+from .dto.exception import AppError, ValidationErrorResponse
 from .middlewares import (
     capture_request_start,
     injetar_css_no_elements,
@@ -24,6 +24,9 @@ from .utils.exception import (
 )
 
 
+# ==============================================================================
+# FÁBRICA E CONFIGURAÇÃO DA APLICAÇÃO
+# ==============================================================================
 def create_app() -> OpenAPI:
     """Cria e configura a aplicação, as rotas, os logs e o cache inicial.
 

@@ -5,6 +5,9 @@ from app.config import APPSCRIPT_DIVISAO_MERCADO
 from .http_request import HttpClient
 
 
+# ==============================================================================
+# CLIENTE DE DIVISÃO DE MERCADO
+# ==============================================================================
 _http: HttpClient = HttpClient(timeout=60)
 
 

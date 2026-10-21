@@ -6,8 +6,11 @@ from typing import Callable
 
 from flask import Response, render_template, request
 
-from ..dto import HttpStatus
+from ..dto.output import HttpStatus
 
+# ==============================================================================
+# CONFIGURAÇÃO DE AUDITORIA E CACHE HTTP
+# ==============================================================================
 logger: logging.Logger = logging.getLogger(__name__)
 error_logger: logging.Logger = logging.getLogger("app.http.errors")
 
@@ -54,6 +57,9 @@ ERROR_MESSAGES: dict[int, str] = {
 REQUEST_STARTED_AT: str = "app.request_started_at"
 
 
+# ==============================================================================
+# CALLBACKS DE REQUISIÇÃO E RESPOSTA
+# ==============================================================================
 def capture_request_start() -> None:
     """Marca o início da requisição para calcular sua duração no log."""
     request.environ[REQUEST_STARTED_AT] = perf_counter()

@@ -2,11 +2,15 @@
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from typing import Self
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
+# ==============================================================================
+# SCHEMAS DOS METADADOS B2C
+# ==============================================================================
 class ConfiguracoesCampo(BaseModel):
     """
     Configurações de um campo de metadado.
@@ -47,7 +51,9 @@ class Metadados(BaseModel):
     )
 
     @field_serializer("timestamp")
-    def formatar_timestamp_pt_br(self, valor: datetime | str) -> str:
+    def formatar_timestamp_pt_br(
+        self: Self, valor: datetime | str
+    ) -> str:
         """Serializa o timestamp no formato legível usado pelas versões antigas."""
         if isinstance(valor, str):
             return valor

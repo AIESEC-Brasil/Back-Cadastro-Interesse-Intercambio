@@ -9,6 +9,9 @@ from .config import (
 )
 from .logger import setup_logging
 
+# ==============================================================================
+# CONFIGURAÇÃO DE AMBIENTE E LOGGING
+# ==============================================================================
 __all__ = [
     "DOMINIOS_PERMITIDOS",
     "IS_DEV",

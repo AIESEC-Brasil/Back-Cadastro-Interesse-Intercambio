@@ -9,7 +9,7 @@ Este componente é o que permite a geração automática da documentação Swagg
 # =================================================================
 from collections.abc import Mapping
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Self
 import inspect
 
 from flask_openapi3 import APIBlueprint, OpenAPI
@@ -78,7 +78,7 @@ class Router(APIBlueprint):
     """
 
     def __init__(
-            self,
+            self: Self,
             name: Optional[str] = None,
             url_prefix: str = "",
     ) -> None:

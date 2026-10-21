@@ -11,6 +11,9 @@ from .settings import (
     DOMINIOS_PERMITIDOS,
 )
 
+# ==============================================================================
+# CONFIGURAÇÕES PÚBLICAS
+# ==============================================================================
 __all__ = [
     "AMBIENTE", "APPSCRIPT_B2C", "APPSCRIPT_EXPA", "TOKEN_EXPA", "API_KEYS_PERMITIDAS",
     "APPSCRIPT_DIVISAO_MERCADO",

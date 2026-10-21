@@ -1,7 +1,7 @@
 """Modelos e exceções para respostas de erro da API."""
 
 from ast import literal_eval
-from typing import Any
+from typing import Any, Self
 
 from deep_translator import GoogleTranslator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -9,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from ..output import HttpStatus
 
 
+# ==============================================================================
+# CONTRATOS DE ERRO HTTP
+# ==============================================================================
 class ErrorDetail(BaseModel):
     """Detalhe de um campo que falhou na validação."""
 
@@ -32,7 +35,7 @@ class AppError(Exception):
     """Erro controlado da aplicação com status e detalhes personalizados."""
 
     def __init__(
-        self,
+        self: Self,
         type: str,
         message: str,
         status_code: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY,
@@ -58,13 +61,18 @@ class AppError(Exception):
         super().__init__(message)
 
 
+# ==============================================================================
+# CONVERSÃO DOS ERROS DE VALIDAÇÃO
+# ==============================================================================
 class ValidationErrorResponse(BaseErrorResponse):
     """Resposta 422 com mensagens traduzidas e campos inválidos identificados."""
 
     status_code: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY
 
     @classmethod
-    def from_exception(cls, exception: ValidationError) -> "ValidationErrorResponse":
+    def from_exception(
+        cls: type[Self], exception: ValidationError
+    ) -> Self:
         """Converte os erros Pydantic para o formato de erro da aplicação."""
         details: list[ErrorDetail] = []
         seen: set[tuple[str, str]] = set()

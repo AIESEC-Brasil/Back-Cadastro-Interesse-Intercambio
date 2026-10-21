@@ -3,6 +3,9 @@
 import os
 
 
+# ==============================================================================
+# LEITURA E VALIDAÇÃO DAS VARIÁVEIS DE AMBIENTE
+# ==============================================================================
 def _env(name: str, default: str | None = None) -> str:
     """Lê uma variável de ambiente obrigatória após remover espaços externos.
 
@@ -19,6 +22,9 @@ def _env(name: str, default: str | None = None) -> str:
     return value
 
 
+# ==============================================================================
+# CONFIGURAÇÕES DE EXECUÇÃO E INTEGRAÇÕES
+# ==============================================================================
 AMBIENTE: str = _env("AMBIENTE", "PRODUCTION").upper()
 CACHE_TTL: int = int(_env("CACHE_TTL", "3600"))
 APPSCRIPT_B2C: str = _env("APPSCRIPT_B2C")

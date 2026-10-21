@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 from zoneinfo import ZoneInfo
 
 from asgiref.sync import async_to_sync
@@ -12,15 +12,12 @@ from pydantic import ValidationError
 from ..cache import cache
 from ..clients.b2c import enviar_metadados_b2c
 from ..clients.expa import enviar_payload_expa
-from ..dto import (
-    CriarPreCadastroLead,
-    HttpStatus,
-    QualificacaoLead,
-    ValidationErrorResponse,
-)
-from ..dto.output import LeadPreCadastroOutput, Metadados
+from ..dto.exception import ValidationErrorResponse
+from ..dto.input import CriarPreCadastroLead, QualificacaoLead
+from ..dto.output import HttpStatus, LeadPreCadastroOutput, Metadados
+from ..dto.persistence import LeadPersistencia
 from ..router import Router
-from ..utils.payload import montar_payload_expa
+from ..utils.payload import montar_dto_persistencia, montar_payload_expa
 
 new_lead_ogx: Router = Router(name="cadatro_interesse_intercambio", url_prefix="/new-lead-ogx")
 logger: logging.Logger = logging.getLogger(__name__)
@@ -104,15 +101,16 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
 # DOCUMENTAÇÃO DAS OPERAÇÕES DE CADASTRO
 # ==============================================================================
 CADASTRO_POST_DESCRIPTION: str = """\
-Recebe os dados da primeira etapa, cria o lead no EXPA e retorna os dados
-enviados com o `id` (`person_id`) retornado pelo EXPA. A senha não é devolvida."""
+Recebe os dados da primeira etapa, cria o lead no EXPA e retorna o DTO de
+persistência com o `id` (`person_id`) retornado pelo EXPA e status
+`pré-cadastro`. A senha não é devolvida."""
 
 CADASTRO_PUT_DESCRIPTION: str = """\
 Recebe os dados complementares da segunda etapa e atualiza o lead criado no
 pré-cadastro. A implementação da atualização ainda está pendente."""
 
 CADASTRO_POST_RESPONSES: dict[int | str, Any] = {
-    201: LeadPreCadastroOutput,
+    201: LeadPersistencia,
     502: {
         "description": "A resposta de criação do EXPA é inválida ou incompleta.",
         "content": {"application/json": {"schema": {"type": "object"}}},
@@ -156,9 +154,9 @@ class CadastroLeadView:
         responses=CADASTRO_POST_RESPONSES,
     )
     def post(
-        self, body: CriarPreCadastroLead
-    ) -> tuple[LeadPreCadastroOutput | dict[str, str], int]:
-        """Cria o lead no EXPA e retorna o person_id no campo `id`."""
+        self: Self, body: CriarPreCadastroLead
+    ) -> tuple[LeadPersistencia | dict[str, str], int]:
+        """Cria o lead no EXPA e retorna os dados para persistência."""
         payload: Any = montar_payload_expa(body)
         status: int
         resposta: Any
@@ -215,13 +213,14 @@ class CadastroLeadView:
         dados_saida["id"] = int(person_id)
         try:
             lead_criado = LeadPreCadastroOutput.model_validate(dados_saida)
+            lead_persistencia = montar_dto_persistencia(body, lead_criado)
         except ValidationError:
             logger.exception("Não foi possível montar a resposta do lead criado")
             return (
                 {"error": "Não foi possível montar a resposta do lead criado."},
                 HttpStatus.INTERNAL_SERVER_ERROR,
             )
-        return lead_criado, HttpStatus.CREATED
+        return lead_persistencia, HttpStatus.CREATED
 
     @cadastro_lead_view.doc(
         summary="Atualizar cadastro do lead",
@@ -229,7 +228,7 @@ class CadastroLeadView:
         responses=CADASTRO_PUT_RESPONSES,
     )
     def put(
-        self, body: QualificacaoLead
+        self: Self, body: QualificacaoLead
     ) -> tuple[dict[str, str], int]:
         """Recebe dados complementares da segunda etapa do cadastro."""
         return (

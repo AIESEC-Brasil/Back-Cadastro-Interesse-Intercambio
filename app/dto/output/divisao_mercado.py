@@ -1,11 +1,14 @@
 """Schema dos dados retornados pelos Apps Scripts de divisão de mercado."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
+# ==============================================================================
+# RESPOSTA DA DIVISÃO DE MERCADO
+# ==============================================================================
 class DivisaoMercadoMetadados(BaseModel):
     """Resposta de escritórios ou universidades com seus dados originais."""
 
@@ -22,7 +25,9 @@ class DivisaoMercadoMetadados(BaseModel):
     )
 
     @field_serializer("timestamp")
-    def formatar_timestamp_pt_br(self, valor: datetime | str) -> str:
+    def formatar_timestamp_pt_br(
+        self: Self, valor: datetime | str
+    ) -> str:
         """Serializa o timestamp no formato legível usado pelas versões antigas."""
         if isinstance(valor, str):
             return valor

@@ -3,6 +3,9 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
+# ==============================================================================
+# CONFLITOS DE CONTATO
+# ==============================================================================
 class ConflitoEmail(BaseModel):
     """E-mail que já existe no cadastro."""
 

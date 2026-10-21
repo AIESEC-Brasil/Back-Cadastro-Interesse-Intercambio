@@ -4,10 +4,19 @@ from typing import TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
-from ..base import LeadPreCadastroBase
-from ..common import AreaAtuacao, Idioma, NivelAtuacao, Senha, SemestreCurso
-from .upload import UploadItem
+from ..types import (
+    AreaAtuacao,
+    Idioma,
+    LeadPreCadastroBase,
+    NivelAtuacao,
+    Senha,
+    SemestreCurso,
+    UploadItem,
+)
 
+# ==============================================================================
+# ENTRADAS DO FLUXO DE CADASTRO
+# ==============================================================================
 LeadPreCadastroInput: TypeAlias = LeadPreCadastroBase
 
 

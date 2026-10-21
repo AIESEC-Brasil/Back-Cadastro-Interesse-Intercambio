@@ -14,6 +14,9 @@ from pydantic import (
     model_validator,
 )
 
+# ==============================================================================
+# RESOLUÇÃO E VALIDAÇÃO DE OPÇÕES B2C
+# ==============================================================================
 
 def validar_opcao_cache(external_id: str, id_opcao: int, nome: str) -> None:
     """Confere ID e nome contra as opções ativas de um campo B2C."""
@@ -71,14 +74,16 @@ class ReferenciaLead(BaseModel):
     nome: str
 
     @classmethod
-    def validar_opcao_cache(cls, id_opcao: int, nome: str) -> None:
+    def validar_opcao_cache(
+        cls: type[Self], id_opcao: int, nome: str
+    ) -> None:
         """Confere ID e nome contra as opções ativas do cache B2C."""
         if cls.external_id is None:
             return
         validar_opcao_cache(cls.external_id, id_opcao, nome)
 
     @model_validator(mode="after")
-    def validar_referencia_ativa(self) -> Self:
+    def validar_referencia_ativa(self: Self) -> Self:
         """Valida a referência no cache quando houver um campo associado."""
         self.__class__.validar_opcao_cache(self.id, self.nome)
         return self
@@ -94,7 +99,7 @@ class ProdutoLead(BaseModel):
     id_expa: PositiveInt
 
     @model_validator(mode="after")
-    def validar_produto(self) -> Self:
+    def validar_produto(self: Self) -> Self:
         """Confere a combinação permitida de ID, título e código EXPA."""
         produtos_expa: dict[int, tuple[tuple[int, str], ...]] = {
             7: ((1, "Voluntário Global"),),
@@ -162,6 +167,9 @@ class SemestreCurso(ReferenciaLead):
     external_id: ClassVar[str] = "semestre_curso"
 
 
+# ==============================================================================
+# VALIDAÇÃO DE CAMPOS ESPECÍFICOS DO LEAD
+# ==============================================================================
 def _validar_data_nascimento(valor: datetime) -> datetime:
     """Rejeita datas de nascimento futuras."""
     if valor.date() > date.today():
@@ -235,6 +243,9 @@ class Autorizacao(IntEnum):
     NAO = 2
 
 
+# ==============================================================================
+# EXPORTAÇÕES DOS TIPOS DE LEAD
+# ==============================================================================
 __all__ = [
     "AreaAtuacao",
     "Autorizacao",

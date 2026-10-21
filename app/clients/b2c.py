@@ -6,6 +6,9 @@ from app.config import APPSCRIPT_B2C
 from .http_request import HttpClient
 
 
+# ==============================================================================
+# CLIENTE DO FORMULÁRIO B2C
+# ==============================================================================
 _http: HttpClient = HttpClient(timeout=60)
 
 

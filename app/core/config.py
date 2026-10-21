@@ -6,6 +6,10 @@ from typing import Any
 
 from ..config import AMBIENTE, DOMINIOS_PERMITIDOS
 
+
+# ==============================================================================
+# FLAGS DO AMBIENTE DE EXECUÇÃO
+# ==============================================================================
 logger: logging.Logger = logging.getLogger(__name__)
 
 IS_DEV: bool = AMBIENTE in {"DEV", "DEVELOPMENT"}
@@ -13,6 +17,9 @@ IS_TEST: bool = AMBIENTE in {"TEST", "TESTING"}
 IS_PRODUCTION: bool = AMBIENTE in {"PROD", "PRODUCTION"}
 
 
+# ==============================================================================
+# PRÉ-CARREGAMENTO DOS METADADOS
+# ==============================================================================
 async def pre_carregamento_metadados() -> bool:
     """Busca os metadados B2C, escritórios e universidades no startup e os coloca no cache em memória de forma concorrente."""
     from ..cache import cache

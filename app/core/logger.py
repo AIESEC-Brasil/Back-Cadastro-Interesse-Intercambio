@@ -8,8 +8,12 @@ import sys
 import time
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
+from typing import Self
 from zoneinfo import ZoneInfo
 
+# ==============================================================================
+# PADRÕES E HANDLERS DE LOGGING
+# ==============================================================================
 LOG_DIR: str = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "logs")
 )
@@ -24,7 +28,7 @@ _console_handler: logging.StreamHandler | None = None
 class FlushHandler(TimedRotatingFileHandler):
     """Grava cada registro no arquivo imediatamente."""
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def emit(self: Self, record: logging.LogRecord) -> None:
         """Grava o registro e descarrega o buffer para mantê-lo disponível."""
         super().emit(record)
         self.flush()

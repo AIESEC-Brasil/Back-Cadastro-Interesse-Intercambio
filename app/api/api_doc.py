@@ -24,7 +24,8 @@ from flask_openapi3 import Tag
 # ==============================================================================
 
 # DTO interno que encapsula códigos de status HTTP padrão
-from ..dto import BaseErrorResponse, HttpStatus
+from ..dto.exception import BaseErrorResponse
+from ..dto.output import HttpStatus
 
 # Decorator de segurança que intercepta requisições e valida o IP do cliente
 from ..middlewares import require_ip_whitelist

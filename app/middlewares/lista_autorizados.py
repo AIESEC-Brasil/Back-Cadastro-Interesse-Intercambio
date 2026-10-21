@@ -14,7 +14,7 @@ from typing import Any, Callable  # Tipagem estática para funções e retornos
 from flask import jsonify, request  # Utilitários de requisição e JSON do Flask
 
 from ..core import IS_DEV  # Flag indicativa do ambiente de desenvolvimento
-from ..dto import HttpStatus  # Enúmero ou estrutura de códigos HTTP
+from ..dto.output import HttpStatus  # Enúmero ou estrutura de códigos HTTP
 from ..storage import storage  # Repositório/Singleton com a lista de IPs permitidos
 
 

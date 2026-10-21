@@ -1,4 +1,4 @@
-"""Tipos compartilhados entre os DTOs de entrada e saída."""
+"""Tipos compartilhados entre os contratos de entrada e saída."""
 
 from .contact import (
     CategoriaContato,
@@ -7,7 +7,6 @@ from .contact import (
     EmailItem,
     TelefoneItem,
 )
-from .expa import PayloadExpa
 from .lead import (
     AreaAtuacao,
     Autorizacao,
@@ -24,8 +23,16 @@ from .lead import (
     SemestreCurso,
     Tag,
     Universidade,
+    buscar_id_opcao_cache,
+    validar_opcao_cache,
+    validar_texto_opcao_cache,
 )
+from .lead_base import LeadPreCadastroBase
+from .upload import MAX_PDF_SIZE_BYTES, UploadItem
 
+# ==============================================================================
+# TIPOS COMPARTILHADOS
+# ==============================================================================
 __all__ = [
     "AreaAtuacao",
     "Autorizacao",
@@ -36,16 +43,21 @@ __all__ = [
     "DataNascimento",
     "EmailItem",
     "Idioma",
+    "LeadPreCadastroBase",
+    "MAX_PDF_SIZE_BYTES",
     "Meio",
     "NivelAtuacao",
     "Origem",
-    "PayloadExpa",
-    "ProdutoLead",
     "Produto",
+    "ProdutoLead",
     "ReferenciaLead",
     "Senha",
     "SemestreCurso",
     "Tag",
     "TelefoneItem",
     "Universidade",
+    "UploadItem",
+    "buscar_id_opcao_cache",
+    "validar_opcao_cache",
+    "validar_texto_opcao_cache",
 ]

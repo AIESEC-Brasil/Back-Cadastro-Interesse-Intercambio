@@ -3,10 +3,13 @@
 from pydantic import ValidationError
 from werkzeug.exceptions import HTTPException
 
-from ..dto import HttpStatus
-from ..dto import AppError, BaseErrorResponse, ValidationErrorResponse
+from ..dto.exception import AppError, BaseErrorResponse, ValidationErrorResponse
+from ..dto.output import HttpStatus
 
 
+# ==============================================================================
+# NORMALIZAÇÃO DE EXCEÇÕES PARA RESPOSTA HTTP
+# ==============================================================================
 def resolve_exception(exception: Exception) -> BaseErrorResponse:
     """Converte validações, erros HTTP e exceções comuns para o DTO de erro."""
     if isinstance(exception, AppError):

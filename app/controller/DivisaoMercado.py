@@ -13,11 +13,14 @@ from ..clients.divisao_mercado import (
     enviar_metadados_escritorios,
     enviar_metadados_universidades,
 )
-from ..dto import HttpStatus
+from ..dto.output import HttpStatus
 from ..dto.output import DivisaoMercadoMetadados
 from ..router import Router
 
 
+# ==============================================================================
+# CONFIGURAÇÃO DA API E DOS SCHEMAS DE RESPOSTA
+# ==============================================================================
 divisao_mercado: Router = Router(
     name="divisao_mercado",
     url_prefix="/divisao-mercado",
@@ -41,6 +44,9 @@ METADADOS_RESPONSES: dict[int | str, Any] = {
 }
 
 
+# ==============================================================================
+# CONSULTA DE METADADOS PELO CACHE
+# ==============================================================================
 def _buscar_metadados(
     *,
     key: str,

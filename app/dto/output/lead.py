@@ -2,9 +2,12 @@
 
 from pydantic import ConfigDict, Field, PositiveInt
 
-from ..base import LeadPreCadastroBase
+from ..types import LeadPreCadastroBase
 
 
+# ==============================================================================
+# RESPOSTA DO PRÉ-CADASTRO
+# ==============================================================================
 class LeadPreCadastroOutput(LeadPreCadastroBase):
     """Cadastro de lead retornado pela API, identificado pelo `id` atual."""
 
