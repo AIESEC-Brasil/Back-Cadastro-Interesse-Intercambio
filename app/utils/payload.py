@@ -90,7 +90,7 @@ def _dados_divisao_cache(chave_cache: str) -> list[Any]:
     return registros if isinstance(registros, list) else []
 
 
-def _resolver_nome_cl_expa(dados: CriarPreCadastroLead) -> str:
+def _resolver_nome_cl(dados: CriarPreCadastroLead) -> str:
     """Resolve o comitê EXPA pela divisão de mercado histórica."""
     divisao: dict[str, Any] | None = None
     if dados.universidade:
@@ -148,7 +148,7 @@ def montar_payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
     from app.config import TOKEN_EXPA
 
     nome_cl_formatado: str = _normalizar_nome_escritorio(
-        _resolver_nome_cl_expa(dados)
+        _resolver_nome_cl(dados)
     )
     return PayloadExpa(
         nome=str(dados.nome).title(),
