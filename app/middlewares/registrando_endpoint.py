@@ -90,7 +90,7 @@ def register_url(response: Response) -> Response:
         )
 
     if (
-        response.status_code >= 400
+        response.status_code >= 400 and response.status_code != 401
         and response.status_code != HttpStatus.UNPROCESSABLE_ENTITY
         and request.path not in IGNORED_ERROR_PATHS
     ):

@@ -24,5 +24,9 @@ async def enviar_metadados_b2c() -> Tuple[int, Any]:
     """Consulta os metadados B2C no Apps Script configurado."""
     return await _http.get(path=_endpoint())
 
+async def enviar_lead_b2c(payload: Any) -> Tuple[int, Any]:
+    """Envia um lead para o B2C."""
+    return await _http.post(path=_endpoint(),payload=payload)
 
-__all__ = ["enviar_metadados_b2c"]
+
+__all__ = ["enviar_metadados_b2c", "enviar_lead_b2c"]

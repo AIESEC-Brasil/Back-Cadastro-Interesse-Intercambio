@@ -1,5 +1,6 @@
 """Modelos e exceções para respostas de erro da API."""
 
+import logging
 from ast import literal_eval
 from typing import Any, Self
 
@@ -7,6 +8,23 @@ from deep_translator import GoogleTranslator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..output import HttpStatus
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+VALIDATION_MESSAGES_PT: dict[str, str] = {
+    "bool_parsing": "Informe um valor verdadeiro ou falso.",
+    "bool_type": "O valor deve ser verdadeiro ou falso.",
+    "float_parsing": "Informe um número válido.",
+    "float_type": "O valor deve ser um número.",
+    "int_parsing": "Informe um número inteiro válido.",
+    "int_type": "O valor deve ser um número inteiro.",
+    "list_type": "O valor deve ser uma lista.",
+    "missing": "Este campo é obrigatório.",
+    "model_type": "O valor informado possui um formato inválido.",
+    "string_too_long": "O texto informado é muito longo.",
+    "string_too_short": "O texto informado é muito curto.",
+    "string_type": "O valor deve ser um texto.",
+}
 
 
 # ==============================================================================
@@ -85,12 +103,18 @@ class ValidationErrorResponse(BaseErrorResponse):
                 continue
             seen.add(key)
 
-            try:
-                message: str = GoogleTranslator(source="auto", target="pt").translate(
-                    original_message
-                )
-            except Exception:
-                message = original_message
+            message: str | None = VALIDATION_MESSAGES_PT.get(error["type"])
+            if message is None:
+                try:
+                    message = GoogleTranslator(
+                        source="auto", target="pt"
+                    ).translate(original_message)
+                except Exception:
+                    logger.warning(
+                        "Falha ao traduzir erro de validação do tipo %s",
+                        error["type"],
+                    )
+                    message = "Valor inválido."
 
             message = message.removeprefix("Value error, ")
             if message.startswith("["):
