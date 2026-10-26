@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..cache.cache import capitalizar_nome
 from ..dto.integration import PayloadExpa
-from ..dto.persistence import LeadPersistencia
+from ..dto.persistence import LeadPersistencia, QualificacaoPersistencia
 from ..dto.types import CategoriaContato, LeadPreCadastroBase
 from ..dto.input import CriarPreCadastroLead, QualificacaoLead
 from ..dto.output import LeadPreCadastroOutput
@@ -211,29 +211,47 @@ def montar_dto_persistencia(
         id_status=1,
         id_escritorio=_resolver_id_escritorio(dados),
         id_origem=dados.origem.id,
+        autorizacao=dados.autorizacao,
         nome=dados.nome,
         sobrenome=dados.sobrenome,
         universidade=dados.universidade,
         dataNascimento=dados.dataNascimento,
-        id_nivel_mercado=(
-            qualificacao.nivelAtuacao.id
-            if qualificacao and qualificacao.nivelAtuacao
-            else None
-        ),
-        id_area_atuacao=(
-            qualificacao.areaAtuacao.id
-            if qualificacao and qualificacao.areaAtuacao
-            else None
-        ),
         id_meio=dados.meio.id if dados.meio else None,
-        id_semestre_curso=(
-            qualificacao.semestreCurso.id
-            if qualificacao and qualificacao.semestreCurso
-            else None
-        ),
-        link_drive=qualificacao.curriculo if qualificacao else None,
     )
     return LeadPersistencia.model_validate(dados_persistencia)
+
+
+def montar_dto_qualificacao_persistencia(
+    qualificacao: QualificacaoLead,
+) -> QualificacaoPersistencia:
+    """Monta o payload de persistência da qualificação, convertendo referências em IDs."""
+    payload: dict[str, Any] = qualificacao.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_unset=True,
+    )
+    payload["status"] = "qualificação"
+    if "idiomas" in payload:
+        payload["idiomas"] = (
+            [idioma.id for idioma in qualificacao.idiomas]
+            if qualificacao.idiomas is not None
+            else None
+        )
+    for campo_origem, campo_persistencia in (
+        ("areaAtuacao", "id_area_atuacao"),
+        ("nivelAtuacao", "id_nivel_mercado"),
+        ("semestreCurso", "id_semestre_curso"),
+    ):
+        if campo_origem not in payload:
+            continue
+        referencia: Any = getattr(qualificacao, campo_origem)
+        if referencia is not None:
+            payload[campo_persistencia] = referencia.id
+        elif campo_persistencia not in payload:
+            payload[campo_persistencia] = None
+        del payload[campo_origem]
+
+    return QualificacaoPersistencia.model_validate(payload)
 
 
 def montar_payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
@@ -264,6 +282,7 @@ def payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
 __all__ = [
     "montar_payload_persistencia",
     "montar_dto_persistencia",
+    "montar_dto_qualificacao_persistencia",
     "montar_payload_expa",
     "payload_expa",
 ]

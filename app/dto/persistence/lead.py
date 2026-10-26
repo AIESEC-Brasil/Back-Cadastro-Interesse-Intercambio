@@ -1,7 +1,7 @@
 """DTO de persistência do cadastro de leads."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from typing import Self
 from zoneinfo import ZoneInfo
 
@@ -12,9 +12,15 @@ from pydantic import (
     Field,
     PositiveInt,
     field_serializer,
+    field_validator,
 )
 
-from ..types import DataNascimento, Tag, UploadItem
+from ..types import (
+    Autorizacao,
+    DataNascimento,
+    Tag,
+    UploadItem,
+)
 
 
 # ==============================================================================
@@ -56,17 +62,30 @@ class LeadPersistencia(BaseModel):
     sobrenome: str
     telefone: list[TelefonePersistencia]
     email: list[EmailPersistencia]
+    autorizacao: Autorizacao
     universidade: str | None = None
     dataNascimento: DataNascimento
-    id_nivel_mercado: PositiveInt | None = None
-    id_area_atuacao: PositiveInt | None = None
     id_meio: PositiveInt | None = None
-    id_semestre_curso: PositiveInt | None = None
     criado_em: datetime = Field(
         default_factory=lambda: datetime.now(ZoneInfo("America/Sao_Paulo"))
     )
-    link_drive: UploadItem | None = None
     tag: list[Tag] | None = None
+
+    @field_validator("criado_em", mode="before")
+    @classmethod
+    def validar_criado_em(cls, valor: Any) -> datetime:
+        """Aceita o formato de data usado no payload enviado ao Apps Script."""
+        if isinstance(valor, datetime):
+            return valor
+        if isinstance(valor, str):
+            try:
+                return datetime.strptime(valor, "%d/%m/%Y %H:%M:%S")
+            except ValueError:
+                try:
+                    return datetime.fromisoformat(valor)
+                except ValueError as error:
+                    raise ValueError("Formato inválido para criado_em.") from error
+        raise ValueError("criado_em deve ser uma data ou texto de data válido.")
 
     @field_serializer("criado_em")
     def serializar_criado_em(self: Self, valor: datetime) -> str:
@@ -74,4 +93,24 @@ class LeadPersistencia(BaseModel):
         return valor.strftime("%d/%m/%Y %H:%M:%S")
 
 
-__all__ = ["EmailPersistencia", "LeadPersistencia", "TelefonePersistencia"]
+class QualificacaoPersistencia(BaseModel):
+    """Campos da segunda etapa no formato esperado pela persistência."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: PositiveInt
+    status: Literal["qualificação"] = "qualificação"
+    curso: str | None = None
+    idiomas: list[PositiveInt] | None = None
+    id_area_atuacao: PositiveInt | None = None
+    id_nivel_mercado: PositiveInt | None = None
+    id_semestre_curso: PositiveInt | None = None
+    curriculo: UploadItem | None = None
+
+
+__all__ = [
+    "EmailPersistencia",
+    "LeadPersistencia",
+    "QualificacaoPersistencia",
+    "TelefonePersistencia",
+]

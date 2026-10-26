@@ -56,6 +56,9 @@ class QualificacaoLead(BaseModel):
         default=None,
         description="Semestre atual do curso",
     )
+    id_area_atuacao: PositiveInt | None = None
+    id_nivel_mercado: PositiveInt | None = None
+    id_semestre_curso: PositiveInt | None = None
     curriculo: UploadItem | None = Field(
         default=None,
         description="Currículo PDF codificado em Base64",

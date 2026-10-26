@@ -17,7 +17,11 @@ from ..dto.input import CriarPreCadastroLead, QualificacaoLead
 from ..dto.output import HttpStatus, LeadPreCadastroOutput, Metadados
 from ..dto.persistence import LeadPersistencia
 from ..router import Router
-from ..utils.payload import montar_dto_persistencia, montar_payload_expa
+from ..utils.payload import (
+    montar_dto_persistencia,
+    montar_dto_qualificacao_persistencia,
+    montar_payload_expa,
+)
 
 new_lead_ogx: Router = Router(name="cadatro_interesse_intercambio", url_prefix="/new-lead-ogx")
 logger: logging.Logger = logging.getLogger(__name__)
@@ -178,7 +182,6 @@ class CadastroLeadView:
             status_expa: Any = (
                 resposta.get("status_code") if isinstance(resposta, dict) else None
             )
-            print(status_expa)
             if (
                 not isinstance(status_expa, int)
                 or isinstance(status_expa, bool)
@@ -230,6 +233,7 @@ class CadastroLeadView:
         status_b2c: int
         resposta_b2c: Any
         status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
+        print(status_b2c)
         if not 200 <= status_b2c < 300:
             status_erro: int = (
                 status_b2c
@@ -247,7 +251,7 @@ class CadastroLeadView:
             logger.error("Falha ao enviar pré-cadastro ao B2C | HTTP %s", status_b2c)
             return {"error": str(mensagem)}, status_erro
 
-        return lead_persistencia, HttpStatus.CREATED
+        return resposta_b2c, HttpStatus.CREATED
 
     @cadastro_lead_view.doc(
         summary="Atualizar cadastro do lead",
@@ -258,12 +262,12 @@ class CadastroLeadView:
         self: Self, body: QualificacaoLead
     ) -> tuple[Any, int]:
         """Envia ao B2C os dados complementares da segunda etapa."""
-        payload_b2c: dict[str, Any] = body.model_dump(
+        qualificacao_persistencia = montar_dto_qualificacao_persistencia(body)
+        payload_b2c: dict[str, Any] = qualificacao_persistencia.model_dump(
             mode="json",
             by_alias=True,
             exclude_unset=True,
         )
-        payload_b2c["status"] = "qualificação"
         status_b2c: int
         resposta_b2c: Any
         status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
@@ -290,7 +294,7 @@ class CadastroLeadView:
             return {"error": str(mensagem)}, status_erro
 
         logger.info("Dados de qualificação enviados ao B2C | lead %s", body.id)
-        return resposta_b2c, status_b2c
+        return payload_b2c, status_b2c
 
 
 __all__ = ["cadastro_lead_view", "new_lead_ogx"]
