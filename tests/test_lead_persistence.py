@@ -142,13 +142,63 @@ class LeadPersistenceTests(unittest.TestCase):
             resposta, status = cadastro_controller.CadastroLeadView().post(lead)
 
         self.assertEqual(status, 201)
-        self.assertEqual(resposta, {"sucesso": True})
+        self.assertIsInstance(resposta, LeadPersistencia)
+        self.assertEqual(resposta.id, 98765)
+        self.assertEqual(resposta.status, "pré-cadastro")
+        resposta_validada, status_validado = validate_api_response(
+            (resposta, status),
+            {201: LeadPersistencia},
+        )
+        self.assertEqual(status_validado, 201)
+        self.assertEqual(resposta_validada["id"], 98765)
         self.assertEqual(payload_b2c["status"], "pré-cadastro")
         self.assertEqual(payload_b2c["autorizacao"], 1)
         self.assertNotIn("senha", payload_b2c)
         self.assertNotIn("id_nivel_mercado", payload_b2c)
         self.assertNotIn("id_semestre_curso", payload_b2c)
         self.assertNotIn("link_drive", payload_b2c)
+
+    def test_post_returns_generic_json_when_expa_rejects_lead(self) -> None:
+        lead = CriarPreCadastroLead(
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            dataNascimento=datetime(2000, 1, 2),
+            telefone=[{"tipo": "home", "numero": "11912345678"}],
+            email=[{"tipo": "home", "email": "ana@example.com"}],
+            produto={"id": 1, "id_expa": 7, "titulo": "Voluntário Global"},
+            autorizacao=1,
+            origem={"id": 4, "nome": "Instagram"},
+            senha="StrongPass@123",
+            comite={"id": 23, "nome": "AIESEC em São Paulo"},
+        )
+        resposta_expa = {
+            "error": (
+                'Erro na API EXPA (422): {"message": "requirement not met"}'
+            )
+        }
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda _payload: (422, resposta_expa),
+        ):
+            resposta, status = cadastro_controller.CadastroLeadView().post(lead)
+
+        self.assertEqual(status, 502)
+        resposta_validada, status_validado = validate_api_response(
+            (resposta, status),
+            cadastro_controller.CADASTRO_POST_RESPONSES,
+        )
+        self.assertEqual(status_validado, 502)
+        self.assertEqual(resposta_validada["type"], "ExternalServiceError")
+        self.assertEqual(
+            resposta_validada["message"],
+            "EXPA rejeitou a solicitação (HTTP 422).",
+        )
+        self.assertIn(
+            "requirement not met",
+            resposta_validada["error_details"][0]["msg"],
+        )
 
     def test_response_validation_accepts_serialized_creation_datetime(self) -> None:
         lead = LeadPersistencia(

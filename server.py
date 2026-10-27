@@ -38,7 +38,7 @@ app = create_app()
 if __name__ == "__main__":
     if IS_DEV:
         # Executa o servidor nativo do Flask com auto-reload ativado (apenas para desenvolvimento)
-        app.run(debug=True, host="127.0.0.1", port=5000)
+        app.run(debug=IS_DEV, host="0.0.0.0", port=5000)
 
     elif IS_TEST:
         # Executa o servidor Waitress configurado para ambiente de homologação/testes
