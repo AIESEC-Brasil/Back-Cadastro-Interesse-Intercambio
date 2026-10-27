@@ -28,11 +28,13 @@ from .utils.exception import (
 # FÁBRICA E CONFIGURAÇÃO DA APLICAÇÃO
 # ==============================================================================
 def create_app() -> OpenAPI:
-    """Cria e configura a aplicação, as rotas, os logs e o cache inicial.
+    """
+    Cria e configura a aplicação, as rotas, os logs e o cache inicial.
 
     Returns:
         Instância Flask/OpenAPI pronta para ser servida pelo servidor WSGI.
     """
+
     setup_logging(debug=IS_DEV)
     app: OpenAPI = ApiOpenAPI(
         __name__,
