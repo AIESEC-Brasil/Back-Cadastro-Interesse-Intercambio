@@ -34,7 +34,6 @@ def create_app() -> OpenAPI:
     Returns:
         Instância Flask/OpenAPI pronta para ser servida pelo servidor WSGI.
     """
-
     setup_logging(debug=IS_DEV)
     app: OpenAPI = ApiOpenAPI(
         __name__,
