@@ -1,4 +1,7 @@
-"""Aplicação Flask de metadados B2C."""
+"""
+Aplicação Flask de metadados B2C.
+
+"""
 
 from .main import create_app
 
