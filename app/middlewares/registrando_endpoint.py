@@ -118,16 +118,23 @@ def register_url(response: Response) -> Response:
             response.status_code,
             "Ocorreu um erro ao processar sua solicitação.",
         )
-        # Mantém o status HTTP original e troca somente o corpo por uma página legível.
-        response.set_data(
-            render_template(
-                "error.html",
-                status_code=response.status_code,
-                status_name=status_name,
-                message=message,
+        # Em caso de empate (por exemplo, Accept: */*), mantém o formato JSON.
+        if (
+            request.accept_mimetypes.best_match(
+                ["application/json", "text/html"]
             )
-        )
-        response.mimetype = "text/html"
+            == "text/html"
+        ):
+            # Mantém o status HTTP original e troca somente o corpo por uma página legível.
+            response.set_data(
+                render_template(
+                    "error.html",
+                    status_code=response.status_code,
+                    status_name=status_name,
+                    message=message,
+                )
+            )
+            response.mimetype = "text/html"
 
     if request.path in NO_CACHE_ROUTES or request.path.startswith(NO_CACHE_PREFIXES):
         response.headers["Cache-Control"] = (
