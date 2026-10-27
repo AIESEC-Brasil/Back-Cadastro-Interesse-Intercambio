@@ -10,7 +10,7 @@ durante todo o ciclo de vida da aplicação.
 # =================================================================
 from dataclasses import dataclass, field  # Decorador e utilitários para classes de dados
 import logging  # Sistema de logging nativo do Python
-from typing import List, Literal, Optional, Tuple  # Tipagens estáticas
+from typing import List, Literal, Optional, Self, Tuple  # Tipagens estáticas
 
 from app.dto.output import HttpStatus  # Constantes de status HTTP da aplicação
 
@@ -19,7 +19,7 @@ from app.dto.output import HttpStatus  # Constantes de status HTTP da aplicaçã
 # =================================================================
 
 # Instanciação do logger no nível do módulo (ex: 'app.core.storage')
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 # =================================================================
@@ -37,12 +37,12 @@ class Storage:
     # Atributo privado inicializado via field para evitar mutabilidade padrão
     __ip: List[str] = field(default_factory=list, init=False)
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Inicializa o container de IPs como uma lista privada vazia."""
         self.__ip: List[str] = []
 
     def add_ip(
-            self, ip: str
+            self: Self, ip: str
     ) -> Optional[Tuple[str, Literal[HttpStatus.CONFLICT]]]:
         """Tenta registrar um endereço IP na lista de permissões em memória.
 
@@ -76,7 +76,7 @@ class Storage:
 
         return None
 
-    def get_ip(self) -> List[str]:
+    def get_ip(self: Self) -> List[str]:
         """Retorna uma cópia atualizada da lista de todos os IPs que possuem acesso.
 
         Returns:
@@ -91,7 +91,7 @@ class Storage:
 # =================================================================
 
 # Objeto global compartilhado entre diferentes middlewares e rotas
-storage = Storage()
+storage: Storage = Storage()
 
 
 # =================================================================

@@ -14,7 +14,7 @@ from typing import Any, Callable  # Tipagem estática para funções e retornos
 from flask import jsonify, request  # Utilitários de requisição e JSON do Flask
 
 from ..core import IS_DEV  # Flag indicativa do ambiente de desenvolvimento
-from ..dto import HttpStatus  # Enúmero ou estrutura de códigos HTTP
+from ..dto.output import HttpStatus  # Enúmero ou estrutura de códigos HTTP
 from ..storage import storage  # Repositório/Singleton com a lista de IPs permitidos
 
 
@@ -36,18 +36,21 @@ def require_ip_whitelist(
 
     @wraps(func)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
+        """Valida o IP de origem e executa a rota apenas se estiver liberado."""
         # Carrega o conjunto (set) de IPs autorizados armazenados em memória (Complexidade O(1))
-        allowed_ip_list = set(storage.get_ip())
+        allowed_ip_list: set[str] = set(storage.get_ip())
 
         # Captura o IP retornado pelo proxy/load balancer ou direto da conexão física
-        raw_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        raw_ip: str | None = request.headers.get(
+            "X-Forwarded-For", request.remote_addr
+        )
 
         # Extrai o primeiro IP caso haja múltiplos proxies na cadeia (separados por vírgula)
-        client_ip = raw_ip.split(",")[0].strip() if raw_ip else ""
+        client_ip: str = raw_ip.split(",")[0].strip() if raw_ip else ""
 
         # Valida se o IP está autorizada ou se o sistema está em modo dev
         if client_ip not in allowed_ip_list and not IS_DEV:
-            mensagem_erro = {
+            mensagem_erro: dict[str, str] = {
                 "error": "Sua máquina não está autorizada a entrar nessa rota"
             }
             return jsonify(mensagem_erro), HttpStatus.UNAUTHORIZED

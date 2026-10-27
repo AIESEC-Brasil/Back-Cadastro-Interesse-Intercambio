@@ -1,6 +1,11 @@
+"""Enum de códigos HTTP utilizados nas respostas e logs da aplicação."""
+
 from enum import IntEnum                                   # Base para criação de enumeradores de inteiros
 
 
+# ==============================================================================
+# CÓDIGOS DE STATUS HTTP
+# ==============================================================================
 class HttpStatus(IntEnum):
     """
     Enum completo de Status HTTP oficiais (100–599).

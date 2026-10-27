@@ -15,7 +15,7 @@ import os  # Utilitário para manipulação do sistema operacional e caminhos de
 from dotenv import load_dotenv  # Biblioteca para carregar variáveis de ambiente de arquivos .env
 
 # Localiza o caminho absoluto do diretório onde este script está sendo executado
-path_atual = os.path.dirname(os.path.abspath(__file__))
+path_atual: str = os.path.dirname(os.path.abspath(__file__))
 
 # Concatena o caminho absoluto com o arquivo '.env.dev' e injeta as variáveis no os.environ
 load_dotenv(os.path.join(path_atual, ".env.dev"))
@@ -38,7 +38,7 @@ app = create_app()
 if __name__ == "__main__":
     if IS_DEV:
         # Executa o servidor nativo do Flask com auto-reload ativado (apenas para desenvolvimento)
-        app.run(debug=True, host="127.0.0.1", port=5000)
+        app.run(debug=IS_DEV, host="0.0.0.0", port=5000)
 
     elif IS_TEST:
         # Executa o servidor Waitress configurado para ambiente de homologação/testes
