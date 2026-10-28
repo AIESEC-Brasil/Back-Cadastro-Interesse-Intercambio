@@ -1,11 +1,15 @@
 """Tipos compartilhados entre os contratos de entrada e saída."""
 
 from .contact import (
+    CATEGORIAS_CONTATO_VALIDAS,
+    CATEGORIAS_EMAIL_VALIDAS,
+    CATEGORIAS_TELEFONE_VALIDAS,
     CategoriaContato,
     ContatoEmail,
     ContatoTelefone,
     EmailItem,
     TelefoneItem,
+    listar_categorias_contato_validas,
 )
 from .lead import (
     AreaAtuacao,
@@ -36,6 +40,9 @@ from .upload import MAX_PDF_SIZE_BYTES, UploadItem
 __all__ = [
     "AreaAtuacao",
     "Autorizacao",
+    "CATEGORIAS_CONTATO_VALIDAS",
+    "CATEGORIAS_EMAIL_VALIDAS",
+    "CATEGORIAS_TELEFONE_VALIDAS",
     "CategoriaContato",
     "Comite",
     "ContatoEmail",
@@ -58,6 +65,7 @@ __all__ = [
     "Universidade",
     "UploadItem",
     "buscar_id_opcao_cache",
+    "listar_categorias_contato_validas",
     "validar_opcao_cache",
     "validar_texto_opcao_cache",
 ]
