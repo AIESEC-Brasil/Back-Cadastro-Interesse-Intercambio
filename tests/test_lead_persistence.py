@@ -3,6 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 for key, value in {
     "AMBIENTE": "TEST",
     "CACHE_TTL": "3600",
@@ -107,6 +109,55 @@ class LeadPersistenceTests(unittest.TestCase):
         self.assertEqual(payload["autorizacao"], 1)
         self.assertEqual(payload["telefone"][0]["numero"], "11912345678")
         self.assertEqual(payload["email"][0]["email"], "ana@example.com")
+
+    def test_contact_lists_require_one_or_two_items(self) -> None:
+        lead_data = {
+            "nome": "Ana Maria",
+            "sobrenome": "Silva Santos",
+            "dataNascimento": datetime(2000, 1, 2),
+            "telefone": [{"tipo": "home", "numero": "11912345678"}],
+            "email": [{"tipo": "home", "email": "ana@example.com"}],
+            "produto": {"id": 1, "id_expa": 7, "titulo": "Voluntário Global"},
+            "autorizacao": 1,
+            "origem": {"id": 4, "nome": "Instagram"},
+            "senha": "StrongPass@123",
+            "comite": {"id": 23, "nome": "AIESEC em São Paulo"},
+        }
+
+        CriarPreCadastroLead.model_validate(lead_data)
+        lead_data["telefone"] = [
+            {"tipo": "home", "numero": "11912345678"},
+            {"tipo": "work", "numero": "21912345678"},
+        ]
+        lead_data["email"] = [
+            {"tipo": "home", "email": "ana@example.com"},
+            {"tipo": "work", "email": "ana.work@example.com"},
+        ]
+        CriarPreCadastroLead.model_validate(lead_data)
+
+        for field, three_contacts in (
+            (
+                "telefone",
+                [
+                    {"tipo": "home", "numero": "11912345678"},
+                    {"tipo": "work", "numero": "21912345678"},
+                    {"tipo": "mobile", "numero": "31912345678"},
+                ],
+            ),
+            (
+                "email",
+                [
+                    {"tipo": "home", "email": "ana@example.com"},
+                    {"tipo": "work", "email": "ana.work@example.com"},
+                    {"tipo": "other", "email": "ana.other@example.com"},
+                ],
+            ),
+        ):
+            for contacts in ([], three_contacts):
+                with self.subTest(field=field, count=len(contacts)):
+                    invalid_data = {**lead_data, field: contacts}
+                    with self.assertRaises(ValidationError):
+                        CriarPreCadastroLead.model_validate(invalid_data)
 
     def test_post_sends_fixed_pre_registration_status_to_b2c(self) -> None:
         lead = CriarPreCadastroLead(

@@ -16,6 +16,7 @@ from ..dto.exception import BaseErrorResponse, ValidationErrorResponse
 from ..dto.input import CriarPreCadastroLead, QualificacaoLead
 from ..dto.output import HttpStatus, LeadPreCadastroOutput, Metadados
 from ..dto.persistence import LeadPersistencia
+from ..dto.types import listar_categorias_contato_validas
 from ..router import Router
 from ..utils.payload import (
     montar_dto_persistencia,
@@ -128,6 +129,11 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
         cache_entry["timestamp"], ZoneInfo("America/Sao_Paulo")
     )
     metadata: dict[str, Any] = {**payload, "timestamp": timestamp}
+    metadata_data: dict[str, Any] = {
+        **metadata["data"],
+        "categorias_contato": listar_categorias_contato_validas(),
+    }
+    metadata["data"] = metadata_data
     return metadata, status
 
 # ==============================================================================

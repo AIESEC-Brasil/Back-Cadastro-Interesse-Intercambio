@@ -39,8 +39,16 @@ class LeadPreCadastroBase(BaseModel):
         description="Sobrenome do lead",
     )
     dataNascimento: DataNascimento = Field(description="Data de nascimento")
-    telefone: List[ContatoTelefone] = Field(description="Telefones para contato")
-    email: List[ContatoEmail] = Field(description="E-mails para contato")
+    telefone: List[ContatoTelefone] = Field(
+        min_length=1,
+        max_length=2,
+        description="Informe de um a dois telefones para contato",
+    )
+    email: List[ContatoEmail] = Field(
+        min_length=1,
+        max_length=2,
+        description="Informe de um a dois e-mails para contato",
+    )
     universidade: Optional[Universidade] = Field(
         default=None, description="Instituição de ensino, quando informada"
     )

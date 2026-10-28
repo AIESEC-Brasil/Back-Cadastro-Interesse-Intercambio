@@ -29,6 +29,26 @@ class CategoriaContato(str, Enum):
         return buscar_id_opcao_cache("categoriaContato", self.value)
 
 
+CATEGORIAS_EMAIL_VALIDAS = (
+    CategoriaContato.HOME,
+    CategoriaContato.WORK,
+    CategoriaContato.OTHER,
+)
+CATEGORIAS_TELEFONE_VALIDAS = tuple(CategoriaContato)
+CATEGORIAS_CONTATO_VALIDAS = {
+    "email": CATEGORIAS_EMAIL_VALIDAS,
+    "telefone": CATEGORIAS_TELEFONE_VALIDAS,
+}
+
+
+def listar_categorias_contato_validas() -> dict[str, list[str]]:
+    """Retorna as categorias aceitas por tipo de contato para os clientes."""
+    return {
+        campo: [categoria.value for categoria in categorias]
+        for campo, categorias in CATEGORIAS_CONTATO_VALIDAS.items()
+    }
+
+
 class ContatoTelefone(BaseModel):
     """Telefone informado pelo lead."""
 
@@ -70,12 +90,7 @@ class ContatoEmail(BaseModel):
         cls: type[Self], tipo: CategoriaContato
     ) -> CategoriaContato:
         """Permite somente categorias compatíveis com um endereço de e-mail."""
-        permitidos = {
-            CategoriaContato.HOME,
-            CategoriaContato.WORK,
-            CategoriaContato.OTHER,
-        }
-        if tipo not in permitidos:
+        if tipo not in CATEGORIAS_EMAIL_VALIDAS:
             raise ValueError(f"A categoria '{tipo.value}' não é permitida para e-mail.")
         validar_texto_opcao_cache("categoriaContato", tipo.value)
         return tipo
