@@ -18,18 +18,18 @@ for key, value in {
 from app.middlewares import autorizacao
 
 
-class OriginAuthorizationTests(unittest.TestCase):
+class ForwardedHostAuthorizationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = Flask(__name__)
 
-    def test_blocks_origin_not_in_allowed_domains(self) -> None:
+    def test_blocks_forwarded_host_not_in_allowed_domains(self) -> None:
         with (
             self.app.test_request_context(
                 "/new-lead-ogx/cadastro-b2c",
                 method="POST",
                 headers={
                     "Host": "example.test",
-                    "Origin": "https://untrusted.example",
+                    "X-Forwarded-Host": "untrusted.example",
                 },
             ),
             patch.object(autorizacao, "IS_PRODUCTION", False),
@@ -40,16 +40,16 @@ class OriginAuthorizationTests(unittest.TestCase):
             response, status = autorizacao.verificar_origem()
 
         self.assertEqual(status, 401)
-        self.assertEqual(response.get_json(), {"error": "Origem não autorizada"})
+        self.assertEqual(response.get_json(), {"error": "Domínio não autorizado"})
 
-    def test_allows_origin_matching_allowed_domain_and_port(self) -> None:
+    def test_allows_forwarded_host_matching_allowed_domain(self) -> None:
         with (
             self.app.test_request_context(
                 "/new-lead-ogx/cadastro-b2c",
                 method="POST",
                 headers={
                     "Host": "example.test",
-                    "Origin": "https://example.test",
+                    "X-Forwarded-Host": "example.test",
                 },
             ),
             patch.object(autorizacao, "IS_PRODUCTION", False),
@@ -61,25 +61,39 @@ class OriginAuthorizationTests(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    def test_rejects_malformed_and_null_origins(self) -> None:
-        for origin in ("null", "https://"):
-            with self.subTest(origin=origin):
-                with (
-                    self.app.test_request_context(
-                        "/new-lead-ogx/cadastro-b2c",
-                        method="POST",
-                        headers={"Host": "example.test", "Origin": origin},
-                    ),
-                    patch.object(autorizacao, "IS_PRODUCTION", False),
-                    patch.object(autorizacao, "IS_TEST", False),
-                    patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
-                    patch.object(
-                        autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]
-                    ),
-                ):
-                    response, status = autorizacao.verificar_origem()
+    def test_prefers_forwarded_host_over_upstream_host(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                headers={
+                    "Host": "backend.internal",
+                    "X-Forwarded-Host": "untrusted.example",
+                },
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            response, status = autorizacao.verificar_origem()
 
-                self.assertEqual(status, 401)
-                self.assertEqual(
-                    response.get_json(), {"error": "Origem não autorizada"}
-                )
+        self.assertEqual(status, 401)
+        self.assertEqual(response.get_json(), {"error": "Domínio não autorizado"})
+
+    def test_uses_host_when_forwarded_host_is_missing(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                headers={"Host": "untrusted.example"},
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            response, status = autorizacao.verificar_origem()
+
+        self.assertEqual(status, 401)
+        self.assertEqual(response.get_json(), {"error": "Domínio não autorizado"})
