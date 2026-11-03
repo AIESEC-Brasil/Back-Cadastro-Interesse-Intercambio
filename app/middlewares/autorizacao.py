@@ -135,9 +135,9 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     # 4. Validação de Domínio (Host Header)
     # =================================================================
     host: Optional[str] = (
-        request.headers.get("Origin")
+        request.headers.get("Origin").replace("https://","").replace("http://","")
         or request.headers.get("Referer").replace("https://","").replace("http://","")
-        or request.headers.get("Host")
+        or request.headers.get("Host").replace("https://","").replace("http://","")
     )
     if host and host not in DOMINIOS_PERMITIDOS:
         if not api_key:  # Se não houver API Key, o domínio precisa estar na whitelist
