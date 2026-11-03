@@ -170,7 +170,7 @@ def _resolver_nome_cl(dados: LeadPreCadastroBase) -> str:
                 for escritorio in escritorios
                 if isinstance(escritorio, dict)
                 and isinstance(escritorio.get("nome"), str)
-                and _chave_nome_cache(escritorio["nome"]) == nome_comite
+                and _chave_nome_cache(escritorio["nome"]) == _chave_nome_cache(nome_comite)
             ),
             None,
         )
