@@ -97,3 +97,36 @@ class ForwardedHostAuthorizationTests(unittest.TestCase):
 
         self.assertEqual(status, 401)
         self.assertEqual(response.get_json(), {"error": "Domínio não autorizado"})
+
+    def test_uses_authority_when_forwarded_host_is_missing(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                headers={":authority": "untrusted.example"},
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            response, status = autorizacao.verificar_origem()
+
+        self.assertEqual(status, 401)
+        self.assertEqual(response.get_json(), {"error": "Domínio não autorizado"})
+
+    def test_uses_http_authority_from_wsgi_environment(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                environ_overrides={"HTTP_AUTHORITY": "example.test"},
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            result = autorizacao.verificar_origem()
+
+        self.assertIsNone(result)

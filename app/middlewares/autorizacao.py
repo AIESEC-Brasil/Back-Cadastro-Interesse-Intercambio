@@ -136,6 +136,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     # =================================================================
     host: Optional[str] = (
         request.headers.get("X-Forwarded-Host")
+        or request.headers.get(":authority")
         or request.headers.get("Host")
     )
     if host and host not in DOMINIOS_PERMITIDOS:
