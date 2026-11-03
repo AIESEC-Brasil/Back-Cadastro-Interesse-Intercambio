@@ -1,6 +1,7 @@
 """Fábrica da API de cadastro de interesse em intercâmbio."""
 
 import os
+from urllib.parse import urlsplit
 
 from asgiref.sync import async_to_sync
 from flask_cors import CORS
@@ -8,7 +9,12 @@ from flask_openapi3 import Info, OpenAPI
 
 from .api import api
 from .controller import cadastro_lead_view, divisao_mercado, new_lead_ogx
-from .core import IS_DEV, pre_carregamento_metadados, setup_logging
+from .core import (
+    DOMINIOS_PERMITIDOS,
+    IS_DEV,
+    pre_carregamento_metadados,
+    setup_logging,
+)
 from .dto.exception import AppError, ValidationErrorResponse
 from .middlewares import (
     capture_request_start,
@@ -22,6 +28,30 @@ from .utils.exception import (
     handle_validation_error,
     validate_api_response,
 )
+
+
+def _origens_cors_permitidas() -> list[str]:
+    """Converte os domínios configurados em origens aceitas pelo CORS."""
+    origens: set[str] = set()
+    for dominio in DOMINIOS_PERMITIDOS:
+        valor = dominio.strip()
+        if not valor:
+            continue
+
+        partes = urlsplit(valor if "://" in valor else f"//{valor}")
+        if not partes.hostname or partes.path not in ("", "/") or partes.query or partes.fragment:
+            continue
+
+        if partes.scheme:
+            if partes.scheme in {"http", "https"}:
+                origens.add(f"{partes.scheme}://{partes.netloc}")
+            continue
+
+        origens.add(f"https://{partes.netloc}")
+        if partes.hostname.casefold() in {"localhost", "127.0.0.1", "::1"}:
+            origens.add(f"http://{partes.netloc}")
+
+    return sorted(origens)
 
 
 # ==============================================================================
@@ -51,7 +81,7 @@ def create_app() -> OpenAPI:
     }
     CORS(
         app,
-        origins=["*"],
+        origins=_origens_cors_permitidas(),
         allow_headers=["Content-Type"],
         methods=["GET", "POST", "PUT", "OPTIONS"],
     )
