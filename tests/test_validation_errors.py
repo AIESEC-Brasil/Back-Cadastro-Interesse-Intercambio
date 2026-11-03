@@ -13,9 +13,8 @@ for key, value in {
 }.items():
     os.environ.setdefault(key, value)
 
+from app.dto.exception import ValidationErrorResponse
 from pydantic import BaseModel, ValidationError, field_validator
-
-from app.dto.exception.errors import ValidationErrorResponse
 
 
 class IntegerInput(BaseModel):
@@ -32,13 +31,13 @@ class CustomInput(BaseModel):
 
 
 class ValidationErrorResponseTests(unittest.TestCase):
-    def test_integer_parsing_error_uses_portuguese_message_without_translation(self) -> None:
+    def test_integer_parsing_error_uses_portuguese_message_without_translation(
+        self,
+    ) -> None:
         try:
             IntegerInput.model_validate({"value": "8a"})
         except ValidationError as exception:
-            with patch(
-                "app.dto.exception.errors.GoogleTranslator"
-            ) as translator:
+            with patch("app.dto.exception.GoogleTranslator") as translator:
                 response = ValidationErrorResponse.from_exception(exception)
 
         self.assertEqual(response.status_code, 422)
@@ -53,7 +52,7 @@ class ValidationErrorResponseTests(unittest.TestCase):
             CustomInput.model_validate({"value": "invalid"})
         except ValidationError as exception:
             with patch(
-                "app.dto.exception.errors.GoogleTranslator",
+                "app.dto.exception.GoogleTranslator",
                 side_effect=RuntimeError("translation unavailable"),
             ):
                 response = ValidationErrorResponse.from_exception(exception)

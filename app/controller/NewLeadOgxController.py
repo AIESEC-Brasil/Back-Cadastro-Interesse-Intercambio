@@ -12,19 +12,28 @@ from pydantic import ValidationError
 from ..cache import cache
 from ..clients.b2c import enviar_lead_b2c, enviar_metadados_b2c
 from ..clients.expa import enviar_payload_expa
+from ..core.logger import log_resposta_externa
 from ..dto.exception import BaseErrorResponse, ValidationErrorResponse
-from ..dto.input import CriarPreCadastroLead, QualificacaoLead
-from ..dto.output import HttpStatus, LeadPreCadastroOutput, Metadados
-from ..dto.persistence import LeadPersistencia
+from ..dto.input import CriarPreCadastroB2C, CriarPreCadastroLead, QualificacaoLead
+from ..dto.output import (
+    HttpStatus,
+    LeadPersistencia,
+    LeadPreCadastroB2COutput,
+    LeadPreCadastroOutput,
+    Metadados,
+)
 from ..dto.types import listar_categorias_contato_validas
 from ..router import Router
 from ..utils.payload import (
     montar_dto_persistencia,
+    montar_dto_pre_cadastro_b2c,
     montar_dto_qualificacao_persistencia,
     montar_payload_expa,
 )
 
-new_lead_ogx: Router = Router(name="cadatro_interesse_intercambio", url_prefix="/new-lead-ogx")
+new_lead_ogx: Router = Router(
+    name="cadatro_interesse_intercambio", url_prefix="/new-lead-ogx"
+)
 logger: logging.Logger = logging.getLogger(__name__)
 
 
@@ -84,6 +93,7 @@ METADADOS_RESPONSES: dict[int | str, Any] = {
     },
 }
 
+
 # ==============================================================================
 # ROTA DE CONSULTA DOS METADADOS B2C
 # ==============================================================================
@@ -109,9 +119,7 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
             status_name: str = HttpStatus(status).name
         except ValueError:
             status_name = "UNKNOWN"
-        logger.error(
-            "Falha ao buscar metadados B2C | HTTP %s %s", status, status_name
-        )
+        log_resposta_externa(logger, f"metadados B2C ({status_name})", status, payload)
         return payload, status
     else:
         logger.info("Metadados B2C retornados com sucesso")
@@ -135,6 +143,88 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
     }
     metadata["data"] = metadata_data
     return metadata, status
+
+
+@new_lead_ogx.post(
+    "/cadastro-b2c",
+    summary="Criar pré-cadastro B2C",
+    description=(
+        "Recebe os campos do formulário B2C, sem senha ou criação de cadastro "
+        "no EXPA, e envia o payload de pré-cadastro diretamente ao Apps Script B2C."
+    ),
+    responses={
+        201: LeadPreCadastroB2COutput,
+        409: BaseErrorResponse,
+        502: BaseErrorResponse,
+        422: ValidationErrorResponse,
+        500: BaseErrorResponse,
+        "default": {
+            "description": "Erro HTTP exibido na página genérica de erro.",
+            "content": {"text/html": {"schema": {"type": "string"}}},
+        },
+    },
+    tags=[Tag(name="New Lead OGX")],
+)
+def criar_pre_cadastro_b2c(
+    body: CriarPreCadastroB2C,
+) -> tuple[LeadPreCadastroB2COutput | BaseErrorResponse, int]:
+    """Envia ao B2C os campos recebidos do formulário de atração."""
+    try:
+        cadastro_b2c = montar_dto_pre_cadastro_b2c(body)
+        payload_b2c: dict[str, Any] = cadastro_b2c.model_dump(mode="json")
+    except (TypeError, ValueError) as error:
+        logger.exception("Não foi possível montar o payload do pré-cadastro B2C")
+        return (
+            BaseErrorResponse(
+                type="PayloadPreparationError",
+                message="Não foi possível preparar o pré-cadastro B2C.",
+                error_details=[{"loc": "body", "msg": str(error)}],
+                status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            ),
+            HttpStatus.INTERNAL_SERVER_ERROR,
+        )
+
+    status_b2c: int
+    resposta_b2c: Any
+    status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
+
+    status_informado: Any = (
+        resposta_b2c.get("status") if isinstance(resposta_b2c, dict) else None
+    )
+    if status_b2c == HttpStatus.CONFLICT or status_informado == HttpStatus.CONFLICT:
+        detalhe: Any = (
+            resposta_b2c.get("error", resposta_b2c.get("message"))
+            if isinstance(resposta_b2c, dict)
+            else None
+        )
+        mensagem: str = (
+            str(detalhe) if detalhe else "Já existe um cadastro para este usuário."
+        )
+        logger.info("Cadastro B2C rejeitado por duplicidade")
+        return (
+            BaseErrorResponse(
+                type="ConflictError",
+                message="Já existe um cadastro para este usuário.",
+                error_details=[{"loc": "B2C", "msg": mensagem}],
+                status_code=HttpStatus.CONFLICT,
+            ),
+            HttpStatus.CONFLICT,
+        )
+
+    if not 200 <= status_b2c < 300:
+        log_resposta_externa(logger, "B2C pré-cadastro", status_b2c, resposta_b2c)
+        return (
+            _erro_integracao(
+                "B2C",
+                status_b2c,
+                resposta_b2c,
+                "Falha ao enviar pré-cadastro ao B2C.",
+            ),
+            HttpStatus.BAD_GATEWAY,
+        )
+
+    return LeadPreCadastroB2COutput.model_validate(payload_b2c), HttpStatus.CREATED
+
 
 # ==============================================================================
 # DOCUMENTAÇÃO DAS OPERAÇÕES DE CADASTRO
@@ -198,7 +288,7 @@ class CadastroLeadView:
         status, resposta = async_to_sync(enviar_payload_expa)(payload)
 
         if not 200 <= status < 300 and status != 401:
-            logger.error("Falha na criação do lead no EXPA | HTTP %s", status)
+            log_resposta_externa(logger, "EXPA criação de lead", status, resposta)
             return (
                 _erro_integracao(
                     "EXPA",
@@ -209,7 +299,7 @@ class CadastroLeadView:
                 HttpStatus.BAD_GATEWAY,
             )
 
-        if (not isinstance(resposta, dict) or resposta.get("sucesso") is not True):
+        if not isinstance(resposta, dict) or resposta.get("sucesso") is not True:
             status_expa: Any = (
                 resposta.get("status_code") if isinstance(resposta, dict) else None
             )
@@ -220,9 +310,11 @@ class CadastroLeadView:
             ):
                 status_expa = HttpStatus.BAD_GATEWAY
             if status_expa != 401:
-                logger.error(
-                    "EXPA não confirmou a criação do lead | HTTP %s",
+                log_resposta_externa(
+                    logger,
+                    "EXPA confirmação de criação",
                     status_expa,
+                    resposta,
                 )
                 return (
                     _erro_integracao(
@@ -234,14 +326,19 @@ class CadastroLeadView:
                     HttpStatus.BAD_GATEWAY,
                 )
 
-        person_id: Any = resposta.get("person_id",1)
+        person_id: Any = resposta.get("person_id")
         if (
             not isinstance(person_id, (str, int))
             or isinstance(person_id, bool)
             or not str(person_id).isdigit()
             or int(person_id) <= 0
         ):
-            logger.error("EXPA confirmou criação sem retornar person_id válido")
+            log_resposta_externa(
+                logger,
+                "EXPA person_id ausente ou inválido",
+                int(HttpStatus.BAD_GATEWAY),
+                resposta,
+            )
             return (
                 _erro_integracao(
                     "EXPA",
@@ -272,9 +369,10 @@ class CadastroLeadView:
         status_b2c: int
         resposta_b2c: Any
         status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
-        print(status_b2c)
         if not 200 <= status_b2c < 300:
-            logger.error("Falha ao enviar pré-cadastro ao B2C | HTTP %s", status_b2c)
+            log_resposta_externa(
+                logger, "B2C pré-cadastro EXPA", status_b2c, resposta_b2c
+            )
             return (
                 _erro_integracao(
                     "B2C",
@@ -292,9 +390,7 @@ class CadastroLeadView:
         description=CADASTRO_PUT_DESCRIPTION,
         responses=CADASTRO_PUT_RESPONSES,
     )
-    def put(
-        self: Self, body: QualificacaoLead
-    ) -> tuple[Any, int]:
+    def put(self: Self, body: QualificacaoLead) -> tuple[Any, int]:
         """Envia ao B2C os dados complementares da segunda etapa."""
         qualificacao_persistencia = montar_dto_qualificacao_persistencia(body)
         payload_b2c: dict[str, Any] = qualificacao_persistencia.model_dump(
@@ -307,9 +403,7 @@ class CadastroLeadView:
         status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
 
         if not 200 <= status_b2c < 300:
-            logger.error(
-                "Falha ao enviar qualificação ao B2C | HTTP %s", status_b2c
-            )
+            log_resposta_externa(logger, "B2C qualificação", status_b2c, resposta_b2c)
             return (
                 _erro_integracao(
                     "B2C",
