@@ -130,3 +130,38 @@ class ForwardedHostAuthorizationTests(unittest.TestCase):
             result = autorizacao.verificar_origem()
 
         self.assertIsNone(result)
+
+    def test_extracts_allowed_host_from_origin(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                headers={
+                    "Origin": "https://example.test",
+                    "Host": "backend.internal",
+                },
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            result = autorizacao.verificar_origem()
+
+        self.assertIsNone(result)
+
+    def test_extracts_host_from_referer_path(self) -> None:
+        with (
+            self.app.test_request_context(
+                "/new-lead-ogx/cadastro-b2c",
+                method="POST",
+                headers={"Referer": "https://example.test/leadAtracao"},
+            ),
+            patch.object(autorizacao, "IS_PRODUCTION", False),
+            patch.object(autorizacao, "IS_TEST", False),
+            patch.object(autorizacao, "API_KEYS_PERMITIDAS", []),
+            patch.object(autorizacao, "DOMINIOS_PERMITIDOS", ["example.test"]),
+        ):
+            result = autorizacao.verificar_origem()
+
+        self.assertIsNone(result)
