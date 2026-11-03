@@ -16,6 +16,7 @@ Regras de Governança:
 # Ferramentas de Sistema e Monitoramento
 import logging  # Sistema de registro para auditoria e monitoramento de eventos de segurança
 import os  # Interface com o Sistema Operacional
+from urllib.parse import urlsplit
 
 # Utilitários Globais e Tipagem Estática
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -41,6 +42,17 @@ from ..storage import storage  # Armazenamento em memória de IP
 
 # Instância do Logger para rastreabilidade de tentativas de acesso
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+def _extrair_host(valor: Optional[str]) -> Optional[str]:
+    if not valor:
+        return None
+    try:
+        partes = urlsplit(valor if "://" in valor else f"//{valor}")
+    except ValueError:
+        return valor
+    return partes.netloc or valor
+
 
 # ROTAS_PUBLICAS: Recursos estáticos que não exigem validação de segurança.
 ROTAS_PUBLICAS: set[str] = {"/favicon.ico"}
@@ -134,10 +146,20 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     # =================================================================
     # 4. Validação de Domínio (Host Header)
     # =================================================================
-    host: Optional[str] = (
-        request.headers.get("Origin").replace("https://","").replace("http://","")
-        or request.headers.get("Referer").replace("https://","").replace("http://","")
-        or request.headers.get("Host").replace("https://","").replace("http://","")
+    host: Optional[str] = next(
+        (
+            host
+            for valor in (
+                request.headers.get("Origin"),
+                request.headers.get("Referer"),
+                request.headers.get("X-Forwarded-Host"),
+                request.headers.get(":authority"),
+                request.environ.get("HTTP_AUTHORITY"),
+                request.headers.get("Host"),
+            )
+            if (host := _extrair_host(valor))
+        ),
+        None,
     )
     if host and host not in DOMINIOS_PERMITIDOS:
         if not api_key:  # Se não houver API Key, o domínio precisa estar na whitelist
