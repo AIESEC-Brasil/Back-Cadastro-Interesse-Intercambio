@@ -30,26 +30,6 @@ logger: logging.Logger = logging.getLogger(__name__)
 # 2. FUNÇÕES AUXILIARES DE LIMPEZA E CICLO DE VIDA DE CONEXÕES
 # =================================================================
 
-def _force_sync_close_client(client: httpx.AsyncClient) -> None:
-    """Realiza o fechamento síncrono emergencial do cliente HTTPX.
-
-    Utilizado quando o Event Loop original em que o cliente foi criado já foi
-    encerrado ou destruído pela thread (comum em workers de aplicações Web/Flask).
-    O fechamento direto do transport libera os sockets no nível do Sistema Operacional.
-
-    Args:
-        client (httpx.AsyncClient): Instância do cliente HTTPX a ser encerrada.
-    """
-    try:
-        # Verifica se o cliente possui um transportador de rede ativo antes de fechar
-        transport: Any = getattr(client, "_transport", None)
-        if transport is not None:
-            transport.close()
-            logger.debug("Transportador do cliente antigo fechado com sucesso de forma síncrona.")
-    except Exception as e:
-        logger.debug(f"Falha ao tentar fechar o transportador do cliente antigo de forma síncrona: {e}")
-
-
 async def _safe_close_client(client: httpx.AsyncClient) -> None:
     """Encerra as conexões TCP do cliente de forma assíncrona e graciosa.
 
@@ -113,8 +93,7 @@ class HttpClient:
     # PROPRIEDADES E GERENCIAMENTO DINÂMICO DE EVENT LOOP
     # =================================================================
 
-    @property
-    def _client(self: Self) -> Optional[httpx.AsyncClient]:
+    async def _get_client(self: Self) -> httpx.AsyncClient:
         """Obtém ou instancia o AsyncClient vinculado ao Event Loop atual da thread.
 
         Garante a saúde do pool de conexões: se a requisição estiver rodando em um
@@ -134,14 +113,14 @@ class HttpClient:
         # Se o cliente não existe ou pertence a outro Event Loop, recria o pool
         if self._active_client is None or self._loop_associado != loop_atual:
             if self._active_client is not None:
-                # Limpa os recursos do cliente associado ao loop antigo
-                _force_sync_close_client(self._active_client)
+                loop_antigo = self._loop_associado
+                if loop_antigo is None or not loop_antigo.is_closed():
+                    await _safe_close_client(self._active_client)
 
             # Instancia um novo cliente associado ao loop ativo da thread
             self._active_client = httpx.AsyncClient(limits=self._limits)
             self._loop_associado = loop_atual
 
-        assert self._active_client is not None
         return self._active_client
 
     # =================================================================
@@ -305,9 +284,7 @@ class HttpClient:
 
         timeout: httpx.Timeout = self._consume_timeout()
         url: str = self._build_url(path, params)
-        client: Optional[httpx.AsyncClient] = self._client
-
-        assert client is not None
+        client = await self._get_client()
         response: httpx.Response = await client.get(
             url,
             headers=headers,
@@ -345,9 +322,7 @@ class HttpClient:
         """
         timeout: httpx.Timeout = self._consume_timeout()
         url: str = self._build_url(path, params)
-        client: Optional[httpx.AsyncClient] = self._client
-
-        assert client is not None
+        client = await self._get_client()
 
         # -------------------------------------------------------------
         # CASO 1: UPLOAD DE ARQUIVOS (MULTIPART / FORM-DATA)
@@ -433,9 +408,7 @@ class HttpClient:
 
         timeout: httpx.Timeout = self._consume_timeout()
         url: str = self._build_url(path, params)
-        client: Optional[httpx.AsyncClient] = self._client
-
-        assert client is not None
+        client = await self._get_client()
         response: httpx.Response = await client.put(
             url,
             json=payload,
@@ -471,9 +444,7 @@ class HttpClient:
 
         timeout: httpx.Timeout = self._consume_timeout()
         url: str = self._build_url(path, params)
-        client: Optional[httpx.AsyncClient] = self._client
-
-        assert client is not None
+        client = await self._get_client()
         response: httpx.Response = await client.patch(
             url,
             json=payload,
@@ -507,9 +478,7 @@ class HttpClient:
 
         timeout: httpx.Timeout = self._consume_timeout()
         url: str = self._build_url(path, params)
-        client: Optional[httpx.AsyncClient] = self._client
-
-        assert client is not None
+        client = await self._get_client()
         response: httpx.Response = await client.delete(
             url,
             headers=headers,

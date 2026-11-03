@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
-from typing import Self
+from typing import Any, Self
 from zoneinfo import ZoneInfo
 
 # ==============================================================================
@@ -20,6 +23,16 @@ LOG_DIR: str = os.path.abspath(
 TIMEZONE: ZoneInfo = ZoneInfo("America/Sao_Paulo")
 LOG_FORMAT: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 DATE_FORMAT: str = "%d/%m/%Y %H:%M:%S"
+_DADO_SENSIVEL: re.Pattern[str] = re.compile(
+    r"email|telefone|phone|nome|name|senha|password|token|authorization|"
+    r"curriculo|base64|data.?nascimento",
+    re.IGNORECASE,
+)
+_EMAIL: re.Pattern[str] = re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
+_TELEFONE: re.Pattern[str] = re.compile(
+    r"(?<!\d)(?:\+?55)?\s*\d{2}\s*9?\d{4}\s*-?\s*\d{4}(?!\d)"
+)
+_TOKEN_BEARER: re.Pattern[str] = re.compile(r"(?i)\bbearer\s+\S+")
 
 _file_handler: FlushHandler | None = None
 _console_handler: logging.StreamHandler | None = None
@@ -38,6 +51,50 @@ def _brasil_timestamp(seconds: float | None) -> time.struct_time:
     """Converte o horário do registro para o fuso nacional de São Paulo."""
     timestamp: float = time.time() if seconds is None else seconds
     return datetime.fromtimestamp(timestamp, TIMEZONE).timetuple()
+
+
+def _redigir_resposta(valor: Any, chave: str = "") -> Any:
+    """Preserva a resposta externa nos logs, ocultando dados pessoais e segredos."""
+    if chave and _DADO_SENSIVEL.search(chave):
+        return "[REDACTED]"
+    if isinstance(valor, Mapping):
+        return {
+            str(campo): _redigir_resposta(conteudo, str(campo))
+            for campo, conteudo in valor.items()
+        }
+    if isinstance(valor, list):
+        return [_redigir_resposta(item) for item in valor]
+    if isinstance(valor, tuple):
+        return tuple(_redigir_resposta(item) for item in valor)
+    if isinstance(valor, str):
+        try:
+            resposta_json: Any = json.loads(valor)
+        except json.JSONDecodeError:
+            resposta_json = None
+        if isinstance(resposta_json, (Mapping, list)):
+            return json.dumps(
+                _redigir_resposta(resposta_json),
+                ensure_ascii=False,
+            )
+        texto: str = _EMAIL.sub("[REDACTED_EMAIL]", valor)
+        texto = _TELEFONE.sub("[REDACTED_PHONE]", texto)
+        return _TOKEN_BEARER.sub("Bearer [REDACTED]", texto)
+    return valor
+
+
+def log_resposta_externa(
+    logger: logging.Logger,
+    servico: str,
+    status: int,
+    resposta: Any,
+) -> None:
+    """Registra detalhes brutos da integração após remover dados sensíveis."""
+    logger.error(
+        "Resposta externa inválida | serviço=%s status=%s resposta=%r",
+        servico,
+        status,
+        _redigir_resposta(resposta),
+    )
 
 
 def _get_file_handler(formatter: logging.Formatter) -> FlushHandler:
@@ -113,4 +170,4 @@ def setup_logging(debug: bool = False) -> None:
     logging.captureWarnings(True)
 
 
-__all__ = ["LOG_DIR", "setup_logging"]
+__all__ = ["LOG_DIR", "log_resposta_externa", "setup_logging"]

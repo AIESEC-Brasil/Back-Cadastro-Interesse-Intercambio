@@ -11,6 +11,7 @@ Este módulo orquestra a inicialização da aplicação executando as seguintes 
 # =================================================================
 # 1. IMPORTAÇÕES E CONFIGURAÇÃO DE AMBIENTE
 # =================================================================
+import logging
 import os  # Utilitário para manipulação do sistema operacional e caminhos de arquivo
 from dotenv import load_dotenv  # Biblioteca para carregar variáveis de ambiente de arquivos .env
 
@@ -21,15 +22,24 @@ path_atual: str = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(path_atual, ".env.dev"))
 
 # =================================================================
-# 2. INICIALIZAÇÃO DE RECURSOS CORE
+# 2. INICIALIZAÇÃO DE LOGGING E RECURSOS CORE
 # =================================================================
-# Importações relativas de módulos internos (devem ocorrer obrigatoriamente após a carga do .env)
-from app import create_app  # Fábrica da aplicação Flask/OpenAPI
-from app.core import IS_DEV, IS_TEST
-from waitress import serve  # Servidor WSGI robusto e multithread para produção/testes
+from app.core.logger import setup_logging
 
-# Inicializa a aplicação Flask com todas as extensões, rotas e middlewares registrados
-app = create_app()
+setup_logging(debug=os.getenv("AMBIENTE", "").upper() in {"DEV", "DEVELOPMENT"})
+logger: logging.Logger = logging.getLogger("app.startup")
+
+try:
+    # Importações internas posteriores ao setup permitem registrar falhas de configuração.
+    from app import create_app
+    from app.core import IS_DEV, IS_TEST
+    from waitress import serve
+
+    # Inicializa a aplicação Flask com todas as extensões, rotas e middlewares.
+    app = create_app()
+except Exception:
+    logger.exception("Falha durante a inicialização da aplicação")
+    raise
 
 
 # =================================================================

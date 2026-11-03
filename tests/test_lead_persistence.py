@@ -17,9 +17,14 @@ for key, value in {
     os.environ.setdefault(key, value)
 
 from app.cache import cache
-from app.dto import CriarPreCadastroLead, LeadPreCadastroOutput, QualificacaoLead
-from app.dto.persistence import LeadPersistencia
 from app.controller import NewLeadOgxController as cadastro_controller
+from app.dto import (
+    CriarPreCadastroB2C,
+    CriarPreCadastroLead,
+    LeadPreCadastroOutput,
+    QualificacaoLead,
+)
+from app.dto.output import LeadPersistencia
 from app.utils.exception import validate_api_response
 from app.utils.payload import montar_dto_persistencia
 
@@ -209,6 +214,114 @@ class LeadPersistenceTests(unittest.TestCase):
         self.assertNotIn("id_semestre_curso", payload_b2c)
         self.assertNotIn("link_drive", payload_b2c)
 
+    def test_b2c_pre_registration_sends_reduced_payload_without_expa(self) -> None:
+        lead = CriarPreCadastroB2C(
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            dataNascimento=datetime(2000, 1, 2),
+            telefone=[{"tipo": "home", "numero": "11912345678"}],
+            email=[{"tipo": "home", "email": "ana@example.com"}],
+            produto={
+                "id": 1,
+                "id_expa": 7,
+                "titulo": "Voluntário Global",
+            },
+            autorizacao=1,
+            origem={"id": 4, "nome": "Instagram"},
+            comite={"id": 23, "nome": "AIESEC em São Paulo"},
+        )
+        payload_b2c: dict[str, object] = {}
+
+        def enviar_payload(payload):
+            payload_b2c.update(payload)
+            return 200, {"sucesso": True}
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=enviar_payload,
+        ):
+            resposta, status = cadastro_controller.criar_pre_cadastro_b2c(lead)
+
+        self.assertEqual(status, 201)
+        self.assertEqual(resposta.status, "pré-cadastro b2c")
+        self.assertEqual(resposta.id_produto, 1)
+        self.assertEqual(resposta.id_origem, 4)
+        self.assertIn("criado_em", payload_b2c)
+        self.assertRegex(
+            payload_b2c["criado_em"], r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$"
+        )
+        self.assertEqual(
+            resposta.model_dump(mode="json")["criado_em"],
+            payload_b2c["criado_em"],
+        )
+        self.assertFalse(hasattr(resposta, "id"))
+        self.assertEqual(payload_b2c["status"], "pré-cadastro b2c")
+        self.assertEqual(payload_b2c["id_produto"], 1)
+        self.assertEqual(payload_b2c["id_escritorio"], 23)
+        self.assertEqual(payload_b2c["id_origem"], 4)
+        self.assertNotIn("id_meio", payload_b2c)
+        self.assertNotIn("id_meio", resposta.model_dump())
+        self.assertEqual(payload_b2c["telefone"][0]["tipo"], 8)
+        self.assertEqual(payload_b2c["email"][0]["tipo"], 8)
+        self.assertNotIn("id", payload_b2c)
+        self.assertNotIn("senha", payload_b2c)
+        self.assertNotIn("id_expa", payload_b2c)
+
+    def test_b2c_pre_registration_propagates_embedded_conflict(self) -> None:
+        lead = CriarPreCadastroB2C(
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            dataNascimento=datetime(2000, 1, 2),
+            telefone=[{"tipo": "home", "numero": "11912345678"}],
+            email=[{"tipo": "home", "email": "ana@example.com"}],
+            produto={"id": 1, "id_expa": 7, "titulo": "Voluntário Global"},
+            autorizacao=1,
+            origem={"id": 4, "nome": "Instagram"},
+            comite={"id": 23, "nome": "AIESEC em São Paulo"},
+        )
+        resposta_b2c = {
+            "success": False,
+            "status": 409,
+            "error": "Este usuário já possui cadastro.",
+        }
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda payload: (200, resposta_b2c),
+        ):
+            resposta, status = cadastro_controller.criar_pre_cadastro_b2c(lead)
+
+        self.assertEqual(status, 409)
+        self.assertEqual(resposta.status_code, 409)
+        self.assertEqual(resposta.type, "ConflictError")
+        self.assertEqual(
+            resposta.error_details[0].msg,
+            "Este usuário já possui cadastro.",
+        )
+
+    def test_b2c_pre_registration_rejects_expa_password(self) -> None:
+        with self.assertRaises(ValidationError):
+            CriarPreCadastroB2C.model_validate(
+                {
+                    "nome": "Ana Maria",
+                    "sobrenome": "Silva Santos",
+                    "dataNascimento": datetime(2000, 1, 2),
+                    "telefone": [{"tipo": "home", "numero": "11912345678"}],
+                    "email": [{"tipo": "home", "email": "ana@example.com"}],
+                    "produto": {
+                        "id": 1,
+                        "id_expa": 7,
+                        "titulo": "Voluntário Global",
+                    },
+                    "autorizacao": 1,
+                    "origem": {"id": 4, "nome": "Instagram"},
+                    "comite": {"id": 23, "nome": "AIESEC em São Paulo"},
+                    "senha": "StrongPass@123",
+                }
+            )
+
     def test_post_returns_generic_json_when_expa_rejects_lead(self) -> None:
         lead = CriarPreCadastroLead(
             nome="Ana Maria",
@@ -223,9 +336,7 @@ class LeadPersistenceTests(unittest.TestCase):
             comite={"id": 23, "nome": "AIESEC em São Paulo"},
         )
         resposta_expa = {
-            "error": (
-                'Erro na API EXPA (422): {"message": "requirement not met"}'
-            )
+            "error": ('Erro na API EXPA (422): {"message": "requirement not met"}')
         }
 
         with patch.object(
@@ -322,9 +433,7 @@ class LeadPersistenceTests(unittest.TestCase):
         with patch.object(
             cadastro_controller, "async_to_sync", side_effect=adapt_async
         ):
-            resposta, status = cadastro_controller.CadastroLeadView().put(
-                qualificacao
-            )
+            resposta, status = cadastro_controller.CadastroLeadView().put(qualificacao)
 
         self.assertEqual(status, 200)
         self.assertEqual(payload_b2c["id_area_atuacao"], 6)

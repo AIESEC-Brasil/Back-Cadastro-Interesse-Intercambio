@@ -3,7 +3,7 @@
 from typing import Any, Tuple
 
 from app.config import APPSCRIPT_EXPA
-from app.dto.integration import PayloadExpa
+from app.dto.output import PayloadExpa
 from .http_request import HttpClient
 
 
