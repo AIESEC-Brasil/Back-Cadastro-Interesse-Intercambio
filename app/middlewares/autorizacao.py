@@ -16,6 +16,7 @@ Regras de Governança:
 # Ferramentas de Sistema e Monitoramento
 import logging  # Sistema de registro para auditoria e monitoramento de eventos de segurança
 import os  # Interface com o Sistema Operacional
+from urllib.parse import urlsplit
 
 # Utilitários Globais e Tipagem Estática
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -70,6 +71,41 @@ def _registrar_bloqueio(motivo: str) -> None:
     )
 
 
+def _origem_permitida(origem: str) -> bool:
+    """Compara a origem do navegador com os domínios configurados."""
+    try:
+        partes_origem = urlsplit(origem)
+        if partes_origem.scheme not in {"http", "https"} or not partes_origem.hostname:
+            return False
+        hostname_origem = partes_origem.hostname.rstrip(".").casefold()
+        porta_origem = partes_origem.port
+    except ValueError:
+        return False
+
+    for dominio in DOMINIOS_PERMITIDOS:
+        valor = dominio.strip()
+        if not valor:
+            continue
+        try:
+            partes_dominio = urlsplit(
+                valor if "://" in valor else f"//{valor}"
+            )
+            hostname_dominio = partes_dominio.hostname
+            if (
+                hostname_dominio
+                and hostname_dominio.rstrip(".").casefold() == hostname_origem
+                and (
+                    partes_dominio.port is None
+                    or partes_dominio.port == porta_origem
+                )
+            ):
+                return True
+        except ValueError:
+            continue
+
+    return False
+
+
 # =================================================================
 # 3. MIDDLEWARE DE VALIDAÇÃO DE ORIGEM
 # =================================================================
@@ -101,7 +137,15 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
         return None
 
     # =================================================================
-    # 2. Validação de IP (Acesso à Documentação em Produção / Teste)
+    # 2. Validação da origem do navegador
+    # =================================================================
+    origem: Optional[str] = request.headers.get("Origin")
+    if origem and not _origem_permitida(origem):
+        _registrar_bloqueio(f"origem não autorizada: {origem}")
+        return jsonify({"error": "Origem não autorizada"}), HttpStatus.UNAUTHORIZED
+
+    # =================================================================
+    # 3. Validação de IP (Acesso à Documentação em Produção / Teste)
     # =================================================================
     if IS_PRODUCTION or IS_TEST:
         if request.path.startswith(ROTAS_RESTRITAS_IP):
@@ -124,7 +168,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
             return None  # IP validado, prossegue para o endpoint.
 
     # =================================================================
-    # 3. Validação de API Key (Server-to-Server)
+    # 4. Validação de API Key (Server-to-Server)
     # =================================================================
     api_key: Optional[str] = request.headers.get("X-API-KEY")
     if api_key and api_key not in API_KEYS_PERMITIDAS:
@@ -132,7 +176,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
         return jsonify({"error": "API Key inválida"}), HttpStatus.UNAUTHORIZED
 
     # =================================================================
-    # 4. Validação de Domínio (Host Header)
+    # 5. Validação de Domínio (Host Header)
     # =================================================================
     host: Optional[str] = request.headers.get("Host")
     if host and host not in DOMINIOS_PERMITIDOS:
@@ -144,7 +188,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
             )
 
     # =================================================================
-    # 5. Bloqueio de Acesso Direto via Navegador em Produção
+    # 6. Bloqueio de Acesso Direto via Navegador em Produção
     # =================================================================
     if (
             IS_PRODUCTION
