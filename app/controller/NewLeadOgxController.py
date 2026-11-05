@@ -65,6 +65,25 @@ def _erro_integracao(
     )
 
 
+def _mensagem_conflito_b2c(resposta: Any) -> str:
+    """Preserva o motivo específico de duplicidade retornado pelo Apps Script."""
+    if isinstance(resposta, dict):
+        for chave in ("error", "message", "erro", "mensagem"):
+            valor: Any = resposta.get(chave)
+            if isinstance(valor, str) and valor.strip():
+                return valor.strip()
+
+        detalhes: Any = resposta.get("error_details")
+        if isinstance(detalhes, list):
+            for detalhe in detalhes:
+                if isinstance(detalhe, dict):
+                    mensagem: Any = detalhe.get("msg")
+                    if isinstance(mensagem, str) and mensagem.strip():
+                        return mensagem.strip()
+
+    return "Já existe um cadastro para este usuário."
+
+
 # ==============================================================================
 # DOCUMENTAÇÃO DA ROTA DE METADADOS
 # ==============================================================================
@@ -192,19 +211,12 @@ def criar_pre_cadastro_b2c(
         resposta_b2c.get("status") if isinstance(resposta_b2c, dict) else None
     )
     if status_b2c == HttpStatus.CONFLICT or status_informado == HttpStatus.CONFLICT:
-        detalhe: Any = (
-            resposta_b2c.get("error", resposta_b2c.get("message"))
-            if isinstance(resposta_b2c, dict)
-            else None
-        )
-        mensagem: str = (
-            str(detalhe) if detalhe else "Já existe um cadastro para este usuário."
-        )
+        mensagem: str = _mensagem_conflito_b2c(resposta_b2c)
         logger.info("Cadastro B2C rejeitado por duplicidade")
         return (
             BaseErrorResponse(
                 type="ConflictError",
-                message="Já existe um cadastro para este usuário.",
+                message=mensagem,
                 error_details=[{"loc": "B2C", "msg": mensagem}],
                 status_code=HttpStatus.CONFLICT,
             ),

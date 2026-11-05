@@ -300,6 +300,32 @@ class LeadPersistenceTests(unittest.TestCase):
             resposta.error_details[0].msg,
             "Este usuário já possui cadastro.",
         )
+        self.assertEqual(resposta.message, "Este usuário já possui cadastro.")
+
+        resposta_email = {
+            "success": False,
+            "status": 409,
+            "error": True,
+            "message": "O e-mail 'ana@example.com' já pertence a outro cliente.",
+        }
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda _payload: (200, resposta_email),
+        ):
+            conflito_email, status_email = (
+                cadastro_controller.criar_pre_cadastro_b2c(lead)
+            )
+
+        self.assertEqual(status_email, 409)
+        self.assertEqual(
+            conflito_email.message,
+            "O e-mail 'ana@example.com' já pertence a outro cliente.",
+        )
+        self.assertEqual(
+            conflito_email.error_details[0].msg,
+            "O e-mail 'ana@example.com' já pertence a outro cliente.",
+        )
 
     def test_b2c_pre_registration_rejects_expa_password(self) -> None:
         with self.assertRaises(ValidationError):
