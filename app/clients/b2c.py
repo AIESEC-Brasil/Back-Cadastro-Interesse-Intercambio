@@ -28,5 +28,19 @@ async def enviar_lead_b2c(payload: Any) -> Tuple[int, Any]:
     """Envia um lead para o B2C."""
     return await _http.post(path=_endpoint(),payload=payload)
 
+async def validar_link_conclusao_b2c(id_cliente: int) -> Tuple[int, Any]:
+    """Verifica no Apps Script se o cadastro ainda pode ser concluído."""
+    return await _http.get(
+        path=_endpoint(),
+        params={
+            "action": "validar-completar-cadastro",
+            "id": id_cliente,
+        },
+    )
 
-__all__ = ["enviar_metadados_b2c", "enviar_lead_b2c"]
+
+__all__ = [
+    "enviar_metadados_b2c",
+    "enviar_lead_b2c",
+    "validar_link_conclusao_b2c",
+]

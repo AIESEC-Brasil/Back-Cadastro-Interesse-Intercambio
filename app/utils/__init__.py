@@ -6,6 +6,7 @@ from .payload import (
     montar_dto_persistencia,
     montar_dto_pre_cadastro_b2c,
     montar_payload_expa,
+    montar_payload_expa_complemento,
     montar_payload_persistencia,
     payload_expa,
 )
@@ -23,5 +24,6 @@ __all__ = [
     "montar_dto_pre_cadastro_b2c",
     "montar_payload_persistencia",
     "montar_payload_expa",
+    "montar_payload_expa_complemento",
     "payload_expa",
 ]

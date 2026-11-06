@@ -3,10 +3,12 @@
 from .exception import AppError, BaseErrorResponse, ErrorDetail, ValidationErrorResponse
 from .input import (
     AtualizarPreCadastroLead,
+    CompletarCadastroB2C,
     CriarPreCadastroB2C,
     CriarPreCadastroLead,
     LeadPreCadastroInput,
     QualificacaoLead,
+    ValidarLinkConclusaoB2C,
 )
 from .output import (
     CampoMetadado,
@@ -74,6 +76,7 @@ __all__ = [
     "BaseErrorResponse",
     "CampoMetadado",
     "CategoriaContato",
+    "CompletarCadastroB2C",
     "Comite",
     "ConfiguracaoMetadado",
     "ConfiguracoesCampo",
@@ -117,6 +120,7 @@ __all__ = [
     "Universidade",
     "UploadItem",
     "ValidationErrorResponse",
+    "ValidarLinkConclusaoB2C",
     "buscar_id_opcao_cache",
     "listar_categorias_contato_validas",
     "validar_opcao_cache",

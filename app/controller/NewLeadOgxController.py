@@ -10,11 +10,21 @@ from flask_openapi3 import APIView, Tag
 from pydantic import ValidationError
 
 from ..cache import cache
-from ..clients.b2c import enviar_lead_b2c, enviar_metadados_b2c
+from ..clients.b2c import (
+    enviar_lead_b2c,
+    enviar_metadados_b2c,
+    validar_link_conclusao_b2c,
+)
 from ..clients.expa import enviar_payload_expa
 from ..core.logger import log_resposta_externa
 from ..dto.exception import BaseErrorResponse, ValidationErrorResponse
-from ..dto.input import CriarPreCadastroB2C, CriarPreCadastroLead, QualificacaoLead
+from ..dto.input import (
+    CompletarCadastroB2C,
+    CriarPreCadastroB2C,
+    CriarPreCadastroLead,
+    QualificacaoLead,
+    ValidarLinkConclusaoB2C,
+)
 from ..dto.output import (
     HttpStatus,
     LeadPersistencia,
@@ -29,6 +39,7 @@ from ..utils.payload import (
     montar_dto_pre_cadastro_b2c,
     montar_dto_qualificacao_persistencia,
     montar_payload_expa,
+    montar_payload_expa_complemento,
 )
 
 new_lead_ogx: Router = Router(
@@ -82,6 +93,30 @@ def _mensagem_conflito_b2c(resposta: Any) -> str:
                         return mensagem.strip()
 
     return "Já existe um cadastro para este usuário."
+
+
+def _status_falha_b2c(resposta: Any) -> int | None:
+    """Converte falhas internas do Apps Script, que podem chegar como HTTP 200."""
+    if not isinstance(resposta, dict):
+        return HttpStatus.BAD_GATEWAY
+    if resposta.get("success") is not False:
+        return None
+
+    status: Any = resposta.get("status")
+    if (
+        isinstance(status, int)
+        and not isinstance(status, bool)
+        and 400 <= status < 600
+    ):
+        return status
+    return HttpStatus.INTERNAL_SERVER_ERROR
+
+
+def _resposta_falha_b2c(resposta: Any) -> dict[str, Any]:
+    """Evita expor respostas HTML ou texto arbitrário do Apps Script."""
+    if isinstance(resposta, dict):
+        return resposta
+    return {"error": "O Apps Script retornou uma resposta que não é JSON."}
 
 
 # ==============================================================================
@@ -165,77 +200,345 @@ def buscar_metadados() -> tuple[dict[str, Any], int]:
 
 
 @new_lead_ogx.post(
-    "/cadastro-b2c",
-    summary="Criar pré-cadastro B2C",
-    description=(
-        "Recebe os campos do formulário B2C, sem senha ou criação de cadastro "
-        "no EXPA, e envia o payload de pré-cadastro diretamente ao Apps Script B2C."
-    ),
-    responses={
-        201: LeadPreCadastroB2COutput,
-        409: BaseErrorResponse,
-        502: BaseErrorResponse,
-        422: ValidationErrorResponse,
-        500: BaseErrorResponse,
-        "default": {
-            "description": "Erro HTTP exibido na página genérica de erro.",
-            "content": {"text/html": {"schema": {"type": "string"}}},
-        },
-    },
+    "/cadastro-b2c/validar",
+    summary="Validar link de conclusão B2C",
     tags=[Tag(name="New Lead OGX")],
+    responses={
+        200: {"description": "O cadastro pode ser concluído."},
+        404: BaseErrorResponse,
+        409: BaseErrorResponse,
+        422: ValidationErrorResponse,
+        502: BaseErrorResponse,
+    },
 )
-def criar_pre_cadastro_b2c(
-    body: CriarPreCadastroB2C,
-) -> tuple[LeadPreCadastroB2COutput | BaseErrorResponse, int]:
-    """Envia ao B2C os campos recebidos do formulário de atração."""
-    try:
-        cadastro_b2c = montar_dto_pre_cadastro_b2c(body)
-        payload_b2c: dict[str, Any] = cadastro_b2c.model_dump(mode="json")
-    except (TypeError, ValueError) as error:
-        logger.exception("Não foi possível montar o payload do pré-cadastro B2C")
-        return (
-            BaseErrorResponse(
-                type="PayloadPreparationError",
-                message="Não foi possível preparar o pré-cadastro B2C.",
-                error_details=[{"loc": "body", "msg": str(error)}],
-                status_code=HttpStatus.INTERNAL_SERVER_ERROR,
-            ),
-            HttpStatus.INTERNAL_SERVER_ERROR,
-        )
-
+def validar_link_conclusao(
+    body: ValidarLinkConclusaoB2C,
+) -> tuple[dict[str, Any] | BaseErrorResponse, int]:
+    """Confere no Apps Script se o ID interno ainda está apto à conclusão."""
     status_b2c: int
     resposta_b2c: Any
-    status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
-
-    status_informado: Any = (
-        resposta_b2c.get("status") if isinstance(resposta_b2c, dict) else None
-    )
-    if status_b2c == HttpStatus.CONFLICT or status_informado == HttpStatus.CONFLICT:
-        mensagem: str = _mensagem_conflito_b2c(resposta_b2c)
-        logger.info("Cadastro B2C rejeitado por duplicidade")
-        return (
-            BaseErrorResponse(
-                type="ConflictError",
-                message=mensagem,
-                error_details=[{"loc": "B2C", "msg": mensagem}],
-                status_code=HttpStatus.CONFLICT,
-            ),
-            HttpStatus.CONFLICT,
-        )
+    status_b2c, resposta_b2c = async_to_sync(validar_link_conclusao_b2c)(body.id)
 
     if not 200 <= status_b2c < 300:
-        log_resposta_externa(logger, "B2C pré-cadastro", status_b2c, resposta_b2c)
+        log_resposta_externa(
+            logger, "validação de link B2C", status_b2c, resposta_b2c
+        )
         return (
             _erro_integracao(
                 "B2C",
                 status_b2c,
                 resposta_b2c,
-                "Falha ao enviar pré-cadastro ao B2C.",
+                "Não foi possível validar o link de conclusão.",
             ),
             HttpStatus.BAD_GATEWAY,
         )
 
-    return LeadPreCadastroB2COutput.model_validate(payload_b2c), HttpStatus.CREATED
+    status_falha: int | None = _status_falha_b2c(resposta_b2c)
+    if status_falha == HttpStatus.NOT_FOUND:
+        mensagem = "Cadastro não encontrado. Este link é inválido."
+        return (
+            BaseErrorResponse(
+                type="InvalidCompletionLinkError",
+                message=mensagem,
+                error_details=[{"loc": "id", "msg": mensagem}],
+                status_code=HttpStatus.NOT_FOUND,
+            ),
+            HttpStatus.NOT_FOUND,
+        )
+
+    if status_falha == HttpStatus.CONFLICT:
+        mensagem = "Você já concluiu seu cadastro. Este link não é mais válido."
+        return (
+            BaseErrorResponse(
+                type="ConflictError",
+                message=mensagem,
+                error_details=[{"loc": "id", "msg": mensagem}],
+                status_code=HttpStatus.CONFLICT,
+            ),
+            HttpStatus.CONFLICT,
+        )
+
+    if status_falha is not None or not isinstance(resposta_b2c, dict) or (
+        resposta_b2c.get("success") is not True
+    ):
+        resposta_falha = _resposta_falha_b2c(resposta_b2c)
+        log_resposta_externa(
+            logger,
+            "validação de link B2C",
+            status_falha or HttpStatus.BAD_GATEWAY,
+            resposta_falha,
+        )
+        return (
+            _erro_integracao(
+                "B2C",
+                status_falha or HttpStatus.BAD_GATEWAY,
+                resposta_falha,
+                "O Apps Script não confirmou a validade do link.",
+            ),
+            HttpStatus.BAD_GATEWAY,
+        )
+
+    return {"valid": True}, HttpStatus.OK
+
+
+cadastro_b2c_view: APIView = APIView(
+    view_tags=[Tag(name="New Lead OGX")],
+    url_prefix=new_lead_ogx.url_prefix,
+)
+
+
+@cadastro_b2c_view.route("/cadastro-b2c")
+class CadastroB2CView:
+    """Agrupa a criação e a conclusão do cadastro B2C."""
+
+    @cadastro_b2c_view.doc(
+        summary="Criar pré-cadastro B2C",
+        description=(
+            "Recebe os campos do formulário B2C, sem senha ou criação de cadastro "
+            "no EXPA, e envia o payload de pré-cadastro diretamente ao Apps Script B2C."
+        ),
+        responses={
+            201: LeadPreCadastroB2COutput,
+            409: BaseErrorResponse,
+            502: BaseErrorResponse,
+            422: ValidationErrorResponse,
+            500: BaseErrorResponse,
+            "default": {
+                "description": "Erro HTTP exibido na página genérica de erro.",
+                "content": {"text/html": {"schema": {"type": "string"}}},
+            },
+        },
+    )
+    def post(
+        self: Self, body: CriarPreCadastroB2C
+    ) -> tuple[LeadPreCadastroB2COutput | BaseErrorResponse, int]:
+        """Envia ao B2C os campos recebidos do formulário de atração."""
+        try:
+            cadastro_b2c = montar_dto_pre_cadastro_b2c(body)
+            payload_b2c: dict[str, Any] = cadastro_b2c.model_dump(mode="json")
+        except (TypeError, ValueError) as error:
+            logger.exception("Não foi possível montar o payload do pré-cadastro B2C")
+            return (
+                BaseErrorResponse(
+                    type="PayloadPreparationError",
+                    message="Não foi possível preparar o pré-cadastro B2C.",
+                    error_details=[{"loc": "body", "msg": str(error)}],
+                    status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+                ),
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            )
+
+        status_b2c: int
+        resposta_b2c: Any
+        status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
+
+        status_informado: Any = (
+            resposta_b2c.get("status") if isinstance(resposta_b2c, dict) else None
+        )
+        if status_b2c == HttpStatus.CONFLICT or status_informado == HttpStatus.CONFLICT:
+            mensagem: str = _mensagem_conflito_b2c(resposta_b2c)
+            logger.info("Cadastro B2C rejeitado por duplicidade")
+            return (
+                BaseErrorResponse(
+                    type="ConflictError",
+                    message=mensagem,
+                    error_details=[{"loc": "B2C", "msg": mensagem}],
+                    status_code=HttpStatus.CONFLICT,
+                ),
+                HttpStatus.CONFLICT,
+            )
+
+        if not 200 <= status_b2c < 300:
+            log_resposta_externa(logger, "B2C pré-cadastro", status_b2c, resposta_b2c)
+            return (
+                _erro_integracao(
+                    "B2C",
+                    status_b2c,
+                    resposta_b2c,
+                    "Falha ao enviar pré-cadastro ao B2C.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        status_falha: int | None = _status_falha_b2c(resposta_b2c)
+        if status_falha is not None:
+            resposta_falha: dict[str, Any] = _resposta_falha_b2c(resposta_b2c)
+            log_resposta_externa(
+                logger, "B2C pré-cadastro", status_falha, resposta_falha
+            )
+            return (
+                _erro_integracao(
+                    "B2C",
+                    status_falha,
+                    resposta_falha,
+                    "O Apps Script não confirmou a persistência do pré-cadastro.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        return LeadPreCadastroB2COutput.model_validate(payload_b2c), HttpStatus.CREATED
+
+    @cadastro_b2c_view.doc(
+        summary="Completar cadastro B2C",
+        description=(
+            "Valida o link, cria o cadastro do lead no EXPA e encaminha os dados "
+            "complementares ao Apps Script B2C, incluindo o person_id retornado."
+        ),
+        responses={
+            200: {"description": "Cadastro B2C concluído."},
+            409: BaseErrorResponse,
+            502: BaseErrorResponse,
+            422: ValidationErrorResponse,
+            "default": {
+                "description": "Erro HTTP exibido na página genérica de erro.",
+                "content": {"text/html": {"schema": {"type": "string"}}},
+            },
+        },
+    )
+    def put(
+        self: Self, body: CompletarCadastroB2C
+    ) -> tuple[dict[str, Any] | BaseErrorResponse, int]:
+        """Cria o lead no EXPA e atualiza o pré-cadastro B2C."""
+        resposta_validacao, status_validacao = validar_link_conclusao(
+            ValidarLinkConclusaoB2C(id=body.id)
+        )
+        if status_validacao != HttpStatus.OK:
+            return resposta_validacao, status_validacao
+
+        payload_expa: Any = montar_payload_expa_complemento(body)
+        status_b2c: int
+        resposta_b2c: Any
+        status_expa: int
+        resposta_expa: Any
+        status_expa, resposta_expa = async_to_sync(enviar_payload_expa)(
+            payload_expa
+        )
+
+        if not 200 <= status_expa < 300:
+            log_resposta_externa(
+                logger, "EXPA conclusão de cadastro", status_expa, resposta_expa
+            )
+            return (
+                _erro_integracao(
+                    "EXPA",
+                    status_expa,
+                    resposta_expa,
+                    "Falha ao criar cadastro no EXPA.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        if (
+            not isinstance(resposta_expa, dict)
+            or resposta_expa.get("sucesso") is not True
+        ):
+            status_expa_informado: Any = (
+                resposta_expa.get("status_code")
+                if isinstance(resposta_expa, dict)
+                else None
+            )
+            if (
+                not isinstance(status_expa_informado, int)
+                or isinstance(status_expa_informado, bool)
+                or not 400 <= status_expa_informado < 600
+            ):
+                status_expa_informado = HttpStatus.BAD_GATEWAY
+            log_resposta_externa(
+                logger,
+                "EXPA confirmação de conclusão",
+                status_expa_informado,
+                resposta_expa,
+            )
+            return (
+                _erro_integracao(
+                    "EXPA",
+                    status_expa_informado,
+                    resposta_expa,
+                    "O EXPA não confirmou a criação do cadastro.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        person_id: Any = resposta_expa.get("person_id")
+        if (
+            not isinstance(person_id, (str, int))
+            or isinstance(person_id, bool)
+            or not str(person_id).isdigit()
+            or int(person_id) <= 0
+        ):
+            log_resposta_externa(
+                logger,
+                "EXPA person_id ausente ou inválido na conclusão",
+                HttpStatus.BAD_GATEWAY,
+                resposta_expa,
+            )
+            return (
+                _erro_integracao(
+                    "EXPA",
+                    HttpStatus.BAD_GATEWAY,
+                    resposta_expa,
+                    "Resposta do EXPA sem person_id válido.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        payload_b2c: dict[str, Any] = body.model_dump(
+            mode="json",
+            exclude={"idProgramaExpa", "senha"},
+            exclude_none=True,
+        )
+        payload_b2c["idExpa"] = int(person_id)
+        payload_b2c["status"] = "completar-cadastro"
+        status_b2c, resposta_b2c = async_to_sync(enviar_lead_b2c)(payload_b2c)
+
+        status_informado: Any = (
+            resposta_b2c.get("status") if isinstance(resposta_b2c, dict) else None
+        )
+        if status_b2c == HttpStatus.CONFLICT or status_informado == HttpStatus.CONFLICT:
+            mensagem: str = _mensagem_conflito_b2c(resposta_b2c)
+            logger.info("Conclusão de cadastro B2C rejeitada por conflito")
+            return (
+                BaseErrorResponse(
+                    type="ConflictError",
+                    message=mensagem,
+                    error_details=[{"loc": "B2C", "msg": mensagem}],
+                    status_code=HttpStatus.CONFLICT,
+                ),
+                HttpStatus.CONFLICT,
+            )
+
+        if not 200 <= status_b2c < 300:
+            log_resposta_externa(
+                logger, "B2C conclusão de cadastro", status_b2c, resposta_b2c
+            )
+            return (
+                _erro_integracao(
+                    "B2C",
+                    status_b2c,
+                    resposta_b2c,
+                    "Falha ao concluir o cadastro B2C.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        status_falha: int | None = _status_falha_b2c(resposta_b2c)
+        if status_falha is not None:
+            resposta_falha: dict[str, Any] = _resposta_falha_b2c(resposta_b2c)
+            log_resposta_externa(
+                logger, "B2C conclusão de cadastro", status_falha, resposta_falha
+            )
+            return (
+                _erro_integracao(
+                    "B2C",
+                    status_falha,
+                    resposta_falha,
+                    "O Apps Script não confirmou a conclusão do cadastro.",
+                ),
+                HttpStatus.BAD_GATEWAY,
+            )
+
+        logger.info("Cadastro B2C concluído | lead %s", body.id)
+        return {"id": body.id, "status": "cadastro completo"}, HttpStatus.OK
 
 
 # ==============================================================================
@@ -430,4 +733,4 @@ class CadastroLeadView:
         return payload_b2c, status_b2c
 
 
-__all__ = ["cadastro_lead_view", "new_lead_ogx"]
+__all__ = ["cadastro_b2c_view", "cadastro_lead_view", "new_lead_ogx"]

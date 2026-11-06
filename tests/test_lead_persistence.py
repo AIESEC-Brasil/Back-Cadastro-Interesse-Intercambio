@@ -18,11 +18,14 @@ for key, value in {
 
 from app.cache import cache
 from app.controller import NewLeadOgxController as cadastro_controller
+from app import main as app_main
 from app.dto import (
+    CompletarCadastroB2C,
     CriarPreCadastroB2C,
     CriarPreCadastroLead,
     LeadPreCadastroOutput,
     QualificacaoLead,
+    ValidarLinkConclusaoB2C,
 )
 from app.dto.output import LeadPersistencia
 from app.utils.exception import validate_api_response
@@ -68,6 +71,25 @@ class LeadPersistenceTests(unittest.TestCase):
                 ]
             }
         }
+
+    def test_b2c_post_and_put_are_registered_on_the_same_route(self) -> None:
+        with patch.object(app_main, "async_to_sync", return_value=lambda: None):
+            app = app_main.create_app()
+
+        routes = [
+            rule
+            for rule in app.url_map.iter_rules()
+            if rule.rule == "/new-lead-ogx/cadastro-b2c"
+        ]
+        self.assertTrue(any("POST" in route.methods for route in routes))
+        self.assertTrue(any("PUT" in route.methods for route in routes))
+
+        validation_routes = [
+            rule
+            for rule in app.url_map.iter_rules()
+            if rule.rule == "/new-lead-ogx/cadastro-b2c/validar"
+        ]
+        self.assertTrue(any("POST" in route.methods for route in validation_routes))
 
     def test_contact_types_are_replaced_with_persistence_ids(self) -> None:
         lead = CriarPreCadastroLead(
@@ -241,7 +263,7 @@ class LeadPersistenceTests(unittest.TestCase):
             "async_to_sync",
             return_value=enviar_payload,
         ):
-            resposta, status = cadastro_controller.criar_pre_cadastro_b2c(lead)
+            resposta, status = cadastro_controller.CadastroB2CView().post(lead)
 
         self.assertEqual(status, 201)
         self.assertEqual(resposta.status, "pré-cadastro b2c")
@@ -291,7 +313,7 @@ class LeadPersistenceTests(unittest.TestCase):
             "async_to_sync",
             return_value=lambda payload: (200, resposta_b2c),
         ):
-            resposta, status = cadastro_controller.criar_pre_cadastro_b2c(lead)
+            resposta, status = cadastro_controller.CadastroB2CView().post(lead)
 
         self.assertEqual(status, 409)
         self.assertEqual(resposta.status_code, 409)
@@ -314,7 +336,7 @@ class LeadPersistenceTests(unittest.TestCase):
             return_value=lambda _payload: (200, resposta_email),
         ):
             conflito_email, status_email = (
-                cadastro_controller.criar_pre_cadastro_b2c(lead)
+                cadastro_controller.CadastroB2CView().post(lead)
             )
 
         self.assertEqual(status_email, 409)
@@ -325,6 +347,202 @@ class LeadPersistenceTests(unittest.TestCase):
         self.assertEqual(
             conflito_email.error_details[0].msg,
             "O e-mail 'ana@example.com' já pertence a outro cliente.",
+        )
+
+    def test_b2c_pre_registration_rejects_embedded_persistence_failure(self) -> None:
+        lead = CriarPreCadastroB2C(
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            dataNascimento=datetime(2000, 1, 2),
+            telefone=[{"tipo": "home", "numero": "11912345678"}],
+            email=[{"tipo": "home", "email": "ana@example.com"}],
+            produto={"id": 1, "id_expa": 7, "titulo": "Voluntário Global"},
+            autorizacao=1,
+            origem={"id": 4, "nome": "Instagram"},
+            comite={"id": 23, "nome": "AIESEC em São Paulo"},
+        )
+        resposta_b2c = {
+            "success": False,
+            "status": 500,
+            "error": "Aba 'Cliente' não encontrada.",
+        }
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda payload: (200, resposta_b2c),
+        ):
+            resposta, status = cadastro_controller.CadastroB2CView().post(lead)
+
+        self.assertEqual(status, 502)
+        self.assertEqual(
+            resposta.error_details[0].msg,
+            "Aba 'Cliente' não encontrada.",
+        )
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda payload: (200, "<html>Faça login no Google</html>"),
+        ):
+            resposta_html, status_html = (
+                cadastro_controller.CadastroB2CView().post(lead)
+            )
+
+        self.assertEqual(status_html, 502)
+        self.assertEqual(
+            resposta_html.error_details[0].msg,
+            "O Apps Script retornou uma resposta que não é JSON.",
+        )
+
+    def test_b2c_completion_put_forwards_completion_payload(self) -> None:
+        lead = CompletarCadastroB2C(
+            id=123,
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            emails=[{"tipo": "home", "email": "ana@example.com"}],
+            telefones=[{"tipo": "home", "numero": "11912345678"}],
+            dataNascimento=datetime(2000, 1, 2),
+            idProduto=1,
+            idProgramaExpa=7,
+            idComite=23,
+            nomeCL="são paulo",
+            idAutorizacao="1",
+            senha="StrongPass@123",
+            idiomas=[5],
+            curso="Administração",
+            semestre=8,
+        )
+        payload_b2c: dict[str, object] = {}
+        payload_expa: dict[str, object] = {}
+
+        def adapt_async(func):
+            if func is cadastro_controller.validar_link_conclusao_b2c:
+                return lambda id_cliente: (200, {"success": True, "id": id_cliente})
+
+            if func is cadastro_controller.enviar_payload_expa:
+                def enviar_expa(payload):
+                    payload_expa.update(
+                        payload.model_dump(mode="json", by_alias=True)
+                    )
+                    return 200, {"sucesso": True, "person_id": 98765}
+
+                return enviar_expa
+
+            def enviar_b2c(payload):
+                payload_b2c.update(payload)
+                return 200, {"success": True}
+
+            return enviar_b2c
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            side_effect=adapt_async,
+        ):
+            resposta, status = cadastro_controller.CadastroB2CView().put(lead)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(resposta, {"id": 123, "status": "cadastro completo"})
+        self.assertEqual(payload_expa["senha"], "StrongPass@123")
+        self.assertEqual(payload_expa["dataNascimento"], "2000-01-02")
+        self.assertEqual(payload_expa["programa"], 7)
+        self.assertEqual(payload_expa["email"], "ana@example.com")
+        self.assertEqual(payload_expa["telefone"], "11912345678")
+        self.assertEqual(payload_expa["nomeCL"], "são paulo")
+        self.assertEqual(payload_b2c["id"], 123)
+        self.assertEqual(payload_b2c["idExpa"], 98765)
+        self.assertEqual(payload_b2c["idProduto"], 1)
+        self.assertEqual(payload_b2c["idComite"], 23)
+        self.assertEqual(payload_b2c["idiomas"], [5])
+        self.assertEqual(payload_b2c["status"], "completar-cadastro")
+        self.assertNotIn("idProgramaExpa", payload_b2c)
+        self.assertNotIn("senha", payload_b2c)
+
+    def test_b2c_completion_does_not_update_sheet_when_expa_rejects(self) -> None:
+        lead = CompletarCadastroB2C(
+            id=123,
+            nome="Ana Maria",
+            sobrenome="Silva Santos",
+            emails=[{"tipo": "home", "email": "ana@example.com"}],
+            telefones=[{"tipo": "home", "numero": "11912345678"}],
+            dataNascimento=datetime(2000, 1, 2),
+            idProduto=1,
+            idProgramaExpa=7,
+            idComite=23,
+            nomeCL="são paulo",
+            idAutorizacao="1",
+            senha="StrongPass@123",
+        )
+        chamadas_b2c: list[dict[str, object]] = []
+
+        def adapt_async(func):
+            if func is cadastro_controller.validar_link_conclusao_b2c:
+                return lambda id_cliente: (200, {"success": True, "id": id_cliente})
+
+            if func is cadastro_controller.enviar_payload_expa:
+                return lambda payload: (
+                    200,
+                    {"sucesso": False, "status_code": 400, "error": "Dados inválidos."},
+                )
+
+            def enviar_b2c(payload):
+                chamadas_b2c.append(payload)
+                return 200, {"success": True}
+
+            return enviar_b2c
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            side_effect=adapt_async,
+        ):
+            resposta, status = cadastro_controller.CadastroB2CView().put(lead)
+
+        self.assertEqual(status, 502)
+        self.assertEqual(chamadas_b2c, [])
+        self.assertEqual(resposta.error_details[0].msg, "Dados inválidos.")
+
+    def test_b2c_completion_link_validation_forwards_internal_id(self) -> None:
+        chamadas: list[int] = []
+
+        def validar(id_cliente: int):
+            chamadas.append(id_cliente)
+            return 200, {"success": True, "id": id_cliente}
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=validar,
+        ):
+            resposta, status = cadastro_controller.validar_link_conclusao(
+                ValidarLinkConclusaoB2C(id=123)
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(resposta, {"valid": True})
+        self.assertEqual(chamadas, [123])
+
+    def test_b2c_completion_link_validation_rejects_completed_lead(self) -> None:
+        resposta_b2c = {
+            "success": False,
+            "status": 409,
+            "error": "Você já concluiu seu cadastro. Este link não é mais válido.",
+        }
+
+        with patch.object(
+            cadastro_controller,
+            "async_to_sync",
+            return_value=lambda _id: (200, resposta_b2c),
+        ):
+            resposta, status = cadastro_controller.validar_link_conclusao(
+                ValidarLinkConclusaoB2C(id=123)
+            )
+
+        self.assertEqual(status, 409)
+        self.assertEqual(
+            resposta.message,
+            "Você já concluiu seu cadastro. Este link não é mais válido.",
         )
 
     def test_b2c_pre_registration_rejects_expa_password(self) -> None:
