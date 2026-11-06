@@ -16,6 +16,7 @@ error_logger: logging.Logger = logging.getLogger("app.http.errors")
 
 NO_CACHE_ROUTES: set[str] = {
     "/api/docs",
+    "/new-lead-ogx/cadastro-b2c/validar",
     "/openapi",
     "/openapi/scalar",
     "/openapi/redoc",

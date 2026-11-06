@@ -6,7 +6,12 @@ from typing import Any
 from pydantic import BaseModel
 
 from ..cache.cache import capitalizar_nome
-from ..dto.input import CriarPreCadastroB2C, CriarPreCadastroLead, QualificacaoLead
+from ..dto.input import (
+    CompletarCadastroB2C,
+    CriarPreCadastroB2C,
+    CriarPreCadastroLead,
+    QualificacaoLead,
+)
 from ..dto.output import (
     LeadPersistencia,
     LeadPreCadastroB2CPersistencia,
@@ -277,6 +282,23 @@ def montar_payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
     )
 
 
+def montar_payload_expa_complemento(dados: CompletarCadastroB2C) -> PayloadExpa:
+    """Monta o payload EXPA com os dados enviados na conclusão B2C."""
+    from app.config import TOKEN_EXPA
+
+    return PayloadExpa(
+        nome=str(dados.nome).title(),
+        sobrenome=str(dados.sobrenome).title(),
+        senha=str(dados.senha),
+        data_nascimento=dados.dataNascimento.date().isoformat(),
+        programa=int(dados.idProgramaExpa),
+        nome_cl=dados.nomeCL,
+        telefone=str(dados.telefones[0].numero),
+        email=str(dados.emails[0].email),
+        token_expa=TOKEN_EXPA,
+    )
+
+
 def payload_expa(dados: CriarPreCadastroLead) -> PayloadExpa:
     """Nome histórico do builder de cadastro EXPA."""
     return montar_payload_expa(dados)
@@ -287,6 +309,7 @@ __all__ = [
     "montar_dto_pre_cadastro_b2c",
     "montar_dto_qualificacao_persistencia",
     "montar_payload_expa",
+    "montar_payload_expa_complemento",
     "montar_payload_persistencia",
     "payload_expa",
 ]
