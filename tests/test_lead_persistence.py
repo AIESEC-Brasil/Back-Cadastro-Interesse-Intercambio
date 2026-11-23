@@ -1,3 +1,5 @@
+"""Testes das rotas e payloads de pré-cadastro e qualificação de leads."""
+
 import os
 import unittest
 from datetime import datetime
@@ -33,6 +35,8 @@ from app.utils.payload import montar_dto_persistencia
 
 
 class LeadPersistenceTests(unittest.TestCase):
+    """Confere contratos B2C/EXPA e persistência das etapas do cadastro."""
+
     def setUp(self) -> None:
         cache.store.clear()
         options = {

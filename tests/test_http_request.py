@@ -1,3 +1,5 @@
+"""Testes de ciclo de vida do cliente HTTP assíncrono."""
+
 import asyncio
 import os
 from unittest import IsolatedAsyncioTestCase
@@ -20,6 +22,8 @@ from app.clients.http_request import HttpClient
 
 
 class HttpClientLifecycleTests(IsolatedAsyncioTestCase):
+    """Confere que clientes associados a loops encerrados são descartados."""
+
     async def test_skips_closing_client_when_its_event_loop_is_closed(self) -> None:
         client = HttpClient()
         old_client = AsyncMock(spec=httpx.AsyncClient)

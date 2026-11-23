@@ -1,3 +1,5 @@
+"""Testes dos modelos Pydantic e da tradução de erros de validação."""
+
 import os
 import unittest
 from unittest.mock import patch
@@ -18,19 +20,26 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 
 class IntegerInput(BaseModel):
+    """Modelo mínimo para exercitar erros de conversão de inteiros."""
+
     value: int
 
 
 class CustomInput(BaseModel):
+    """Modelo mínimo cuja validação gera uma mensagem customizada."""
+
     value: str
 
     @field_validator("value")
     @classmethod
     def validate_value(cls, value: str) -> str:
+        """Gera um erro para exercitar o fallback de tradução."""
         raise ValueError("custom validation message")
 
 
 class ValidationErrorResponseTests(unittest.TestCase):
+    """Valida o formato e as mensagens dos erros retornados pela API."""
+
     def test_integer_parsing_error_uses_portuguese_message_without_translation(
         self,
     ) -> None:

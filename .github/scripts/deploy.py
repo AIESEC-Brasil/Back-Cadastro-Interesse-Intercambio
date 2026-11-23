@@ -1,31 +1,65 @@
+"""Publica os arquivos permitidos do backend e recarrega a webapp no PythonAnywhere.
+
+O workflow fornece os segredos por variáveis de ambiente. O script materializa
+essas configurações num `.env` temporário, envia apenas arquivos de aplicação
+permitidos e nunca grava o arquivo gerado no checkout do Git.
+"""
+
 import os
 import shutil
 import tempfile
 import time
 from pathlib import Path
+from typing import TypedDict
 from urllib.parse import quote
 
 import requests
 from dotenv import set_key
 
-APP_ENV_NAMES = (
+class DeployConfig(TypedDict):
+    """Configuração validada e compartilhada pelas etapas do deploy."""
+
+    username: str
+    domain: str
+    project_dir: Path
+    remote_dir: str
+    app_env: dict[str, str]
+    session: requests.Session
+
+
+APP_ENV_NAMES: tuple[str, ...] = (
     "AMBIENTE", "CACHE_TTL", "DOMINIOS_PERMITIDOS", "API_KEYS_PERMITIDAS",
     "TOKEN_EXPA", "APPSCRIPT_EXPA",
     "APPSCRIPT_B2C", "APPSCRIPT_DIVISAO_MERCADO",
 )
-ALLOWED_DIRS = {"app", "doc"}
-ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
-LEGACY_ENV_FILES = (".env.dev", ".env.test")
-IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
-CREATED_DIRS = set()
+ALLOWED_DIRS: set[str] = {"app", "doc"}
+ALLOWED_FILES: set[str] = {".env.example", "requirements.txt", "server.py"}
+LEGACY_ENV_FILES: tuple[str, ...] = (".env.dev", ".env.test")
+IGNORED_SUBDIRS: set[str] = {
+    "__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"
+}
+CREATED_DIRS: set[str] = set()
 
-def required_env(name):
+
+def required_env(name: str) -> str:
+    """Lê uma variável de ambiente obrigatória do workflow.
+
+    Args:
+        name: Nome da variável ou do GitHub Actions Secret.
+
+    Returns:
+        Valor não vazio configurado no ambiente do processo.
+
+    Raises:
+        SystemExit: Se a variável não estiver configurada.
+    """
     value = os.environ.get(name)
     if not value:
         raise SystemExit(f"Configure o Actions secret obrigatório: {name}")
     return value
 
-def load_config():
+def load_config() -> DeployConfig:
+    """Valida credenciais e prepara caminhos e sessão da API PythonAnywhere."""
     username = required_env("PYTHONANYWHERE_USERNAME")
     session = requests.Session()
     session.headers.update({
@@ -40,12 +74,28 @@ def load_config():
         "session": session,
     }
 
-def api_url(config, path):
+def api_url(config: DeployConfig, path: str) -> str:
+    """Monta uma URL da API PythonAnywhere para o usuário configurado.
+
+    Args:
+        config: Configuração do deploy com o usuário da conta.
+        path: Caminho da API iniciado por `/`.
+
+    Returns:
+        URL absoluta e com o nome do usuário escapado.
+    """
     api_user = quote(config["username"], safe="")
     return f"https://www.pythonanywhere.com/api/v0/user/{api_user}{path}"
 
-def parse_null_bytes_file(file_path_str):
-    """Lê arquivos separados por NUL (\\0) gerados pelo git diff -z."""
+def parse_null_bytes_file(file_path_str: str) -> set[str]:
+    """Lê caminhos NUL-separated produzidos pelas opções `git diff -z`.
+
+    Args:
+        file_path_str: Caminho do arquivo temporário criado pelo workflow.
+
+    Returns:
+        Conjunto de caminhos relativos normalizados; vazio se o arquivo faltar.
+    """
     path = Path(file_path_str)
     if not path.exists():
         return set()
@@ -58,8 +108,17 @@ def parse_null_bytes_file(file_path_str):
         if item.strip()
     }
 
-def delete_remote_path(config, remote_path):
-    """Remove arquivo ou diretório (recursivamente se necessário) via API DELETE."""
+def delete_remote_path(config: DeployConfig, remote_path: str) -> bool:
+    """Remove um caminho remoto, esvaziando diretórios quando necessário.
+
+    Args:
+        config: Configuração e sessão autenticada da API PythonAnywhere.
+        remote_path: Caminho absoluto do arquivo ou diretório remoto.
+
+    Returns:
+        `True` quando removido ou ausente; `False` quando a API não consegue
+        concluir a remoção.
+    """
     url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
     response = config["session"].delete(url, timeout=60)
 
@@ -85,7 +144,16 @@ def delete_remote_path(config, remote_path):
     print(f"ERRO [{response.status_code}] ao deletar {remote_path}")
     return False
 
-def ensure_remote_dir(config, remote_path):
+def ensure_remote_dir(config: DeployConfig, remote_path: str) -> None:
+    """Garante que o diretório remoto exista, criando-o no máximo uma vez.
+
+    Args:
+        config: Configuração e sessão autenticada da API PythonAnywhere.
+        remote_path: Caminho absoluto do diretório a preparar.
+
+    Raises:
+        SystemExit: Se a API não conseguir criar ou confirmar o diretório.
+    """
     if remote_path in CREATED_DIRS:
         return
     url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -97,7 +165,23 @@ def ensure_remote_dir(config, remote_path):
     CREATED_DIRS.add(remote_path)
     time.sleep(2)
 
-def upload_file(config, local_path, remote_path, max_retries=3):
+def upload_file(
+    config: DeployConfig,
+    local_path: Path,
+    remote_path: str,
+    max_retries: int = 3,
+) -> bool:
+    """Envia um arquivo e repete em falhas temporárias da API.
+
+    Args:
+        config: Configuração e sessão autenticada da API PythonAnywhere.
+        local_path: Arquivo local a enviar.
+        remote_path: Destino absoluto no servidor.
+        max_retries: Número máximo de tentativas de envio.
+
+    Returns:
+        `True` quando o envio é concluído; `False` após falha definitiva.
+    """
     remote_parent = str(Path(remote_path).parent).replace("\\", "/")
     ensure_remote_dir(config, remote_parent)
     url = api_url(config, f"/files/path{quote(remote_path, safe='/')}")
@@ -133,7 +217,15 @@ def upload_file(config, local_path, remote_path, max_retries=3):
 
     return False
 
-def is_path_allowed(relative_path):
+def is_path_allowed(relative_path: str) -> bool:
+    """Indica se o caminho pertence à lista de conteúdo implantável.
+
+    Args:
+        relative_path: Caminho do repositório relativo à raiz do backend.
+
+    Returns:
+        `True` para arquivos ou diretórios explicitamente permitidos.
+    """
     parts = Path(relative_path).parts
     if not parts:
         return False
@@ -143,7 +235,15 @@ def is_path_allowed(relative_path):
         return True
     return False
 
-def process_deletions(config):
+def process_deletions(config: DeployConfig) -> int:
+    """Aplica no servidor as exclusões permitidas reportadas pelo GitHub Actions.
+
+    Args:
+        config: Configuração e sessão autenticada da API PythonAnywhere.
+
+    Returns:
+        Quantidade de caminhos remotos removidos com sucesso.
+    """
     deleted_paths = parse_null_bytes_file(required_env("DELETED_FILES_PATH"))
     total_deleted = 0
 
@@ -168,7 +268,16 @@ def process_deletions(config):
 
     return total_deleted
 
-def upload_project(config):
+def upload_project(config: DeployConfig) -> bool:
+    """Envia alterações permitidas, o `.env` gerado e limpa arquivos antigos.
+
+    Args:
+        config: Configuração do projeto, credenciais e sessão HTTP.
+
+    Returns:
+        `True` se houve implantação; `False` se não havia alterações aplicáveis
+        ou se algum arquivo não pôde ser enviado.
+    """
     project_dir = config["project_dir"]
     if not project_dir.is_dir():
         print(f"Erro local: pasta '{project_dir}' não encontrada")
@@ -249,7 +358,15 @@ def upload_project(config):
     print(f"\nConcluído! Total: {total_uploaded} enviados/atualizados, {total_deleted} deletados.")
     return True
 
-def reload_webapp(config):
+def reload_webapp(config: DeployConfig) -> None:
+    """Solicita à API PythonAnywhere o reload da aplicação publicada.
+
+    Args:
+        config: Configuração e sessão autenticada da API PythonAnywhere.
+
+    Raises:
+        SystemExit: Se a API responder com um status diferente de HTTP 200.
+    """
     url = api_url(
         config,
         f"/webapps/{quote(config['domain'], safe='')}/reload/",

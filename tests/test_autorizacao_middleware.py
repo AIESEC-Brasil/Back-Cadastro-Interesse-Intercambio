@@ -1,3 +1,5 @@
+"""Testes de autorização de host encaminhado por proxies reversos."""
+
 import os
 import unittest
 from unittest.mock import patch
@@ -19,6 +21,8 @@ from app.middlewares import autorizacao
 
 
 class ForwardedHostAuthorizationTests(unittest.TestCase):
+    """Confere prioridade e validação de Host, Origin e X-Forwarded-Host."""
+
     def setUp(self) -> None:
         self.app = Flask(__name__)
 

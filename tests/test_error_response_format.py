@@ -1,3 +1,5 @@
+"""Testes de negociação entre páginas HTML de erro e respostas JSON."""
+
 import os
 import unittest
 from pathlib import Path
@@ -19,6 +21,8 @@ from app.middlewares.registrando_endpoint import register_url
 
 
 class ErrorResponseFormatTests(unittest.TestCase):
+    """Confere o formato aplicado pelo middleware conforme o header Accept."""
+
     def setUp(self) -> None:
         template_folder = Path(__file__).resolve().parents[1] / "app" / "templates"
         self.app = Flask(__name__, template_folder=str(template_folder))
@@ -26,6 +30,7 @@ class ErrorResponseFormatTests(unittest.TestCase):
 
         @self.app.get("/api/test-error")
         def test_error() -> tuple[dict[str, str], int]:
+            """Fornece uma resposta 400 controlada para testar a apresentação."""
             return {"message": "erro"}, 400
 
         self.client = self.app.test_client()

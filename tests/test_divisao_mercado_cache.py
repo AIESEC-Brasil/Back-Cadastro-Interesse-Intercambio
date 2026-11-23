@@ -1,3 +1,5 @@
+"""Testes do cliente e do cache de metadados da divisão de mercado."""
+
 import asyncio
 import os
 import unittest
@@ -18,6 +20,8 @@ from app.clients.divisao_mercado import _endpoint
 
 
 class DivisaoMercadoCacheTests(unittest.TestCase):
+    """Confere normalização de endpoints e cache das respostas de mercado."""
+
     def test_endpoint_preserves_full_url(self) -> None:
         url = (
             "https://script.google.com/macros/s/deployment-id/exec/escritorios"
@@ -48,6 +52,7 @@ class DivisaoMercadoCacheTests(unittest.TestCase):
         cache = CacheManager()
 
         async def fetch() -> tuple[int, dict[str, object]]:
+            """Devolve a resposta de mercado controlada por este teste."""
             return 200, payload
 
         cached_payload, status = asyncio.run(

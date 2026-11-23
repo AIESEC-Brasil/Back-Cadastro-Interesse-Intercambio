@@ -1,9 +1,12 @@
+"""Testes para garantir que respostas externas não exponham dados sensíveis."""
+
 import logging
 
 from app.core.logger import log_resposta_externa
 
 
 def test_log_resposta_externa_redacts_sensitive_values(caplog) -> None:
+    """Verifica a redação de e-mails, telefones, tokens e campos sensíveis."""
     logger = logging.getLogger("test.integration")
 
     with caplog.at_level(logging.ERROR, logger=logger.name):

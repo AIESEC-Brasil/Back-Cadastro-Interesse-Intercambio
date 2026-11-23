@@ -1,3 +1,5 @@
+"""Envia ao Apps Script um resumo do resultado do workflow de deploy."""
+
 import datetime
 import json
 import os
