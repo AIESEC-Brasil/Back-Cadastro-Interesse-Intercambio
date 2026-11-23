@@ -10,7 +10,7 @@ from .http_request import HttpClient
 # ==============================================================================
 # CLIENTE DE CRIAÇÃO DE LEADS NO EXPA
 # ==============================================================================
-_http: HttpClient = HttpClient(timeout=60)
+_http: HttpClient = HttpClient(timeout=300)
 
 
 def _endpoint() -> str:
