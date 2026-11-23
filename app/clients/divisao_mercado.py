@@ -8,7 +8,7 @@ from .http_request import HttpClient
 # ==============================================================================
 # CLIENTE DE DIVISÃO DE MERCADO
 # ==============================================================================
-_http: HttpClient = HttpClient(timeout=300)
+_http: HttpClient = HttpClient(timeout=60)
 
 
 def _endpoint(configured_endpoint: str) -> str:
