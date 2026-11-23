@@ -177,8 +177,13 @@ class HttpClient:
 
         # Aplica o timeout personalizado se configurado
         if t is not None:
-            connect_timeout: float = min(10.0, t)  # Mantém o limite de conexão razoável
-            return httpx.Timeout(timeout=t, connect=connect_timeout, read=t)
+            return httpx.Timeout(
+                timeout=t,
+                connect=t,
+                read=t,
+                write=t,
+                pool=t,
+            )
 
         # Timeout padrão de infraestrutura para requisições convencionais
         return httpx.Timeout(

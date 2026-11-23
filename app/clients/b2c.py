@@ -9,7 +9,7 @@ from .http_request import HttpClient
 # ==============================================================================
 # CLIENTE DO FORMULÁRIO B2C
 # ==============================================================================
-_http: HttpClient = HttpClient(timeout=60)
+_http: HttpClient = HttpClient(timeout=300)
 
 
 def _endpoint() -> str:
