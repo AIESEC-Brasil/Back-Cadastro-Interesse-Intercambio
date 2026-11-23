@@ -15,6 +15,7 @@ APP_ENV_NAMES = (
 )
 ALLOWED_DIRS = {"app", "doc"}
 ALLOWED_FILES = {".env.example", "requirements.txt", "server.py"}
+LEGACY_ENV_FILES = (".env.dev", ".env.test")
 IGNORED_SUBDIRS = {"__pycache__", ".pytest_cache", ".git", ".vscode", ".idea"}
 CREATED_DIRS = set()
 
@@ -189,19 +190,13 @@ def upload_project(config):
                 "O arquivo .env.example é necessário como modelo documentado"
             )
 
-        env_file = Path(temp_dir) / ".env.dev"
+        env_file = Path(temp_dir) / ".env"
         shutil.copyfile(template_file, env_file)
         for name, value in config["app_env"].items():
             set_key(str(env_file), name, value, quote_mode="never")
 
-        test_env_file = Path(temp_dir) / ".env.test"
-        shutil.copyfile(template_file, test_env_file)
-        test_env = dict(config["app_env"])
-        for name, value in test_env.items():
-            set_key(str(test_env_file), name, value, quote_mode="never")
-
         files = []
-        for filename in sorted(ALLOWED_FILES - {".env.dev", ".env.test"}):
+        for filename in sorted(ALLOWED_FILES):
             if filename in changed_paths:
                 path = project_dir / filename
                 if path.is_file():
@@ -223,8 +218,7 @@ def upload_project(config):
                         files.append((path, relative))
 
         if files or total_deleted > 0:
-            files.append((env_file, ".env.dev"))
-            files.append((test_env_file, ".env.test"))
+            files.append((env_file, ".env"))
 
         files.sort(key=lambda item: item[1])
         if not files and total_deleted == 0:
@@ -241,6 +235,15 @@ def upload_project(config):
                 total_uploaded += 1
             else:
                 print()
+                return False
+
+        for filename in LEGACY_ENV_FILES:
+            remote_path = f"{config['remote_dir']}/{filename}"
+            print(f"Removendo arquivo legado: {filename} ...", end=" ", flush=True)
+            if delete_remote_path(config, remote_path):
+                print("OK")
+            else:
+                print("FALHA")
                 return False
 
     print(f"\nConcluído! Total: {total_uploaded} enviados/atualizados, {total_deleted} deletados.")
