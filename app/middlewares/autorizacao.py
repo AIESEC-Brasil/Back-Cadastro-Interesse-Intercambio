@@ -45,6 +45,12 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def _extrair_host(valor: Optional[str]) -> Optional[str]:
+    """Extrai host e porta de um cabeçalho Host, Origin ou Referer.
+
+    Valores sem esquema são tratados como autoridades (`//host`). Entradas
+    inválidas são devolvidas sem alteração para que a comparação posterior as
+    rejeite, em vez de interromper o middleware.
+    """
     if not valor:
         return None
     try:

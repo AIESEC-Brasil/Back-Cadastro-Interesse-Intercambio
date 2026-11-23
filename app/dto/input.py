@@ -88,16 +88,19 @@ class CompletarCadastroB2C(BaseModel):
     @field_validator("idProduto")
     @classmethod
     def validar_produto(cls, valor: int) -> int:
+        """Confere se o produto selecionado continua ativo nos metadados B2C."""
         return _validar_id_metadado("produto", valor)
 
     @field_validator("idComite")
     @classmethod
     def validar_comite(cls, valor: int) -> int:
+        """Confere se o escritório selecionado continua ativo nos metadados."""
         return _validar_id_metadado("aiesec_proxima", valor)
 
     @field_validator("idiomas")
     @classmethod
     def validar_idiomas(cls, valores: list[int] | None) -> list[int] | None:
+        """Valida cada idioma informado contra as opções ativas do formulário."""
         if valores is not None:
             for valor in valores:
                 _validar_id_metadado("idiomas", valor)
@@ -106,6 +109,7 @@ class CompletarCadastroB2C(BaseModel):
     @field_validator("area_atuacao")
     @classmethod
     def validar_area_atuacao(cls, valor: int | None) -> int | None:
+        """Valida a área de atuação quando ela foi enviada."""
         if valor is not None:
             _validar_id_metadado("area_atuacao", valor)
         return valor
@@ -113,6 +117,7 @@ class CompletarCadastroB2C(BaseModel):
     @field_validator("nivel_mercado")
     @classmethod
     def validar_nivel_mercado(cls, valor: int | None) -> int | None:
+        """Valida o nível de mercado quando ele foi enviado."""
         if valor is not None:
             _validar_id_metadado("nivel_mercado", valor)
         return valor
@@ -120,6 +125,7 @@ class CompletarCadastroB2C(BaseModel):
     @field_validator("semestre")
     @classmethod
     def validar_semestre(cls, valor: int | None) -> int | None:
+        """Valida o semestre do curso quando ele foi informado."""
         if valor is not None:
             _validar_id_metadado("semestre_curso", valor)
         return valor
