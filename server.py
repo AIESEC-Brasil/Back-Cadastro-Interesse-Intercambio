@@ -1,7 +1,7 @@
 """Ponto de entrada principal do servidor de aplicação.
 
 Este módulo orquestra a inicialização da aplicação executando as seguintes etapas:
-1. Carrega as variáveis de ambiente a partir do arquivo `.env.dev`.
+1. Carrega as variáveis de ambiente a partir do arquivo `.env`.
 2. Configura a localização/idioma e o sistema de logging global.
 3. Inicializa a instância da aplicação Flask via Application Factory (`create_app`).
 4. Executa o servidor de desenvolvimento interno do Flask ou o servidor WSGI
@@ -18,8 +18,8 @@ from dotenv import load_dotenv  # Biblioteca para carregar variáveis de ambient
 # Localiza o caminho absoluto do diretório onde este script está sendo executado
 path_atual: str = os.path.dirname(os.path.abspath(__file__))
 
-# Concatena o caminho absoluto com o arquivo '.env.dev' e injeta as variáveis no os.environ
-load_dotenv(os.path.join(path_atual, ".env.dev"))
+# Concatena o caminho absoluto com o arquivo '.env' e injeta as variáveis no os.environ
+load_dotenv(os.path.join(path_atual, ".env"))
 
 # =================================================================
 # 2. INICIALIZAÇÃO DE LOGGING E RECURSOS CORE
